@@ -71,6 +71,17 @@ describe("validateWriteup", () => {
     expect(w.differences.map((d) => d.cites)).toEqual([["t1", "t4"]]);
   });
 
+  it("drops forecast sentences from the summary when others remain", () => {
+    const w = validateWriteup({
+      ...good,
+      summary: [
+        { text: "The Senate passed a funding bill.", sources: ["s1"] },
+        { text: "Observers say the vote could reshape the budget fight.", sources: ["s2"] },
+      ],
+    }, items)!;
+    expect(w.summary.map((x) => x.text)).toEqual(["The Senate passed a funding bill."]);
+  });
+
   it("falls back to world for an unknown topic", () => {
     expect(validateWriteup({ ...good, topic: "gossip" }, items)?.topic).toBe("world");
   });

@@ -15,7 +15,7 @@ export const SUMMARY_MODEL = "@cf/openai/gpt-oss-120b";
  * 8: no hedged ("could", "may", "likely") why-lines at all.
  * 9: current officeholders in the prompt, so titles stay consistent across stories.
  */
-export const WRITEUP_VERSION = 14;
+export const WRITEUP_VERSION = 15;
 
 /**
  * Facts that change rarely but that the model, trained earlier, tends to get wrong. Keep current: they go
@@ -220,7 +220,8 @@ export function validateWriteup(raw: unknown, items: readonly SourceItem[]): Wri
   });
   if (summary.length === 0) return null;
   // How outlets covered it belongs in differences, not the summary; drop such sentences if others remain.
-  const aboutEvent = summary.filter((s) => !aboutCoverage(s.text));
+  // Forecasts ("could reshape...") are dropped too: Tare reports what happened, not what might.
+  const aboutEvent = summary.filter((s) => !aboutCoverage(s.text) && !speculative(s));
   const kept = aboutEvent.length > 0 ? aboutEvent : summary;
 
   const differences = r.differences.flatMap((d) => {
