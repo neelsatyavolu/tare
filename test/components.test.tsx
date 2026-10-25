@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { coverageOf } from "../src/build/select";
-import { cardLine, type Source, type Story } from "../src/editions";
+import { cardLine, shownSummary, type Source, type Story } from "../src/editions";
 import { outletById, SIDE_SIZE } from "../src/outlets";
 import { badge, kindLabel, orderedSources, readFirst, Scale, StoryCard, strongest } from "../src/web/components";
 
@@ -139,5 +139,13 @@ describe("cardLine", () => {
     const echo: Story = { ...story, dek: { text: "Something happened.", cites: ["i0"] } };
     expect(cardLine(echo)).toBe("");
     expect(cardLine({ ...story, dek: { text: "A fresh detail.", cites: ["i0"] } })).toBe("A fresh detail.");
+  });
+});
+
+describe("shownSummary", () => {
+  it("leaves out a sentence that only restates the headline", () => {
+    const echo: Story = { ...story, summary: [{ text: "Something happened.", cites: ["i0"] }, ...story.summary] };
+    expect(shownSummary(echo).map((x) => x.text)).toEqual(story.summary.map((x) => x.text));
+    expect(shownSummary({ ...story, summary: [{ text: "Something happened.", cites: ["i0"] }] })).toHaveLength(1);
   });
 });

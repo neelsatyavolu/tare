@@ -1,7 +1,7 @@
 import { createContext, useContext, type Child, type FC } from "hono/jsx";
 import type { Subscriber } from "../subscribers";
 import { leanReading, type Coverage } from "../build/select";
-import { cardLine, orderedSources, type Source, type Story } from "../editions";
+import { cardLine, orderedSources, shownSummary, type Source, type Story } from "../editions";
 import { readFirst, readFirstLabel, WELL_KNOWN } from "../read-first";
 
 export { orderedSources } from "../editions";
@@ -183,7 +183,7 @@ export const StoryCard: FC<{ story: Story; sources: Map<string, Source>; lead?: 
       <Kicker story={story} />
       <Heading>{page ? story.headline : <a href={href}>{story.headline}</a>}</Heading>
       <p class="summary">
-        {story.summary.map((s) => (
+        {shownSummary(story).map((s) => (
           <>{s.text}<Cites cites={s.cites} numbers={numbers} base={base} />{" "}</>
         ))}
       </p>

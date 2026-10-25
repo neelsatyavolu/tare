@@ -1,4 +1,4 @@
-import { cardLine, type Edition, type Source, type Story } from "../editions";
+import { cardLine, shownSummary, type Edition, type Source, type Story } from "../editions";
 import { readFirstLabel } from "../read-first";
 import { frontOrder } from "../build/select";
 import { coverageLine, esc, longDate } from "../format";
@@ -92,7 +92,7 @@ function photoHtml(p: EmailPhoto, href: string): string {
  * The same text as the site, so the email never tells a different story: the lead gets its full summary,
  * like the lead on the site; every other story gets its card line.
  */
-const lineOf = (s: Story, lead = false) => (lead ? s.summary.map((x) => x.text).join(" ") : cardLine(s));
+const lineOf = (s: Story, lead = false) => (lead ? shownSummary(s).map((x) => x.text).join(" ") : cardLine(s));
 
 /** The lead's "Background" or "Read first" link, as on the site. */
 const firstReadHtml = (src: Source) =>

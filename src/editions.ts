@@ -96,10 +96,20 @@ export async function sourcesFor(db: D1Database, stories: readonly Story[]): Pro
  * sentence. When that line only restates the headline (the write-up's fallback), the card shows the headline
  * alone: the next sentence may be a reaction, which would read as the event.
  */
+export const restatesHeadline = (s: Story, text: string) => {
+  const same = (a: string) => a.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return same(text) === same(s.headline);
+};
+
+/** The summary as shown under its headline: a sentence that only restates the headline is left out when others remain. */
+export function shownSummary(s: Story): Story["summary"] {
+  const rest = s.summary.filter((x) => !restatesHeadline(s, x.text));
+  return rest.length > 0 ? rest : s.summary;
+}
+
 export function cardLine(s: Story): string {
   const line = (s.dek ?? s.summary[0])?.text ?? "";
-  const same = (a: string) => a.toLowerCase().replace(/[^a-z0-9]/g, "");
-  return same(line) === same(s.headline) ? "" : line;
+  return restatesHeadline(s, line) ? "" : line;
 }
 
 /** A story's sources in display order (left, center, right, then by outlet), which fixes the citation numbers. */
