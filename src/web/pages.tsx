@@ -2,7 +2,7 @@ import { utcDate } from "../util";
 import type { EditionChoice } from "../slots";
 import { REPORT_MAX, REPORT_MIN } from "../reports";
 import type { Child, FC } from "hono/jsx";
-import { BALANCE, BLINDSPOT, FRESH_HOURS, FRONT_BY_BREADTH, MIN_OUTLETS, SECTION_MIN_OUTLETS } from "../build/select";
+import { BALANCE, BLINDSPOT, FRESH_HOURS, SECTION_CAPS, FRONT_BY_BREADTH, MIN_OUTLETS, SECTION_MIN_OUTLETS } from "../build/select";
 import { IMPORTANCE_RUBRIC } from "../build/classify";
 import type { Edition, Source, Story } from "../editions";
 import { longDate, shortDate } from "../format";
@@ -137,7 +137,7 @@ export const MethodPage: FC = () => (
       <p>Every hour Tare groups the last 24 hours of headlines by event, using text embeddings to spot headlines about the same thing, and sorts each group into a section. It does this every hour, so breaking stories appear within the hour, and it applies the same fixed rules every time. There's no algorithm tuned to you: nothing is ranked by clicks, shares or what you've read.</p>
       <ol>
         <li>The <b>front page</b> is the {BALANCE.front} most important stories that outlets on both the left and the right reported. Each story's score is its importance on the scale below plus a small bonus for how many outlets covered it, capped at 1.5, so wide coverage breaks ties but can't lift a minor story past a more important one. Important stories (4 or 5 on the scale) also get a bonus for being new, which fades over {FRESH_HOURS} hours, so the newest important news leads. A story that {FRONT_BY_BREADTH} or more outlets covered also gets a front slot, unless it is rated minor. Everyone gets the front page, whatever topics they choose.</li>
-        <li>Every <b>section</b> (world, U.S., politics, business, technology, science, climate, culture and sports) gets up to {BALANCE.perSection} of its most widely covered stories with at least {MIN_OUTLETS} outlets, listed most important first (same score as the front page). A section short of that fills up with stories {SECTION_MIN_OUTLETS} outlets covered, after the wider ones, so every section has something to read and one busy topic can't crowd out the rest.</li>
+        <li>Every <b>section</b> (world, U.S., politics, business, technology, science, climate, culture and sports) gets up to {SECTION_CAPS.world} of its most widely covered stories ({SECTION_CAPS.science} to {SECTION_CAPS.business} in the quieter sections: business, technology, science, climate and culture) with at least {MIN_OUTLETS} outlets, listed most important first (same score as the front page). A section short of that fills up with stories {SECTION_MIN_OUTLETS} outlets covered, after the wider ones, so every section has something to read and one busy topic can't crowd out the rest.</li>
         <li>A <b>blindspot</b> is a story at least {BLINDSPOT.minCount} outlets and {Math.round(BLINDSPOT.minShare * 100)}% of one side covered while at most {BLINDSPOT.maxOther} outlet on the other side did, with at least {BLINDSPOT.minTotal} outlets in all. Before calling it one, Tare checks every headline the other side published that day for a looser match; if it finds one, it isn't a blindspot. Up to {BALANCE.blindspots} make each edition.</li>
       </ol>
       <p>Picking topics in your account only changes the order: your sections come first. You still see everything else.</p>

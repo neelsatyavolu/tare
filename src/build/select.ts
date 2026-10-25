@@ -111,8 +111,12 @@ export function rankGroups<T extends { outletId: string; publishedAt: number }>(
     .sort((a, b) => b.coverage.total - a.coverage.total || b.latest - a.latest);
 }
 
-export type BalanceOptions = { front: number; perSection: number; blindspots: number; max: number };
-export const BALANCE: BalanceOptions = { front: 6, perSection: 6, blindspots: 3, max: 50 };
+/** `sections` sets a cap per section; sections not listed use `perSection`. */
+export type BalanceOptions = { front: number; perSection: number; sections?: Partial<Record<TopicId, number>>; blindspots: number; max: number };
+
+/** Busy sections get room for a real page of news; quieter ones a handful. Even numbers fill the two-column grid. */
+export const SECTION_CAPS: Record<TopicId, number> = { world: 10, us: 10, politics: 10, sports: 10, business: 6, tech: 6, culture: 6, science: 4, climate: 4 };
+export const BALANCE: BalanceOptions = { front: 6, perSection: 6, sections: SECTION_CAPS, blindspots: 3, max: 80 };
 
 /**
  * Which groups get written up. Fixed rules, no personalization and no engagement signals:
@@ -139,7 +143,7 @@ export function pickBalanced<C extends Candidate<unknown> & { topic: TopicId | n
     // section has something to read without a thin story pushing out a widely covered one.
     const wideEnough = inSection.filter((c) => c.coverage.total >= MIN_OUTLETS);
     const narrow = inSection.filter((c) => c.coverage.total >= SECTION_MIN_OUTLETS && c.coverage.total < MIN_OUTLETS && (c.importance ?? 0) >= 2);
-    [...wideEnough, ...narrow].slice(0, opts.perSection).forEach((c) => chosen.add(c));
+    [...wideEnough, ...narrow].slice(0, opts.sections?.[topic] ?? opts.perSection).forEach((c) => chosen.add(c));
   }
 
   wide

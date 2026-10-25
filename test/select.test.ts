@@ -219,3 +219,12 @@ describe("frontPage", () => {
     expect([...frontPage([skipped, minorSkipped], 5)].map((s) => s.id)).toEqual(["s"]);
   });
 });
+
+describe("section caps", () => {
+  it("gives busy sections room for ten stories and quieter ones fewer", () => {
+    const groups = (topic: TopicId, n: number) => Array.from({ length: n }, (_, i) => ({ id: `${topic}${i}`, topic, importance: 3, blindspot: null, latest: 0, members: [], coverage: coverageOf([L[i % L.length]!, R[i % R.length]!, C[i % C.length]!]) }));
+    const picked = pickBalanced([...groups("world", 14), ...groups("science", 8)], { front: 0, perSection: 6, sections: { world: 10, science: 4 }, blindspots: 0, max: 80 });
+    expect(picked.filter((p) => p.topic === "world")).toHaveLength(10);
+    expect(picked.filter((p) => p.topic === "science")).toHaveLength(4);
+  });
+});
