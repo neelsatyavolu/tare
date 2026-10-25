@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clean, extractJson, repeats, replyText, sourceBlock, speculative, splitInline, summarize, validateWriteup, type AiRunner, type SourceItem } from "../src/build/summarize";
+import { aboutCoverage, clean, extractJson, repeats, replyText, sourceBlock, speculative, splitInline, summarize, validateWriteup, type AiRunner, type SourceItem } from "../src/build/summarize";
 
 const items: SourceItem[] = [
   { id: "i1", outletId: "vox", title: "Senate passes funding bill", snippet: "The vote was 52-48." },
@@ -164,5 +164,14 @@ describe("clean", () => {
   it("collapses whitespace and rewrites an 'at least X to Y' range", () => {
     expect(clean("  A shooting   injured at least 11 to 12 people. ")).toBe("A shooting injured 11 or 12 people.");
     expect(clean("At least 11 people were hurt.")).toBe("At least 11 people were hurt.");
+  });
+});
+
+describe("aboutCoverage", () => {
+  it("spots sentences about how outlets covered the story", () => {
+    expect(aboutCoverage("Some outlets note that Bolsonaro is backed by President Donald Trump.")).toBe(true);
+    expect(aboutCoverage("Several media highlight U.S. involvement in the race.")).toBe(true);
+    expect(aboutCoverage("A shooting injured 11 or 12 people, depending on the outlet.")).toBe(false);
+    expect(aboutCoverage("Fox News reported that the toll rose to nine.")).toBe(false);
   });
 });

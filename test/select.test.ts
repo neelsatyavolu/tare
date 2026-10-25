@@ -181,6 +181,15 @@ describe("frontPage", () => {
     expect([...frontPage([letter, rally, attack], 3)].map((s) => s.id)).toEqual(["attack", "letter", "rally"]);
   });
 
+  it("keeps a front slot for a story most of the press covered, unless it's minor", () => {
+    const major = (id: string) => ({ id, importance: 5, blindspot: null, coverage: coverageOf([L[0]!, R[0]!, C[0]!, C[1]!, C[2]!, C[3]!]) });
+    const wide17 = [...L.slice(0, 5), ...C.slice(0, 7), ...R.slice(0, 5)];
+    const protests = { id: "protests", importance: 3, blindspot: null, coverage: coverageOf(wide17) };
+    const rally = { id: "rally", importance: 2, blindspot: null, coverage: coverageOf(wide17) };
+    const ids = [...frontPage([major("a"), major("b"), protests, rally], 2)].map((s) => s.id);
+    expect(ids).toEqual(["a", "b", "protests"]);
+  });
+
   it("lets a very important story one side skipped lead, as a possible blindspot", () => {
     const skipped = { id: "s", importance: 4, blindspot: "right" as const, coverage: coverageOf([...L.slice(0, 4), C[0]!, C[1]!]) };
     const minorSkipped = { ...skipped, id: "m", importance: 3 };

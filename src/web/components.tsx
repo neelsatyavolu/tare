@@ -187,7 +187,11 @@ export const StoryCard: FC<{ story: Story; sources: Map<string, Source>; lead?: 
             {page ? (
               <ul class="quoted">
                 {strongest(d.cites, sources).map((s) => (
-                  <li><span class="outlet">{s.outlet.name} · {LEAN_LABEL[s.outlet.lean]}</span> <a href={s.url} rel="noopener noreferrer nofollow" target="_blank">{s.title}</a></li>
+                  <li>
+                    <span class="outlet">{s.outlet.name} · {LEAN_LABEL[s.outlet.lean]}</span> <a href={s.url} rel="noopener noreferrer nofollow" target="_blank">{s.title}</a>
+                    {/* The description often holds the detail that differs, so it's quoted too. */}
+                    {s.snippet ? <q class="snippet">{excerpt(s.snippet)}</q> : null}
+                  </li>
                 ))}
               </ul>
             ) : null}
@@ -232,6 +236,8 @@ const Kicker: FC<{ story: Story; tag?: boolean }> = ({ story, tag = false }) => 
   );
 };
 
+const excerpt = (s: string) => (s.length > 220 ? `${s.slice(0, 220).replace(/\s+\S*$/, "")}…` : s);
+
 /** One marker per card: "Updated" when the write-up was redone later in the day, else "New" for the first hours. */
 export function badge(story: Story, now = Date.now()): "New" | "Updated" | null {
   if (story.writtenAt && story.firstSeenAt && story.writtenAt - story.firstSeenAt > 3600_000 && now - story.writtenAt < NEW_FOR_MS) return "Updated";
@@ -239,20 +245,21 @@ export function badge(story: Story, now = Date.now()): "New" | "Updated" | null 
   return null;
 }
 
-/** At most two headlines per difference: one from each side when both sides are cited. */
+/** At most two quoted sources per difference: the first two cited, which the write-up lists as its clearest example. */
 export function strongest(cites: readonly string[], sources: Map<string, Source>): Source[] {
-  const cited = cites.map((id) => sources.get(id)).filter((s): s is Source => !!s);
-  const left = cited.find((s) => sideOf(s.outlet.lean) === "left");
-  const right = cited.find((s) => sideOf(s.outlet.lean) === "right");
-  return (left && right ? [left, right] : cited).slice(0, 2);
+  return cites.map((id) => sources.get(id)).filter((s): s is Source => !!s).slice(0, 2);
 }
 
-/** The single article to start with: a center outlet first, then unrated, then a side; well-known names first within each. */
+/**
+ * The single article to start with: a center outlet first, then unrated, then a side; within each, the one the
+ * summary relies on most (the plainest account of the event), then the best-known name.
+ */
 export function readFirst(story: Story, sources: Map<string, Source>): Source | null {
   const group = (s: Source) => ({ center: 0, left: 2, right: 2 } as const)[sideOf(s.outlet.lean) ?? "center"] + (sideOf(s.outlet.lean) === null ? 1 : 0);
+  const cited = (s: Source) => story.summary.filter((x) => x.cites.includes(s.id)).length;
   const fame = (s: Source) => (WELL_KNOWN.indexOf(s.outlet.id) + 1) || WELL_KNOWN.length + 1;
   const list = story.itemIds.map((id) => sources.get(id)).filter((s): s is Source => !!s);
-  return [...list].sort((a, b) => group(a) - group(b) || fame(a) - fame(b))[0] ?? null;
+  return [...list].sort((a, b) => group(a) - group(b) || cited(b) - cited(a) || fame(a) - fame(b))[0] ?? null;
 }
 
 /** Outlets readers know, shown by name so "8 outlets" doesn't read as fringe. Order is display priority. */

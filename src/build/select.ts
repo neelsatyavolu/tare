@@ -71,7 +71,7 @@ export function leanReading(c: Coverage): LeanReading {
   const rs = c.right / SIDE_SIZE.right;
   // When center outlets covered it more than either side, that's the honest headline about its coverage.
   if (c.center > c.left && c.center > c.right && c.left > 0 && c.right > 0) {
-    return { key: "center-led", sentence: `Center outlets covered it most (C ${c.center} · L ${c.left} · R ${c.right})`, tag: "Center led" };
+    return { key: "center-led", sentence: `Center outlets covered it most (C ${c.center} · L ${c.left} · R ${c.right})`, tag: "More center coverage" };
   }
   if (c.right >= 3 && c.right >= 2 * c.left && rs >= 2 * ls) return { key: "more-right", sentence: "More right- than left-leaning coverage", tag: "More right-leaning coverage" };
   if (c.left >= 3 && c.left >= 2 * c.right && ls >= 2 * rs) return { key: "more-left", sentence: "More left- than right-leaning coverage", tag: "More left-leaning coverage" };
@@ -122,7 +122,7 @@ export function pickBalanced<C extends Candidate<unknown> & { topic: TopicId | n
   const ranked = all.filter((c) => c.importance !== 1);
   const wide = ranked.filter((c) => c.coverage.total >= MIN_OUTLETS);
 
-  wide.filter(frontEligible).sort(frontOrder).slice(0, opts.front).forEach((c) => chosen.add(c));
+  frontPage(wide, opts.front).forEach((c) => chosen.add(c));
 
   for (const topic of TOPIC_IDS) {
     const inSection = ranked.filter((c) => c.topic === topic && !chosen.has(c)).sort(sectionOrder);
@@ -171,8 +171,15 @@ const frontEligible = (s: Weighed & { blindspot?: Blindspot }) => {
  * right reported, plus very important ones one side skipped; widest first on ties.
  */
 export function frontPage<T extends Weighed & { blindspot?: Blindspot }>(stories: readonly T[], size: number): Set<T> {
-  return new Set([...stories].filter(frontEligible).sort(frontOrder).slice(0, size));
+  const eligible = [...stories].filter(frontEligible).sort(frontOrder);
+  const top = eligible.slice(0, size);
+  // A story most of the press covered keeps a front slot (up to FRONT_EXTRA more), unless it's rated minor.
+  const wide = eligible.slice(size).filter((s) => s.coverage.total >= FRONT_BY_BREADTH && (s.importance ?? 0) >= MIN_IMPORTANCE);
+  return new Set([...top, ...wide.slice(0, FRONT_EXTRA)]);
 }
+
+/** How many extra front slots very widely covered stories can take beyond the front page's size. */
+export const FRONT_EXTRA = 2;
 
 /**
  * Front-page score: importance, plus a bonus for breadth that is capped at 1.5, so consequence leads and

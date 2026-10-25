@@ -88,10 +88,17 @@ describe("card helpers", () => {
     expect(badge({ ...story, firstSeenAt: now - 9 * 3600_000 }, now)).toBeNull();
   });
 
-  it("quotes at most two headlines per difference, one from each side when it can", () => {
-    // i0 Fox (right), i1 Vox (left), i2 Axios (center).
-    expect(strongest(["i2", "i0", "i1"], sources).map((s) => s.outlet.id)).toEqual(["vox", "fox"]);
-    expect(strongest(["i2", "i3", "i5"], sources)).toHaveLength(2);
+  it("quotes the first two cited sources, which the write-up lists as its clearest example", () => {
+    expect(strongest(["i2", "i0", "i1"], sources).map((s) => s.outlet.id)).toEqual(["axios", "fox"]);
+    expect(strongest(["missing", "i3"], sources).map((s) => s.outlet.id)).toEqual(["nyt"]);
+  });
+
+  it("quotes the source's description under its headline on the story page", async () => {
+    const withSnippet = new Map(sources);
+    withSnippet.set("i0", { ...sources.get("i0")!, snippet: "Officials said nine people died." });
+    const differing: Story = { ...story, differences: [{ kind: "fact", text: "Tolls differ.", cites: ["i0", "i1"] }] };
+    const html = await render(<StoryCard story={differing} sources={withSnippet} page />);
+    expect(html).toContain('<q class="snippet">Officials said nine people died.</q>');
   });
 
   it("starts readers at a well-known center outlet", async () => {

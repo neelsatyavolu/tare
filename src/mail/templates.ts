@@ -102,7 +102,8 @@ function storyText(s: Story, appUrl: string): string {
 }
 
 const alsoHtml = (s: Story, appUrl: string) =>
-  `<tr><td style="padding:10px 0;border-bottom:1px solid ${C.rule};font:17px/1.4 ${SERIF}"><a href="${esc(`${appUrl}/s/${s.id}`)}" style="color:${C.ink};text-decoration:none">${esc(s.headline)}</a> <span style="font:12px ${MONO};color:${C.ink3}">${s.coverage.total} outlets</span></td></tr>`;
+  `<tr><td style="padding:12px 0;border-bottom:1px solid ${C.rule};font:17px/1.4 ${SERIF}"><a href="${esc(`${appUrl}/s/${s.id}`)}" style="color:${C.ink};text-decoration:none">${esc(s.headline)}</a> <span style="font:12px ${MONO};color:${C.ink3}">${s.coverage.total} outlets</span>
+<p style="margin:4px 0 0;font:15px/1.5 ${SERIF};color:${C.ink2}">${esc(lineOf(s))}</p></td></tr>`;
 
 const section = (title: string) => `<tr><td style="padding:28px 0 0">${kicker(title)}<div style="border-top:1px solid ${C.ink}"></div></td></tr>`;
 
@@ -128,7 +129,7 @@ ${d.also.length ? section("Also today") + d.also.map((s) => alsoHtml(s, appUrl))
   const text = [
     `TARE · ${longDate(edition.date)}`,
     ...shown.map(([title, list]) => `\n${title.toUpperCase()}\n\n${list.map((s) => storyText(s, appUrl)).join("\n\n")}`),
-    ...(d.also.length ? [`\nALSO TODAY\n\n${d.also.map((s) => `${s.headline} (${s.coverage.total} outlets)\n${appUrl}/s/${s.id}`).join("\n\n")}`] : []),
+    ...(d.also.length ? [`\nALSO TODAY\n\n${d.also.map((s) => `${s.headline} (${s.coverage.total} outlets)\n${lineOf(s)}\n${appUrl}/s/${s.id}`).join("\n\n")}`] : []),
     `\nThat's the edition. Read it with every source: ${appUrl}/e/${edition.date}`,
     `\nChange topics or unsubscribe: ${manageUrl}`,
   ].join("\n");

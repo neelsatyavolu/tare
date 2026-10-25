@@ -5,7 +5,7 @@ import { isTopicId } from "./topics";
 
 export type Edition = { date: string; number: number; status: "building" | "ready" | "failed"; itemCount: number; builtAt: number | null; sentAt: number | null };
 export type Story = Omit<BuiltStory, "coverage"> & { editionDate: string; coverage: Coverage; firstSeenAt: number | null; writtenAt: number | null };
-export type Source = { id: string; outlet: Outlet; title: string; url: string; publishedAt: number; imageUrl: string | null };
+export type Source = { id: string; outlet: Outlet; title: string; url: string; publishedAt: number; imageUrl: string | null; snippet?: string };
 
 type EditionRow = { date: string; number: number; status: Edition["status"]; item_count: number; built_at: number | null; sent_at: number | null };
 type StoryRow = {
@@ -80,12 +80,12 @@ export async function sourcesFor(db: D1Database, stories: readonly Story[]): Pro
   for (let i = 0; i < ids.length; i += 90) {
     const chunk = ids.slice(i, i + 90);
     const { results } = await db
-      .prepare(`SELECT id, outlet_id, title, url, published_at, image_url FROM items WHERE id IN (${chunk.map(() => "?").join(",")})`)
+      .prepare(`SELECT id, outlet_id, title, url, published_at, image_url, snippet FROM items WHERE id IN (${chunk.map(() => "?").join(",")})`)
       .bind(...chunk)
-      .all<{ id: string; outlet_id: string; title: string; url: string; published_at: number; image_url: string | null }>();
+      .all<{ id: string; outlet_id: string; title: string; url: string; published_at: number; image_url: string | null; snippet: string }>();
     for (const r of results) {
       const outlet = outletById(r.outlet_id);
-      if (outlet) out.set(r.id, { id: r.id, outlet, title: r.title, url: r.url, publishedAt: r.published_at, imageUrl: r.image_url });
+      if (outlet) out.set(r.id, { id: r.id, outlet, title: r.title, url: r.url, publishedAt: r.published_at, imageUrl: r.image_url, snippet: r.snippet || undefined });
     }
   }
   return out;
