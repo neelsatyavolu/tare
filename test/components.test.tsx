@@ -25,6 +25,7 @@ const story: Story = {
   itemIds: [...sources.keys()],
   imageItemId: "i2",
   firstSeenAt: null,
+  importance: 4,
 };
 
 const render = async (node: unknown) => String(await Promise.resolve(node));
@@ -71,7 +72,7 @@ describe("Scale", () => {
   it("places the needle by balance and describes it for screen readers", async () => {
     const html = await render(<Scale c={coverageOf(["fox", "nypost", "breitbart", "axios"])} />);
     expect(html).toContain("left:100.0%");
-    expect(html).toContain("Mostly covered by the right");
+    expect(html).toContain("Mostly right-leaning outlets covered it");
     expect(html).toContain(`0 of ${SIDE_SIZE.left} left outlets`);
   });
 });

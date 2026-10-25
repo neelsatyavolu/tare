@@ -1,13 +1,13 @@
 import type { TopicId } from "../topics";
 import { mapLimit, sha256Hex, utcDate } from "../util";
-import { classifyGroups } from "./classify";
+import { classifyGroups, type Classification } from "./classify";
 import { clusterItems, dot, normalize, type Embedded } from "./cluster";
 import { outletById, sideOf } from "../outlets";
 import { decodeVector, embedPending } from "./embed";
 import { matchStories, needsRewrite } from "./match";
 import { pickImage } from "./photos";
-import { blindspotOf, coverageOf, frontPage, pickBalanced, rankGroups, SECTION_MIN_OUTLETS, type Blindspot, type Candidate, type Coverage } from "./select";
-import { summarize, type AiRunner, type Cited, type Difference, type SourceItem } from "./summarize";
+import { blindspotOf, byWeight, coverageOf, frontPage, pickBalanced, rankGroups, SECTION_MIN_OUTLETS, type Blindspot, type Candidate, type Coverage } from "./select";
+import { summarize, WRITEUP_VERSION, type AiRunner, type Cited, type Difference, type SourceItem } from "./summarize";
 
 export { pickImage } from "./photos";
 export { EMBED_MODEL } from "./embed";
@@ -27,9 +27,9 @@ const CONCURRENCY = 4;
 const WRITE_BUDGET = 32;
 const LOCK_MS = 14 * 60_000;
 
-type ItemRow = { id: string; outlet_id: string; title: string; snippet: string; published_at: number; image_url: string | null; embedding: unknown; topic: string | null };
-type Member = Embedded & SourceItem & { imageUrl: string | null; topic: string | null };
-type Picked = Candidate<Member> & { topic: TopicId | null };
+type ItemRow = { id: string; outlet_id: string; title: string; snippet: string; published_at: number; image_url: string | null; embedding: unknown; topic: string | null; importance: number | null };
+type Member = Embedded & SourceItem & { imageUrl: string | null; topic: string | null; importance: number | null };
+type Picked = Candidate<Member> & { topic: TopicId | null; importance: number | null };
 
 export type BuiltStory = {
   id: string;
@@ -43,15 +43,17 @@ export type BuiltStory = {
   blindspot: Blindspot;
   itemIds: string[];
   imageItemId: string | null;
+  importance: number | null;
 };
 
 type ExistingRow = {
   id: string; topic: TopicId; headline: string; summary: string; differences: string; item_ids: string;
-  image_item_id: string | null; written_total: number | null; first_seen_at: number | null;
+  image_item_id: string | null; written_total: number | null; first_seen_at: number | null; importance: number | null;
+  writeup_version: number;
 };
 
 /** One row to save: a story in this hour's lineup. */
-type LineupStory = Omit<BuiltStory, "rank" | "front"> & { writtenTotal: number; firstSeenAt: number };
+type LineupStory = Omit<BuiltStory, "rank" | "front"> & { writtenTotal: number; firstSeenAt: number; writeupVersion: number };
 
 export type BuildReport = {
   date: string; status: "ready" | "failed" | "skipped"; items: number; candidates: number; stories: number;
@@ -69,22 +71,32 @@ function onePerOutlet(members: readonly Member[]): Member[] {
 }
 
 /** The section each group belongs to: remembered from earlier runs when most of its items have one, else classified now. */
-async function sections(db: D1Database, ai: AiRunner, groups: readonly Candidate<Member>[]): Promise<(TopicId | null)[]> {
-  const known = groups.map((g) => {
-    const counts = new Map<string, number>();
-    for (const m of g.members) if (m.topic) counts.set(m.topic, (counts.get(m.topic) ?? 0) + 1);
-    const [best] = [...counts.entries()].sort((a, b) => b[1] - a[1]);
-    return best && best[1] * 2 >= g.members.length ? (best[0] as TopicId) : null;
-  });
-  const unknown = groups.map((g, i) => ({ g, i })).filter(({ i }) => known[i] === null);
+/** The most common non-null value among a group's members, if at least half of them have it. */
+function majority<V>(values: readonly (V | null)[]): V | null {
+  const counts = new Map<V, number>();
+  for (const v of values) if (v != null) counts.set(v, (counts.get(v) ?? 0) + 1);
+  const [best] = [...counts.entries()].sort((a, b) => b[1] - a[1]);
+  return best && best[1] * 2 >= values.length ? best[0] : null;
+}
+
+/**
+ * Each group's section and importance: remembered from earlier runs when most of its items have them,
+ * else classified now (and remembered on the items for next time).
+ */
+async function sections(db: D1Database, ai: AiRunner, groups: readonly Candidate<Member>[]): Promise<Classification[]> {
+  const known: Classification[] = groups.map((g) => ({
+    topic: majority(g.members.map((m) => m.topic)) as TopicId | null,
+    importance: majority(g.members.map((m) => m.importance)),
+  }));
+  const unknown = groups.map((g, i) => ({ g, i })).filter(({ i }) => known[i]!.topic === null || known[i]!.importance === null);
   const fresh = unknown.length ? await classifyGroups(ai, unknown.map(({ g }) => g.members)) : [];
 
-  const stmt = db.prepare("UPDATE items SET topic = ? WHERE id = ?");
+  const stmt = db.prepare("UPDATE items SET topic = COALESCE(?, topic), importance = COALESCE(?, importance) WHERE id = ?");
   const writes: D1PreparedStatement[] = [];
   unknown.forEach(({ g, i }, k) => {
-    const topic = fresh[k] ?? null;
-    known[i] = topic;
-    if (topic) for (const m of g.members) writes.push(stmt.bind(topic, m.id));
+    const c = fresh[k] ?? { topic: null, importance: null };
+    known[i] = { topic: c.topic ?? known[i]!.topic, importance: c.importance ?? known[i]!.importance };
+    if (c.topic || c.importance) for (const m of g.members) writes.push(stmt.bind(c.topic, c.importance, m.id));
   });
   for (let i = 0; i < writes.length; i += 100) await db.batch(writes.slice(i, i + 100));
   return known;
@@ -93,7 +105,7 @@ async function sections(db: D1Database, ai: AiRunner, groups: readonly Candidate
 async function writeUp(ai: AiRunner, group: Picked, date: string, now: number): Promise<LineupStory | null> {
   const sources = onePerOutlet(group.members);
   try {
-    const w = await summarize(ai, sources);
+    const w = await summarize(ai, sources, now);
     if (!w) return null;
     const kept = sources.filter((s) => !w.offTopic.includes(s.id));
     const coverage = coverageOf(kept.map((s) => s.outletId));
@@ -109,7 +121,9 @@ async function writeUp(ai: AiRunner, group: Picked, date: string, now: number): 
       blindspot: blindspotOf(coverage),
       itemIds: kept.map((s) => s.id),
       imageItemId: pickImage(kept),
+      importance: group.importance,
       writtenTotal: coverage.total,
+      writeupVersion: WRITEUP_VERSION,
       firstSeenAt: now,
     };
   } catch (err) {
@@ -134,6 +148,8 @@ function carryOver(ex: ExistingRow, group: Picked, outletOf: ReadonlyMap<string,
     blindspot: blindspotOf(coverage),
     itemIds,
     imageItemId: ex.image_item_id ?? pickImage(onePerOutlet(group.members)),
+    importance: group.importance ?? ex.importance,
+    writeupVersion: ex.writeup_version,
     writtenTotal: ex.written_total ?? coverage.total,
     firstSeenAt: ex.first_seen_at ?? now,
   };
@@ -199,7 +215,7 @@ export async function buildEdition(db: D1Database, ai: AiRunner, now = Date.now(
     await embedPending(db, ai, now - WINDOW_MS);
     const { results } = await db
       .prepare(
-        `SELECT id, outlet_id, title, snippet, published_at, image_url, embedding, topic FROM items
+        `SELECT id, outlet_id, title, snippet, published_at, image_url, embedding, topic, importance FROM items
          WHERE published_at > ? AND published_at <= ? AND embedding IS NOT NULL`,
       )
       .bind(now - WINDOW_MS, now)
@@ -209,15 +225,15 @@ export async function buildEdition(db: D1Database, ai: AiRunner, now = Date.now(
 
     const members: Member[] = results.flatMap((r) => {
       const vec = decodeVector(r.embedding);
-      return vec ? [{ id: r.id, outletId: r.outlet_id, publishedAt: r.published_at, title: r.title, snippet: r.snippet, imageUrl: r.image_url, topic: r.topic, vec }] : [];
+      return vec ? [{ id: r.id, outletId: r.outlet_id, publishedAt: r.published_at, title: r.title, snippet: r.snippet, imageUrl: r.image_url, topic: r.topic, importance: r.importance, vec }] : [];
     });
     const ranked = rankGroups(clusterItems(members, SAME_EVENT)).slice(0, CLASSIFY_LIMIT);
     const topics = await sections(db, ai, ranked);
-    const picked: Picked[] = pickBalanced(ranked.map((c, i) => ({ ...c, topic: topics[i] ?? null })));
+    const picked: Picked[] = pickBalanced(ranked.map((c, i) => ({ ...c, topic: topics[i]?.topic ?? null, importance: topics[i]?.importance ?? null })));
     report = { ...report, candidates: picked.length };
 
     const { results: existing } = await db
-      .prepare("SELECT id, topic, headline, summary, differences, item_ids, image_item_id, written_total, first_seen_at FROM stories WHERE edition_date = ?")
+      .prepare("SELECT id, topic, headline, summary, differences, item_ids, image_item_id, written_total, first_seen_at, importance, writeup_version FROM stories WHERE edition_date = ?")
       .bind(date)
       .all<ExistingRow>();
     const outletOf = await outletsOf(db, results, existing);
@@ -227,7 +243,8 @@ export async function buildEdition(db: D1Database, ai: AiRunner, now = Date.now(
     const lineup = await mapLimit(picked, CONCURRENCY, async (group, i) => {
       const ex = matches[i]! >= 0 ? existing[matches[i]!]! : null;
       const carried = ex ? carryOver(ex, group, outletOf, now) : null;
-      const rewrite = !carried || opts.force || needsRewrite(carried.writtenTotal, carried.coverage.total);
+      const outdated = !!ex && ex.writeup_version < WRITEUP_VERSION;
+      const rewrite = !carried || opts.force || outdated || needsRewrite(carried.writtenTotal, carried.coverage.total);
       if (!rewrite || budget <= 0) return carried && checkBlindspot(carried, group, members);
       budget -= 1;
       const fresh = await writeUp(ai, group, date, now);
@@ -241,15 +258,15 @@ export async function buildEdition(db: D1Database, ai: AiRunner, now = Date.now(
     if (stories.length === 0) throw new Error("no story this hour; keeping the previous lineup");
 
     const front = frontPage(stories, FRONT_SIZE);
-    const ordered = [...stories].sort((a, b) => Number(front.has(b)) - Number(front.has(a)) || b.coverage.total - a.coverage.total);
+    const ordered = [...stories].sort((a, b) => Number(front.has(b)) - Number(front.has(a)) || byWeight(a, b));
     const upsert = db.prepare(
       `INSERT INTO stories (id, edition_date, rank, front, topic, headline, summary, differences, coverage, blindspot, item_ids, image_item_id,
-                            active, first_seen_at, updated_at, written_total)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)
+                            active, first_seen_at, updated_at, written_total, importance, writeup_version)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET rank = excluded.rank, front = excluded.front, topic = excluded.topic, headline = excluded.headline,
          summary = excluded.summary, differences = excluded.differences, coverage = excluded.coverage, blindspot = excluded.blindspot,
          item_ids = excluded.item_ids, image_item_id = excluded.image_item_id, active = 1, updated_at = excluded.updated_at,
-         written_total = excluded.written_total`,
+         written_total = excluded.written_total, importance = excluded.importance, writeup_version = excluded.writeup_version`,
     );
     const live = new Set(ordered.map((s) => s.id));
     const retire = db.prepare("UPDATE stories SET active = 0, front = 0 WHERE id = ?");
@@ -257,7 +274,7 @@ export async function buildEdition(db: D1Database, ai: AiRunner, now = Date.now(
       ...ordered.map((s, rank) =>
         upsert.bind(
           s.id, date, rank, front.has(s) ? 1 : 0, s.topic, s.headline, JSON.stringify(s.summary), JSON.stringify(s.differences),
-          JSON.stringify(s.coverage), s.blindspot, JSON.stringify(s.itemIds), s.imageItemId, s.firstSeenAt, now, s.writtenTotal,
+          JSON.stringify(s.coverage), s.blindspot, JSON.stringify(s.itemIds), s.imageItemId, s.firstSeenAt, now, s.writtenTotal, s.importance, s.writeupVersion,
         ),
       ),
       ...existing.filter((e) => !live.has(e.id)).map((e) => retire.bind(e.id)),

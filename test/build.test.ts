@@ -55,9 +55,13 @@ function fakeAi(opts: { failSummaries?: boolean } = {}): AiRunner {
         const map = Object.fromEntries(user0!.split("\n").map((line) => {
           const [label, rest] = line.split(": ");
           const key = Object.keys(EVENTS).find((k) => rest!.startsWith(k));
-          return [label, key ? EVENTS[key]!.topic : "world"];
+          return [label, { section: key ? EVENTS[key]!.topic : "world", importance: key ? 4 : 2 }];
         }));
         return { response: JSON.stringify(map) };
+      }
+      if (system!.startsWith("You check a news summary")) {
+        const n = (user0!.match(/^\[\d+\]/gm) ?? []).length;
+        return { response: JSON.stringify({ supported: Array(n).fill(true) }) };
       }
       if (opts.failSummaries) throw new Error("model down");
       summaryCalls += 1;
@@ -172,6 +176,17 @@ describe("buildEdition", () => {
     expect(now.id).toBe(quake.id);
     expect(JSON.parse(now.coverage).total).toBe(13);
     expect(summaryCalls).toBe(1);
+  });
+
+  it("rewrites stories written under older rules, keeping their ids", async () => {
+    await buildEdition(env.DB, fakeAi(), NOW);
+    const before = await lineup();
+    await env.DB.exec("UPDATE stories SET writeup_version = 1");
+    summaryCalls = 0;
+    await buildEdition(env.DB, fakeAi(), NOW + HOUR);
+    expect(summaryCalls).toBe(3);
+    expect((await lineup()).map((s) => s.id)).toEqual(before.map((s) => s.id));
+    expect(await env.DB.prepare("SELECT MIN(writeup_version) AS v FROM stories").first("v")).toBe(2);
   });
 
   it("skips while another run holds the edition", async () => {

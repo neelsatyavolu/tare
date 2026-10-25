@@ -1,18 +1,19 @@
 import type { Child, FC } from "hono/jsx";
 import { BALANCE, BLINDSPOT, MIN_OUTLETS, SECTION_MIN_OUTLETS } from "../build/select";
+import { IMPORTANCE_RUBRIC } from "../build/classify";
 import type { Edition, Source, Story } from "../editions";
 import { longDate, shortDate } from "../format";
 import { LEAN_LABEL, OUTLETS, SIDE_SIZE } from "../outlets";
 import { TOPICS, topicName, type TopicId } from "../topics";
-import { editionLine, HowToRead, Layout, orderedSources, SourceList, StoryCard, SubscribeForm, TopicChips, useViewer } from "./components";
+import { CompactStory, editionLine, HowToRead, IntroStrip, Layout, orderedSources, SourceList, StoryCard, SubscribeForm, TopicChips, useViewer } from "./components";
 import { AiConnection, BriefingBlock } from "./ai";
 import { STALE_MS, type BriefingRow } from "../briefing";
 import type { AiProvider } from "../ai/oauth";
 
 type Sources = Map<string, Source>;
 
-const Section: FC<{ title: string; children?: Child }> = ({ title, children }) => (
-  <section class="section" aria-label={title}>
+const Section: FC<{ title: string; id?: string; children?: Child }> = ({ title, id, children }) => (
+  <section class="section" id={id} aria-label={title}>
     <div class="section-head"><h2>{title}</h2></div>
     {children}
   </section>
@@ -34,23 +35,29 @@ export const EditionPage: FC<{ edition: Edition; stories: Story[]; sources: Sour
       nav={isToday ? "today" : "archive"}
       editionLine={editionLine(edition.date, edition.number, stories.length, isToday ? edition.builtAt : null)}
     >
-      <HowToRead />
+      <IntroStrip />
+      <nav class="jump" aria-label="Sections">
+        {lead ? <a href="#front">Front page</a> : null}
+        {blindspots.length > 0 ? <a href="#blindspots">Blindspots</a> : null}
+        {byTopic.map((g) => <a href={`#${g.topic.id}`}>{g.topic.name}</a>)}
+      </nav>
       {lead ? (
-        <Section title="Front page">
+        <Section title="Front page" id="front">
           <StoryCard story={lead} sources={sources} lead />
-          <div class="grid">{restFront.map((s) => <StoryCard story={s} sources={sources} />)}</div>
+          <div class="compact-grid">{restFront.map((s) => <CompactStory story={s} sources={sources} />)}</div>
         </Section>
       ) : null}
       {blindspots.length > 0 ? (
-        <Section title="Blindspots">
-          <div class="grid">{blindspots.map((s) => <StoryCard story={s} sources={sources} />)}</div>
+        <Section title="Blindspots" id="blindspots">
+          <div class="compact-grid">{blindspots.map((s) => <CompactStory story={s} sources={sources} />)}</div>
         </Section>
       ) : null}
       {byTopic.map((g) => (
-        <Section title={g.followed ? `${g.topic.name} · Following` : g.topic.name}>
-          <div class="grid">{g.list.map((s) => <StoryCard story={s} sources={sources} />)}</div>
+        <Section title={g.followed ? `${g.topic.name} · Following` : g.topic.name} id={g.topic.id}>
+          <div class="compact-grid">{g.list.map((s) => <CompactStory story={s} sources={sources} />)}</div>
         </Section>
       ))}
+      <HowToRead />
       <p class="end">That's the edition.</p>
       <SubscribeForm />
     </Layout>
@@ -115,17 +122,25 @@ export const MethodPage: FC = () => (
       <h2>How a story makes the edition</h2>
       <p>Every hour Tare groups the last 24 hours of headlines by event, using text embeddings to spot headlines about the same thing, and sorts each group into a section. It does this every hour, so breaking stories appear within the hour, and it applies the same fixed rules every time. There's no algorithm tuned to you: nothing is ranked by clicks, shares or what you've read.</p>
       <ol>
-        <li>The <b>front page</b> is the {BALANCE.front} most widely covered stories that outlets on both the left and the right reported. Everyone gets it, whatever topics they choose.</li>
+        <li>The <b>front page</b> is the {BALANCE.front} most important stories that outlets on both the left and the right reported, using the importance scale below, with the most widely covered first when two are equally important. Everyone gets it, whatever topics they choose.</li>
         <li>Every <b>section</b> (world, U.S., politics, business, technology, science, climate, culture and sports) gets up to {BALANCE.perSection} of its most widely covered stories with at least {MIN_OUTLETS} outlets. A quiet section still gets its single best story if {SECTION_MIN_OUTLETS} outlets covered it, so one busy topic can't crowd out the rest.</li>
         <li>A <b>blindspot</b> is a story at least {BLINDSPOT.minCount} outlets and {Math.round(BLINDSPOT.minShare * 100)}% of one side covered while at most {BLINDSPOT.maxOther} outlet on the other side did, with at least {BLINDSPOT.minTotal} outlets in all. Before calling it one, Tare checks every headline the other side published that day for a looser match; if it finds one, it isn't a blindspot. Up to {BALANCE.blindspots} make each edition.</li>
       </ol>
       <p>Picking topics in your account only changes the order: your sections come first. You still see everything else.</p>
+
+      <h2>How importance is judged</h2>
+      <p>Counting outlets measures attention, not consequence: a widely shared joke shouldn't outrank a fight over an election. So each story is also rated on this scale, by the same AI model, with the same instructions every time. Front-page stories and blindspots must be a 3 or higher.</p>
+      <table>
+        <thead><tr><th>Rating</th><th>Meaning</th></tr></thead>
+        <tbody>{IMPORTANCE_RUBRIC.map((r) => <tr><td class="mono">{r.level}</td><td>{r.meaning}</td></tr>)}</tbody>
+      </table>
 
       <h2>The scale</h2>
       <p>Each story shows what share of each side's outlets covered it. The needle uses shares, not raw counts, so a side can't tip the scale just by having more outlets on the list. Right now Tare reads {SIDE_SIZE.left} left-leaning, {SIDE_SIZE.center} center and {SIDE_SIZE.right} right-leaning outlets, plus {OUTLETS.length - SIDE_SIZE.left - SIDE_SIZE.center - SIDE_SIZE.right} not rated.</p>
 
       <h2>The writing</h2>
       <p>An AI model (OpenAI's open-weight gpt-oss-120b, running on Cloudflare) writes each headline, summary and "where accounts differ" note from the headlines and descriptions alone. It's told to use neutral wording, attribute claims, and never decide which outlet is right. Every sentence has to name the sources it relies on; Tare drops any sentence that cites nothing or cites a source that isn't in the group. The numbers after each sentence link to those sources.</p>
+      <p>Then a second, separate check reads every sentence next to the headlines it cites and removes any sentence with a name, place, number, date or title those sources don't state. If nothing survives, the story waits for the next hour instead of going up unchecked.</p>
       <p>AI can still get things wrong, especially from short descriptions. Read the sources before you rely on a detail.</p>
 
       <h2>Photos</h2>

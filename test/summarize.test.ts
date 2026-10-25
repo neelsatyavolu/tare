@@ -40,7 +40,8 @@ describe("validateWriteup", () => {
       { text: "Fox News reported Republicans split.", cites: ["i2"] },
       { text: "Samsung shipped the Galaxy S24.", cites: ["i3"] },
     ]);
-    expect(w.differences.map((d) => d.kind)).toEqual(["framing", "omission"]);
+    // "omission" is no longer a kind new write-ups may use, and "fact" from one outlet isn't a difference.
+    expect(w.differences.map((d) => d.kind)).toEqual(["framing"]);
     expect(w.offTopic).toEqual(["i4"]);
   });
 
@@ -102,12 +103,41 @@ describe("sourceBlock", () => {
   });
 });
 
+/** A fake model: answers write-ups with `reply`, and the check pass with `verdicts` (default: all supported). */
+function fakeModel(reply: unknown, verdicts?: (n: number) => boolean[]): { ai: AiRunner; calls: Record<string, unknown>[] } {
+  const calls: Record<string, unknown>[] = [];
+  const ai: AiRunner = {
+    run: async (_m, input) => {
+      calls.push(input);
+      const [system, user] = (input.messages as { content: string }[]).map((m) => m.content);
+      if (system!.startsWith("You check a news summary")) {
+        const n = (user!.match(/^\[\d+\]/gm) ?? []).length;
+        return { response: JSON.stringify({ supported: verdicts ? verdicts(n) : Array(n).fill(true) }) };
+      }
+      return { response: JSON.stringify(reply) };
+    },
+  };
+  return { ai, calls };
+}
+
 describe("summarize", () => {
-  it("sends the sources to the model and validates the reply", async () => {
-    const calls: Record<string, unknown>[] = [];
-    const ai: AiRunner = { run: async (_m, input) => (calls.push(input), { response: JSON.stringify(good) }) };
-    const w = await summarize(ai, items);
+  it("sends the sources and today's date to the model, then checks the reply", async () => {
+    const { ai, calls } = fakeModel(good);
+    const w = await summarize(ai, items, Date.parse("2026-10-25T12:00:00Z"));
     expect(w?.summary).toHaveLength(3);
     expect(JSON.stringify(calls[0])).toContain("[s4] New York Post (leans right)");
+    expect(JSON.stringify(calls[0])).toContain("Today is Sunday, October 25, 2026");
+    expect(calls).toHaveLength(2);
+  });
+
+  it("drops sentences the check pass finds unsupported", async () => {
+    const { ai } = fakeModel(good, (n) => Array.from({ length: n }, (_, i) => i !== 1));
+    const w = await summarize(ai, items);
+    expect(w?.summary.map((s) => s.text)).toEqual(["The Senate passed a funding bill 52-48.", "Samsung shipped the Galaxy S24."]);
+  });
+
+  it("holds the story back when the check pass fails or nothing survives", async () => {
+    expect(await summarize(fakeModel(good, (n) => Array(n).fill(false)).ai, items)).toBeNull();
+    expect(await summarize(fakeModel(good, () => [true]).ai, items)).toBeNull();
   });
 });

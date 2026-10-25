@@ -48,12 +48,37 @@ export function blindspotOf(c: Coverage): Blindspot {
   return null;
 }
 
+export type LeanReading = { key: "thin" | "even" | "lean-left" | "lean-right" | "left-heavy" | "right-heavy"; sentence: string; tag: string };
+
+/**
+ * What the coverage scale says, in words a reader can check against the counts. It only names a side when
+ * both the shares and the raw counts agree, and it says so plainly when there's too little to compare.
+ */
+export function leanReading(c: Coverage): LeanReading {
+  if (c.left + c.right < 3) return { key: "thin", sentence: "Too few left- or right-leaning outlets to compare", tag: "Thin coverage" };
+  const ls = c.left / SIDE_SIZE.left;
+  const rs = c.right / SIDE_SIZE.right;
+  const rightMore = rs > ls && c.right > c.left;
+  const leftMore = ls > rs && c.left > c.right;
+  const ratio = Math.max(ls, rs) / Math.max(Math.min(ls, rs), 1e-9);
+  if ((!rightMore && !leftMore) || ratio < 1.5) return { key: "even", sentence: "Covered about equally by left and right", tag: "Even" };
+  const heavy = Math.abs(c.balance) >= LEAN_THRESHOLD;
+  if (rightMore) {
+    return heavy
+      ? { key: "right-heavy", sentence: "Mostly right-leaning outlets covered it", tag: "Right-heavy" }
+      : { key: "lean-right", sentence: "More right-leaning outlets covered it", tag: "Leans right" };
+  }
+  return heavy
+    ? { key: "left-heavy", sentence: "Mostly left-leaning outlets covered it", tag: "Left-heavy" }
+    : { key: "lean-left", sentence: "More left-leaning outlets covered it", tag: "Leans left" };
+}
+
 /** Plain-English reason a story made the edition. Deterministic, so readers can check it. */
 export function whyText(c: Coverage, blindspot: Blindspot): string {
   const unrated = c.unrated ? `, ${c.unrated} not rated` : "";
   const base = `Covered by ${c.total} of ${OUTLETS.length} outlets: ${c.left} left, ${c.center} center, ${c.right} right${unrated}.`;
-  if (blindspot === "left") return `${base} A blindspot: ${c.left} of ${SIDE_SIZE.left} left-leaning outlets covered it, and none of the others published a matching headline.`;
-  if (blindspot === "right") return `${base} A blindspot: ${c.right} of ${SIDE_SIZE.right} right-leaning outlets covered it, and none of the others published a matching headline.`;
+  if (blindspot === "left") return `${base} A possible blindspot: ${c.left} of ${SIDE_SIZE.left} left-leaning outlets covered it, and Tare found no matching headline from the others in the last 24 hours.`;
+  if (blindspot === "right") return `${base} A possible blindspot: ${c.right} of ${SIDE_SIZE.right} right-leaning outlets covered it, and Tare found no matching headline from the others in the last 24 hours.`;
   return base;
 }
 
@@ -84,30 +109,41 @@ export const BALANCE: BalanceOptions = { front: 6, perSection: 3, blindspots: 3,
  * 3. blindspots: widely covered stories one side mostly skipped.
  * `ranked` must come from rankGroups (best first); the result keeps that order.
  */
-export function pickBalanced<C extends Candidate<unknown> & { topic: TopicId | null }>(ranked: readonly C[], opts: BalanceOptions = BALANCE): C[] {
+export function pickBalanced<C extends Candidate<unknown> & { topic: TopicId | null; importance: number | null }>(all: readonly C[], opts: BalanceOptions = BALANCE): C[] {
   const chosen = new Set<C>();
+  // Puzzle hints, gossip and viral posts (importance 1) don't make any part of the edition.
+  const ranked = all.filter((c) => c.importance !== 1);
   const wide = ranked.filter((c) => c.coverage.total >= MIN_OUTLETS);
 
-  wide.filter((c) => c.coverage.left > 0 && c.coverage.right > 0).slice(0, opts.front).forEach((c) => chosen.add(c));
+  wide.filter(frontEligible).sort(byWeight).slice(0, opts.front).forEach((c) => chosen.add(c));
 
   for (const topic of TOPIC_IDS) {
-    const inSection = ranked.filter((c) => c.topic === topic && !chosen.has(c));
+    const inSection = ranked.filter((c) => c.topic === topic && !chosen.has(c)).sort(byWeight);
     const strong = inSection.filter((c) => c.coverage.total >= MIN_OUTLETS).slice(0, opts.perSection);
     const alreadyShown = [...chosen].some((c) => c.topic === topic);
     (strong.length > 0 || alreadyShown ? strong : inSection.slice(0, 1)).forEach((c) => chosen.add(c));
   }
 
-  wide.filter((c) => c.blindspot && !chosen.has(c)).slice(0, opts.blindspots).forEach((c) => chosen.add(c));
+  wide
+    .filter((c) => c.blindspot && !chosen.has(c) && (c.importance ?? 0) >= MIN_IMPORTANCE)
+    .sort(byWeight)
+    .slice(0, opts.blindspots)
+    .forEach((c) => chosen.add(c));
 
   return ranked.filter((c) => chosen.has(c)).slice(0, opts.max);
 }
 
-/** Front page: the most widely covered stories that outlets on both the left and the right reported. */
-export function frontPage<T extends { coverage: Coverage }>(stories: readonly T[], size: number): Set<T> {
-  return new Set(
-    [...stories]
-      .filter((s) => s.coverage.left > 0 && s.coverage.right > 0)
-      .sort((a, b) => b.coverage.total - a.coverage.total)
-      .slice(0, size),
-  );
+/** Front-page stories and blindspots must be at least this important (see IMPORTANCE_RUBRIC). */
+export const MIN_IMPORTANCE = 3;
+
+type Weighed = { coverage: Coverage; importance: number | null };
+
+/** Most important first, then most widely covered. An unrated group counts as minor (2), so it can't jump the queue. */
+export const byWeight = (a: Weighed, b: Weighed) => (b.importance ?? 2) - (a.importance ?? 2) || b.coverage.total - a.coverage.total;
+
+const frontEligible = (s: Weighed) => s.coverage.left > 0 && s.coverage.right > 0 && (s.importance ?? 0) >= MIN_IMPORTANCE;
+
+/** Front page: the most important stories that outlets on both the left and the right reported, widest first on ties. */
+export function frontPage<T extends Weighed>(stories: readonly T[], size: number): Set<T> {
+  return new Set([...stories].filter(frontEligible).sort(byWeight).slice(0, size));
 }

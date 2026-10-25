@@ -1,11 +1,11 @@
 import { createContext, useContext, type Child, type FC } from "hono/jsx";
 import type { Subscriber } from "../subscribers";
-import { LEAN_THRESHOLD, type Coverage } from "../build/select";
+import { leanReading, type Coverage } from "../build/select";
 import { orderedSources, type Source, type Story } from "../editions";
 
 export { orderedSources } from "../editions";
 import { easternTime, longDate } from "../format";
-import { LEAN_LABEL, sideOf, SIDE_SIZE, type Side } from "../outlets";
+import { LEAN_LABEL, OUTLETS, sideOf, SIDE_SIZE, type Side } from "../outlets";
 import { TOPICS, topicName, type TopicId } from "../topics";
 import { whyText } from "../build/select";
 import { CSS_VERSION } from "./styles";
@@ -81,20 +81,14 @@ export const NEW_FOR_MS = 3 * 3600_000;
 const SIDES: Side[] = ["left", "center", "right"];
 const SIDE_NAME: Record<Side, string> = { left: "Left", center: "Center", right: "Right" };
 
-function reading(balance: number): string {
-  if (balance <= -LEAN_THRESHOLD) return "Mostly covered by the left";
-  if (balance >= LEAN_THRESHOLD) return "Mostly covered by the right";
-  if (balance <= -0.2) return "More coverage from the left";
-  if (balance >= 0.2) return "More coverage from the right";
-  return "Balanced coverage";
-}
 
 /** The coverage scale: three pans (share of each side's outlets) over a ruler with a brass needle. */
 export const Scale: FC<{ c: Coverage }> = ({ c }) => {
+  const read = leanReading(c);
   const pct = (side: Side) => Math.round((c[side] / SIDE_SIZE[side]) * 100);
   const needle = ((c.balance + 1) / 2) * 100;
   return (
-    <div class="scale" role="img" aria-label={`${c.left} of ${SIDE_SIZE.left} left outlets, ${c.center} of ${SIDE_SIZE.center} center, ${c.right} of ${SIDE_SIZE.right} right${c.unrated ? `, plus ${c.unrated} not rated` : ""}. ${reading(c.balance)}.`}>
+    <div class="scale" role="img" aria-label={`${c.left} of ${SIDE_SIZE.left} left outlets, ${c.center} of ${SIDE_SIZE.center} center, ${c.right} of ${SIDE_SIZE.right} right${c.unrated ? `, plus ${c.unrated} not rated` : ""}. ${read.sentence}.`}>
       <div class="pans" aria-hidden="true">
         {SIDES.map((side) => (
           <div class={`pan ${side[0]}`}>
@@ -103,8 +97,8 @@ export const Scale: FC<{ c: Coverage }> = ({ c }) => {
           </div>
         ))}
       </div>
-      <div class="ruler" aria-hidden="true"><span class="needle" style={`left:${needle.toFixed(1)}%`} /></div>
-      <div class="reading" aria-hidden="true"><span>← Left</span><b>{reading(c.balance)}</b><span>Right →</span></div>
+      <div class="ruler" aria-hidden="true">{read.key === "thin" ? null : <span class="needle" style={`left:${needle.toFixed(1)}%`} />}</div>
+      <div class="reading" aria-hidden="true"><span>← Left</span><b>{read.sentence}</b><span>Right →</span></div>
     </div>
   );
 };
@@ -155,11 +149,7 @@ export const StoryCard: FC<{ story: Story; sources: Map<string, Source>; lead?: 
   const main = (
     <>
       {photo}
-      <p class="kicker">
-        {story.firstSeenAt && Date.now() - story.firstSeenAt < NEW_FOR_MS ? <b class="new">New · </b> : null}
-        {story.blindspot ? <b>Blindspot · </b> : null}
-        {topicName(story.topic)} · {story.coverage.total} outlets
-      </p>
+      <Kicker story={story} />
       <Heading>{page ? story.headline : <a href={href}>{story.headline}</a>}</Heading>
       <p class="summary">
         {story.summary.map((s) => (
@@ -168,20 +158,37 @@ export const StoryCard: FC<{ story: Story; sources: Map<string, Source>; lead?: 
       </p>
     </>
   );
-  const evidence = (
+  const differences = story.differences.length > 0 ? (
+    <details class="differ" open={page || lead}>
+      <summary>Where accounts differ ({story.differences.length})</summary>
+      <ul>
+        {story.differences.map((d) => (
+          <li>
+            <span class="kind">{KIND_LABEL[d.kind]}</span>{d.text}<Cites cites={d.cites} numbers={numbers} base={base} />
+            {/* On the story page, show the headlines that differ, so readers can see it for themselves. */}
+            {page ? (
+              <ul class="quoted">
+                {d.cites.map((id) => sources.get(id)).filter((s): s is Source => !!s).map((s) => (
+                  <li><span class="outlet">{s.outlet.name} · {LEAN_LABEL[s.outlet.lean]}</span> <a href={s.url} rel="noopener noreferrer nofollow" target="_blank">{s.title}</a></li>
+                ))}
+              </ul>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </details>
+  ) : null;
+  // On the story page the disagreement comes first: it's the part a reader can't get from one outlet.
+  const evidence = page ? (
+    <>
+      {differences}
+      <Scale c={story.coverage} />
+      <p class="why"><span class="why-label">Why it's here</span> {whyText(story.coverage, story.blindspot)}</p>
+    </>
+  ) : (
     <>
       <Scale c={story.coverage} />
-      {story.differences.length > 0 ? (
-        <details class="differ" open={page || lead}>
-          <summary>Where accounts differ ({story.differences.length})</summary>
-          <ul>
-            {story.differences.map((d) => (
-              <li><span class="kind">{KIND_LABEL[d.kind]}</span>{d.text}<Cites cites={d.cites} numbers={numbers} base={base} /></li>
-            ))}
-          </ul>
-        </details>
-      ) : null}
-      {page ? <p class="why"><span class="why-label">Why it's here</span> {whyText(story.coverage, story.blindspot)}</p> : null}
+      {differences}
     </>
   );
   // The lead runs across the page: story on the left, the weighing on the right.
@@ -189,6 +196,38 @@ export const StoryCard: FC<{ story: Story; sources: Map<string, Source>; lead?: 
     <article class="story lead"><div class="lead-main">{main}</div><aside class="lead-side" aria-label="Coverage">{evidence}</aside></article>
   ) : (
     <article class="story">{main}{evidence}</article>
+  );
+};
+
+const Kicker: FC<{ story: Story; tag?: boolean }> = ({ story, tag = false }) => {
+  const read = leanReading(story.coverage);
+  return (
+    <p class="kicker">
+      {story.firstSeenAt && Date.now() - story.firstSeenAt < NEW_FOR_MS ? <b class="new">New · </b> : null}
+      {story.blindspot ? <b>Blindspot · </b> : null}
+      {topicName(story.topic)} · {story.coverage.total} outlets
+      {tag ? <> · <span class={`tag ${read.key}`}>{read.tag}</span></> : null}
+    </p>
+  );
+};
+
+/** A home-page row: thumbnail, kicker with a one-word coverage tag, headline and the first sentence. The rest is on the story page. */
+export const CompactStory: FC<{ story: Story; sources: Map<string, Source> }> = ({ story, sources }) => {
+  const href = `/s/${story.id}`;
+  const photo = story.imageItemId ? sources.get(story.imageItemId) : undefined;
+  return (
+    <article class="compact">
+      {photo?.imageUrl ? (
+        <a class="thumb" href={href} tabindex={-1} aria-hidden="true">
+          <img src={photo.imageUrl} alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" />
+        </a>
+      ) : null}
+      <div class="compact-body">
+        <Kicker story={story} tag />
+        <h3><a href={href}>{story.headline}</a></h3>
+        {story.summary[0] ? <p class="dek">{story.summary[0].text}</p> : null}
+      </div>
+    </article>
   );
 };
 
@@ -217,6 +256,23 @@ export const SourceList: FC<{ story: Story; sources: Map<string, Source> }> = ({
   );
 };
 
+/** One line on what Tare is, and an email box, for readers who haven't signed up. */
+export const IntroStrip: FC = () => {
+  if (useViewer()) return null;
+  return (
+    <div class="intro-strip">
+      <p>Every hour, {OUTLETS.length} outlets from left to right: the stories that matter, who covered them, and where their accounts differ.</p>
+      <form method="post" action="/subscribe" class="inline-subscribe">
+        <label class="sr" for="intro-email">Email</label>
+        <input id="intro-email" type="email" name="email" required autocomplete="email" placeholder="you@example.com" />
+        <div class="hp" aria-hidden="true"><label>Leave this empty <input type="text" name="website" tabindex={-1} autocomplete="off" /></label></div>
+        <button class="primary" type="submit">Email me the edition</button>
+        <a class="meta" href="/sample-email">See a sample</a>
+      </form>
+    </div>
+  );
+};
+
 /** A short guide for first-time readers. Native <details>, so it works without JavaScript. */
 export const HowToRead: FC = () => (
   <details class="howto">
@@ -224,7 +280,7 @@ export const HowToRead: FC = () => (
     <div class="howto-body">
       <div>
         <h3>The scale</h3>
-        <p>Under each story, the three bars show what share of left-leaning, center and right-leaning outlets covered it. The needle points to the side that covered it more; in the middle means both sides covered it about equally.</p>
+        <p>The three bars show what share of Tare's left-leaning, center and right-leaning outlets covered a story. The line under them says whether the left or the right covered it more, or that too few did to compare. The labels describe who reads each outlet, not whether its reporting is accurate.</p>
       </div>
       <div>
         <h3>The small numbers</h3>
@@ -232,7 +288,7 @@ export const HowToRead: FC = () => (
       </div>
       <div>
         <h3>Where accounts differ</h3>
-        <p>Open it to see where outlets reported different facts, used different words, or left something out. Tare doesn't say who is right.</p>
+        <p>Where outlets reported facts that can't both be true, or described the same event in ways that leave a different impression. On a story's page you see the headlines side by side. Tare doesn't say who is right.</p>
       </div>
       <div>
         <h3>Blindspots</h3>
@@ -271,7 +327,7 @@ export const SubscribeForm: FC<{ error?: string }> = ({ error }) => {
   return (
   <section class="panel" id="subscribe" aria-labelledby="subscribe-h">
     <h2 id="subscribe-h">Get the edition by email</h2>
-    <p>One email each morning, by 7 a.m. Eastern.</p>
+    <p>One email each morning, by 7 a.m. Eastern. <a href="/sample-email">See today's as a sample.</a></p>
     <form method="post" action="/subscribe">
       <label class="field" for="email">Email</label>
       <input id="email" type="email" name="email" required autocomplete="email" placeholder="you@example.com" />

@@ -11,7 +11,7 @@ import { JOBS, runCron, type JobName } from "./jobs";
 import { signExpiring, signLink, verifyExpiring, verifyLink } from "./links";
 import { sendOne } from "./mail/resend";
 import { requireSecrets } from "./mail/send";
-import { confirmEmail, manageEmail, signinEmail } from "./mail/templates";
+import { confirmEmail, digestEmail, digestFor, manageEmail, signinEmail } from "./mail/templates";
 import { clearSessionCookie, createSession, endSession, sessionSubscriber, sessionToken, setSessionCookie } from "./sessions";
 import {
   confirm, deleteAccount, findById, parseEmail, parseTopics, releaseEmailClaim, requestSignin, setDigest, setTopics, signUp, unsubscribe,
@@ -121,6 +121,23 @@ app.post("/s/:id/briefing", async (c) => {
 });
 
 app.get("/archive", async (c) => page(c, <ArchivePage editions={await listEditions(c.env.DB)} />));
+
+// What the morning email looks like, from today's edition, so readers can see it before signing up.
+app.get("/sample-email", async (c) => {
+  const edition = await latestEdition(c.env.DB);
+  if (!edition) return c.redirect("/", 303);
+  const stories = await storiesFor(c.env.DB, edition.date);
+  const sources = await sourcesFor(c.env.DB, stories.filter((s) => s.front));
+  const photos = new Map(
+    stories.flatMap((s) => {
+      const src = s.imageItemId ? sources.get(s.imageItemId) : undefined;
+      return src?.imageUrl ? [[s.id, { url: src.imageUrl, credit: src.outlet.name }] as const] : [];
+    }),
+  );
+  const mail = digestEmail(edition, digestFor(stories, []), c.env.APP_URL, `${c.env.APP_URL}/#subscribe`, photos);
+  c.header("cache-control", "private, no-cache");
+  return c.html(mail.html);
+});
 app.get("/method", (c) => page(c, <MethodPage />));
 
 // ── Email out ───────────────────────────────────────────────────────────

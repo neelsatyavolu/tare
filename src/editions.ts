@@ -10,7 +10,7 @@ export type Source = { id: string; outlet: Outlet; title: string; url: string; p
 type EditionRow = { date: string; number: number; status: Edition["status"]; item_count: number; built_at: number | null; sent_at: number | null };
 type StoryRow = {
   id: string; edition_date: string; rank: number; front: number; topic: string; headline: string;
-  summary: string; differences: string; coverage: string; blindspot: "left" | "right" | null; item_ids: string; image_item_id: string | null; first_seen_at: number | null;
+  summary: string; differences: string; coverage: string; blindspot: "left" | "right" | null; item_ids: string; image_item_id: string | null; first_seen_at: number | null; importance: number | null;
 };
 
 const toEdition = (r: EditionRow): Edition => ({ date: r.date, number: r.number, status: r.status, itemCount: r.item_count, builtAt: r.built_at, sentAt: r.sent_at });
@@ -29,6 +29,7 @@ const toStory = (r: StoryRow): Story => ({
   itemIds: JSON.parse(r.item_ids),
   imageItemId: r.image_item_id,
   firstSeenAt: r.first_seen_at,
+  importance: r.importance,
 });
 
 export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;

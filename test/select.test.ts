@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BLINDSPOT, blindspotOf, coverageOf, frontPage, pickBalanced, rankGroups, whyText } from "../src/build/select";
+import { BLINDSPOT, blindspotOf, coverageOf, frontPage, leanReading, pickBalanced, rankGroups, whyText } from "../src/build/select";
 import { TOPIC_IDS, type TopicId } from "../src/topics";
 import { leanOf, OUTLETS, sideOf, SIDE_SIZE } from "../src/outlets";
 
@@ -57,11 +57,24 @@ describe("blindspotOf", () => {
   });
 });
 
+describe("leanReading", () => {
+  it("says there's too little to compare when few left or right outlets covered it", () => {
+    expect(leanReading(coverageOf([L[0]!, C[0]!, C[1]!, C[2]!, UNRATED[0]!])).key).toBe("thin");
+  });
+
+  it("only names a side when both counts and shares agree, by a clear margin", () => {
+    expect(leanReading(coverageOf([L[0]!, L[1]!, R[0]!, R[1]!])).key).toBe("even");
+    expect(leanReading(coverageOf([L[0]!, L[1]!, R[0]!, R[1]!, R[2]!])).key).toBe("lean-right");
+    expect(leanReading(coverageOf([R[0]!, R[1]!, R[2]!, R[3]!, R[4]!, L[0]!])).key).toBe("right-heavy");
+    expect(leanReading(coverageOf([L[0]!, L[1]!, L[2]!])).sentence).toBe("Mostly left-leaning outlets covered it");
+  });
+});
+
 describe("whyText", () => {
   it("states the counts and the blindspot", () => {
     const c = coverageOf([...R.slice(0, 6), C[0]!, UNRATED[0]!]);
     expect(whyText(c, "left")).toBe(
-      `Covered by 8 of ${OUTLETS.length} outlets: 0 left, 1 center, 6 right, 1 not rated. A blindspot: 0 of ${SIDE_SIZE.left} left-leaning outlets covered it, and none of the others published a matching headline.`,
+      `Covered by 8 of ${OUTLETS.length} outlets: 0 left, 1 center, 6 right, 1 not rated. A possible blindspot: 0 of ${SIDE_SIZE.left} left-leaning outlets covered it, and Tare found no matching headline from the others in the last 24 hours.`,
     );
   });
 });
@@ -79,9 +92,10 @@ describe("pickBalanced", () => {
   // Alternates sides, so any n >= 2 includes both the left and the right.
   const outlets = [L[0], R[0], C[0], L[1], R[1], C[1], L[2], R[2], C[2], L[3]].map((id) => id!);
   // A group covered by the first `n` outlets of the mixed list.
-  const group = (n: number, topic: TopicId | null, one = false) => ({
+  const group = (n: number, topic: TopicId | null, one = false, importance: number | null = 4) => ({
     ...rankGroups([(one ? R.slice(0, Math.max(6, enough(SIDE_SIZE.right))) : outlets.slice(0, n)).map((outletId) => ({ outletId, publishedAt: 0 }))])[0]!,
     topic,
+    importance,
   });
   const opts = { front: 2, perSection: 2, blindspots: 1, max: 30 };
 
@@ -111,6 +125,24 @@ describe("pickBalanced", () => {
     expect(picked).toEqual([front, blind]);
   });
 
+  it("leads the front page with the most important story, not the most repeated one", () => {
+    const joke = group(10, "politics", false, 2);
+    const ruling = group(6, "politics", false, 5);
+    const picked = pickBalanced([joke, ruling], { ...opts, front: 1, perSection: 0 });
+    expect(picked).toEqual([ruling]);
+  });
+
+  it("leaves gossip and puzzle hints out of the edition, and minor news off the front page", () => {
+    const gossip = group(10, "culture", false, 1);
+    const oneSidedGossip = group(5, null, true, 1);
+    expect(oneSidedGossip.blindspot).toBe("left");
+    expect(pickBalanced([gossip, oneSidedGossip], opts)).toEqual([]);
+    // Minor news (2) can fill its own section but never the front page.
+    const minor = group(10, "sports", false, 2);
+    expect(pickBalanced([minor], opts)).toEqual([minor]);
+    expect(frontPage([minor], 5).size).toBe(0);
+  });
+
   it("caps the total", () => {
     const many = TOPIC_IDS.flatMap((t) => [group(5, t), group(4, t), group(3, t)]);
     expect(pickBalanced(many, { ...opts, max: 7 })).toHaveLength(7);
@@ -119,9 +151,9 @@ describe("pickBalanced", () => {
 
 describe("frontPage", () => {
   it("only takes stories both sides covered, widest first", () => {
-    const a = { id: "a", coverage: coverageOf([L[0]!, R[0]!, C[0]!, C[1]!]) };
-    const b = { id: "b", coverage: coverageOf([R[0]!, R[1]!, R[2]!, R[3]!, C[0]!]) };
-    const c = { id: "c", coverage: coverageOf([L[0]!, R[0]!, C[0]!]) };
+    const a = { id: "a", importance: 4, coverage: coverageOf([L[0]!, R[0]!, C[0]!, C[1]!]) };
+    const b = { id: "b", importance: 4, coverage: coverageOf([R[0]!, R[1]!, R[2]!, R[3]!, C[0]!]) };
+    const c = { id: "c", importance: 4, coverage: coverageOf([L[0]!, R[0]!, C[0]!]) };
     expect([...frontPage([c, b, a], 5)].map((s) => s.id)).toEqual(["a", "c"]);
   });
 });

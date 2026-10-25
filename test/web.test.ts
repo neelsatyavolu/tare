@@ -47,7 +47,7 @@ describe("pages", () => {
     const html = await res.text();
     expect(html).toContain("Senate passes bill");
     expect(html).toContain("No. 3");
-    expect(html).toContain("Balanced coverage");
+    expect(html).toContain("Covered about equally by left and right");
     expect(html).toContain(`href="/s/${STORY_ID}#src-1"`);
     expect(html).toContain("That&#39;s the edition.");
     expect(res.headers.get("content-security-policy")).toContain("script-src 'none'");
@@ -190,5 +190,15 @@ describe("accounts", () => {
     const cookie = await signIn("f@ex.com");
     const html = await (await req("/", { headers: { cookie } })).text();
     expect(html).toContain("Your daily email is off.");
+  });
+});
+
+describe("sample email", () => {
+  it("shows today's edition as the morning email, before anyone signs up", async () => {
+    const res = await req("/sample-email");
+    expect(res.status).toBe(200);
+    const html = await res.text();
+    expect(html).toContain("Senate passes bill");
+    expect(html).toContain("That's the edition.");
   });
 });
