@@ -1,47 +1,68 @@
 import { describe, expect, it } from "vitest";
-import { blindspotOf, coverageOf, frontPage, pickBalanced, rankGroups, whyText } from "../src/build/select";
+import { BLINDSPOT, blindspotOf, coverageOf, frontPage, pickBalanced, rankGroups, whyText } from "../src/build/select";
 import { TOPIC_IDS, type TopicId } from "../src/topics";
-import { OUTLETS, SIDE_SIZE } from "../src/outlets";
+import { leanOf, OUTLETS, sideOf, SIDE_SIZE } from "../src/outlets";
+
+// Outlets by side, read from the data so these tests don't depend on any one outlet's rating.
+const bySide = (side: "left" | "center" | "right") => OUTLETS.filter((o) => sideOf(o.lean) === side).map((o) => o.id);
+const L = bySide("left");
+const C = bySide("center");
+const R = bySide("right");
+const UNRATED = OUTLETS.filter((o) => o.lean === "unrated").map((o) => o.id);
+const enough = (size: number) => Math.ceil(size * BLINDSPOT.minShare);
 
 describe("source list", () => {
-  it("has the same number of outlets on the left and the right", () => {
-    expect(SIDE_SIZE.left).toBe(SIDE_SIZE.right);
+  it("rates every outlet from the published data or marks it unrated, with unique ids", () => {
     expect(new Set(OUTLETS.map((o) => o.id)).size).toBe(OUTLETS.length);
+    for (const o of OUTLETS) expect(o.lean).toBe(leanOf(o.zeta));
+    expect(UNRATED.length).toBeGreaterThan(0);
+    expect(SIDE_SIZE.left + SIDE_SIZE.center + SIDE_SIZE.right + UNRATED.length).toBe(OUTLETS.length);
+  });
+
+  it("buckets scores at half and one full congressional gap from zero", () => {
+    expect([-1.5, -1.0, 0, 0.62, 0.9, 1.3, null].map(leanOf)).toEqual(["left", "lean-left", "center", "center", "lean-right", "right", "unrated"]);
   });
 });
 
 describe("coverageOf", () => {
-  it("counts distinct outlets per side", () => {
-    expect(coverageOf(["guardian", "guardian", "nyt", "bbc", "fox"])).toEqual({ left: 2, center: 1, right: 1, total: 4, balance: -0.33 });
+  it("counts distinct outlets per side and unrated ones only toward the total", () => {
+    expect(coverageOf([L[0]!, L[0]!, L[1]!, UNRATED[0]!, R[0]!])).toMatchObject({ left: 2, center: 0, right: 1, unrated: 1, total: 4 });
   });
 
-  it("is balanced when both sides cover equally and ignores unknown outlets", () => {
-    expect(coverageOf(["vox", "fox", "mystery"]).balance).toBe(0);
-    expect(coverageOf(["vox", "fox", "mystery"]).total).toBe(2);
+  it("is balanced by shares, not counts, and ignores unknown outlets", () => {
+    const c = coverageOf([L[0]!, R[0]!, "mystery"]);
+    expect(c.total).toBe(2);
+    expect(Math.sign(c.balance)).toBe(Math.sign(SIDE_SIZE.left - SIDE_SIZE.right) || 0);
   });
 
   it("reads 1 when only the right covered it and 0 when only the center did", () => {
-    expect(coverageOf(["fox", "nypost"]).balance).toBe(1);
-    expect(coverageOf(["bbc", "pbs"]).balance).toBe(0);
+    expect(coverageOf([R[0]!, R[1]!]).balance).toBe(1);
+    expect(coverageOf([C[0]!, C[1]!]).balance).toBe(0);
   });
 });
 
 describe("blindspotOf", () => {
-  it("flags the side that skipped a widely covered story", () => {
-    expect(blindspotOf(coverageOf(["fox", "nypost", "breitbart", "dailywire", "bbc"]))).toBe("left");
-    expect(blindspotOf(coverageOf(["vox", "nyt", "npr", "slate", "fox"]))).toBe("right");
+  it("flags the side that skipped a story enough of the other side covered", () => {
+    expect(blindspotOf(coverageOf([...R.slice(0, Math.max(6, enough(SIDE_SIZE.right)))]))).toBe("left");
+    expect(blindspotOf(coverageOf([...L.slice(0, Math.max(5, enough(SIDE_SIZE.left))), R[0]!]))).toBe("right");
   });
 
-  it("does not flag small or balanced stories", () => {
-    expect(blindspotOf(coverageOf(["fox", "nypost", "breitbart"]))).toBeNull();
-    expect(blindspotOf(coverageOf(["fox", "nypost", "vox", "nyt", "bbc"]))).toBeNull();
+  it("treats thin or two-sided coverage as noise, not a blindspot", () => {
+    // Too few outlets overall, however lopsided.
+    expect(blindspotOf(coverageOf(R.slice(0, 5)))).toBeNull();
+    // Below the minimum share of the covering side, even with plenty of center outlets.
+    expect(blindspotOf(coverageOf([...R.slice(0, enough(SIDE_SIZE.right) - 1), ...C.slice(0, 6)]))).toBeNull();
+    // Two outlets from the other side means it did cover it.
+    expect(blindspotOf(coverageOf([...R.slice(0, enough(SIDE_SIZE.right)), L[0]!, L[1]!]))).toBeNull();
   });
 });
 
 describe("whyText", () => {
   it("states the counts and the blindspot", () => {
-    const c = coverageOf(["fox", "nypost", "breitbart", "dailywire", "bbc"]);
-    expect(whyText(c, "left")).toBe(`Covered by 5 of ${OUTLETS.length} outlets: 0 left, 1 center, 4 right. Few left-leaning outlets covered it.`);
+    const c = coverageOf([...R.slice(0, 6), C[0]!, UNRATED[0]!]);
+    expect(whyText(c, "left")).toBe(
+      `Covered by 8 of ${OUTLETS.length} outlets: 0 left, 1 center, 6 right, 1 not rated. A blindspot: 0 of ${SIDE_SIZE.left} left-leaning outlets covered it, and none of the others published a matching headline.`,
+    );
   });
 });
 
@@ -49,16 +70,17 @@ describe("rankGroups", () => {
   const m = (outletId: string, publishedAt = 0) => ({ outletId, publishedAt });
 
   it("drops single-outlet groups and ranks by breadth, newest first on ties", () => {
-    const ranked = rankGroups([[m("vox")], [m("vox"), m("fox")], [m("vox"), m("bbc"), m("fox")], [m("slate", 9), m("pbs", 9), m("nypost", 9)]]);
+    const ranked = rankGroups([[m(L[0]!)], [m(L[0]!), m(R[0]!)], [m(L[0]!), m(C[0]!), m(R[0]!)], [m(L[1]!, 9), m(C[1]!, 9), m(R[1]!, 9)]]);
     expect(ranked.map((r) => [r.coverage.total, r.latest])).toEqual([[3, 9], [3, 0], [2, 0]]);
   });
 });
 
 describe("pickBalanced", () => {
-  const outlets = ["vox", "nyt", "npr", "bbc", "pbs", "fox", "nypost", "washtimes", "breitbart", "slate"];
-  // A group covered by the first `n` outlets of a mixed list (both sides appear from n = 6).
+  // Alternates sides, so any n >= 2 includes both the left and the right.
+  const outlets = [L[0], R[0], C[0], L[1], R[1], C[1], L[2], R[2], C[2], L[3]].map((id) => id!);
+  // A group covered by the first `n` outlets of the mixed list.
   const group = (n: number, topic: TopicId | null, one = false) => ({
-    ...rankGroups([(one ? ["fox", "nypost", "breitbart", "washtimes", "bbc"] : outlets.slice(0, n)).map((outletId) => ({ outletId, publishedAt: 0 }))])[0]!,
+    ...rankGroups([(one ? R.slice(0, Math.max(6, enough(SIDE_SIZE.right))) : outlets.slice(0, n)).map((outletId) => ({ outletId, publishedAt: 0 }))])[0]!,
     topic,
   });
   const opts = { front: 2, perSection: 2, blindspots: 1, max: 30 };
@@ -97,9 +119,9 @@ describe("pickBalanced", () => {
 
 describe("frontPage", () => {
   it("only takes stories both sides covered, widest first", () => {
-    const a = { id: "a", coverage: coverageOf(["vox", "fox", "bbc", "pbs"]) };
-    const b = { id: "b", coverage: coverageOf(["fox", "nypost", "breitbart", "dailywire", "bbc"]) };
-    const c = { id: "c", coverage: coverageOf(["vox", "fox", "bbc"]) };
+    const a = { id: "a", coverage: coverageOf([L[0]!, R[0]!, C[0]!, C[1]!]) };
+    const b = { id: "b", coverage: coverageOf([R[0]!, R[1]!, R[2]!, R[3]!, C[0]!]) };
+    const c = { id: "c", coverage: coverageOf([L[0]!, R[0]!, C[0]!]) };
     expect([...frontPage([c, b, a], 5)].map((s) => s.id)).toEqual(["a", "c"]);
   });
 });

@@ -1,16 +1,16 @@
 import type { BuiltStory } from "./build/build";
 import type { Coverage } from "./build/select";
-import { outletById, type Outlet } from "./outlets";
+import { outletById, sideOf, type Outlet, type Side } from "./outlets";
 import { isTopicId } from "./topics";
 
 export type Edition = { date: string; number: number; status: "building" | "ready" | "failed"; itemCount: number; builtAt: number | null; sentAt: number | null };
-export type Story = Omit<BuiltStory, "coverage"> & { editionDate: string; coverage: Coverage };
+export type Story = Omit<BuiltStory, "coverage"> & { editionDate: string; coverage: Coverage; firstSeenAt: number | null };
 export type Source = { id: string; outlet: Outlet; title: string; url: string; publishedAt: number; imageUrl: string | null };
 
 type EditionRow = { date: string; number: number; status: Edition["status"]; item_count: number; built_at: number | null; sent_at: number | null };
 type StoryRow = {
   id: string; edition_date: string; rank: number; front: number; topic: string; headline: string;
-  summary: string; differences: string; coverage: string; blindspot: "left" | "right" | null; item_ids: string; image_item_id: string | null;
+  summary: string; differences: string; coverage: string; blindspot: "left" | "right" | null; item_ids: string; image_item_id: string | null; first_seen_at: number | null;
 };
 
 const toEdition = (r: EditionRow): Edition => ({ date: r.date, number: r.number, status: r.status, itemCount: r.item_count, builtAt: r.built_at, sentAt: r.sent_at });
@@ -28,6 +28,7 @@ const toStory = (r: StoryRow): Story => ({
   blindspot: r.blindspot,
   itemIds: JSON.parse(r.item_ids),
   imageItemId: r.image_item_id,
+  firstSeenAt: r.first_seen_at,
 });
 
 export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -55,7 +56,8 @@ export async function listEditions(db: D1Database, limit = 60): Promise<(Edition
 }
 
 export async function storiesFor(db: D1Database, date: string): Promise<Story[]> {
-  const { results } = await db.prepare("SELECT * FROM stories WHERE edition_date = ? ORDER BY rank").bind(date).all<StoryRow>();
+  // The current lineup only; stories that dropped out stay reachable by link.
+  const { results } = await db.prepare("SELECT * FROM stories WHERE edition_date = ? AND active = 1 ORDER BY rank").bind(date).all<StoryRow>();
   return results.map(toStory);
 }
 
@@ -83,3 +85,18 @@ export async function sourcesFor(db: D1Database, stories: readonly Story[]): Pro
   }
   return out;
 }
+
+/** A story's sources in display order (left, center, right, then by outlet), which fixes the citation numbers. */
+export function orderedSources(story: Story, sources: Map<string, Source>): Source[] {
+  const order: Record<Side, number> = { left: 0, center: 1, right: 2 };
+  // Unrated outlets come last.
+  const rank = (s: Source) => {
+    const side = sideOf(s.outlet.lean);
+    return side ? order[side] : 3;
+  };
+  return story.itemIds
+    .map((id) => sources.get(id))
+    .filter((s): s is Source => !!s)
+    .sort((a, b) => rank(a) - rank(b) || a.outlet.name.localeCompare(b.outlet.name));
+}
+

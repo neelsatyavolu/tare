@@ -18,7 +18,8 @@ const KINDS = ["fact", "framing", "emphasis", "omission"] as const;
 const ReplySchema = z.object({
   topic: z.string(),
   headline: z.string().min(1),
-  summary: z.array(z.object({ text: z.string(), sources: z.array(z.string()) })),
+  // The model is asked for a list of cited sentences, but sometimes writes one paragraph with inline [s1] markers.
+  summary: z.union([z.array(z.object({ text: z.string(), sources: z.array(z.string()) })), z.string()]),
   differences: z.array(z.object({ kind: z.string(), text: z.string(), sources: z.array(z.string()) })).default([]),
   off_topic: z.array(z.string()).default([]),
 });
@@ -53,7 +54,8 @@ Rules:
 - off_topic: numbers of any sources that are about a different event than most of the others.
 - topic: one of ${TOPICS.map((t) => `${t.id} (${t.name})`).join(", ")}. "politics" is U.S. politics only; elections and governments elsewhere are "world".
 
-Reply with JSON only.`;
+Reply with JSON only, in exactly this shape:
+{"topic":"world","headline":"...","summary":[{"text":"First sentence.","sources":["s1","s3"]},{"text":"Second sentence.","sources":["s2"]}],"differences":[{"kind":"framing","text":"...","sources":["s1","s2"]}],"off_topic":[]}`;
 
 export function sourceBlock(items: readonly SourceItem[]): string {
   return items
@@ -97,6 +99,23 @@ export function extractJson(text: string): unknown {
 }
 
 const clean = (s: string) => s.replace(/\s+/g, " ").trim();
+
+/** "Sentence one [s1, s2]. Sentence two [\"s3\"]." → one entry per sentence, each with only its own citations. */
+export function splitInline(paragraph: string): { text: string; sources: string[] }[] {
+  return paragraph.split(/(?<=[.!?…](?:\s*\[[^\]]*\])?)\s+(?=[A-Z“"'])/).map((sentence) => {
+    const sources: string[] = [];
+    const text = sentence
+      .replace(/\s*\[([^\]]*)\]/g, (marker, inner: string) => {
+        const labels = inner.match(/\bs\d{1,2}\b/gi);
+        if (!labels) return marker; // a bracket that isn't a citation stays in the text
+        sources.push(...labels.map((l) => l.toLowerCase()));
+        return "";
+      })
+      .trim();
+    return { text, sources: [...new Set(sources)] };
+  });
+}
+
 /** Text that leaks internal source labels ("s2 says...") reads as broken to readers; drop it. */
 // Lowercase only, so a product name like "Galaxy S24" survives.
 const leaksLabels = (s: string) => /\bs\d{1,2}\b/.test(s);
@@ -120,7 +139,8 @@ export function validateWriteup(raw: unknown, items: readonly SourceItem[]): Wri
   };
   const outletsOf = (ids: string[]) => new Set(ids.map((id) => items.find((it) => it.id === id)!.outletId));
 
-  const summary = r.summary.flatMap((s) => {
+  const sentences = typeof r.summary === "string" ? splitInline(r.summary) : r.summary;
+  const summary = sentences.flatMap((s) => {
     const cites = resolve(s.sources);
     const text = clean(s.text);
     return cites && text && !leaksLabels(text) ? [{ text, cites }] : [];

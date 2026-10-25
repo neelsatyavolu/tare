@@ -1,4 +1,9 @@
 import { Hono, type Context } from "hono";
+import { deleteCookie, getCookie, setCookie } from "hono/cookie";
+import { exchange, isProvider, PROVIDER_LABEL, readCallback, startSignIn, type AiProvider } from "./ai/oauth";
+import { connectedProvider, deleteConnection, saveConnection } from "./ai/vault";
+import { loadBriefing, requestBriefing, runBriefing, type BriefingJob } from "./briefing";
+import { AiPaste } from "./web/ai";
 import type { Child } from "hono/jsx";
 import { editionByDate, latestEdition, listEditions, sourcesFor, storiesFor, storyById } from "./editions";
 import type { Env } from "./env";
@@ -100,7 +105,19 @@ app.get("/s/:id", async (c) => {
   const edition = await editionByDate(c.env.DB, story.editionDate);
   if (!edition) return c.notFound();
   const sources = await sourcesFor(c.env.DB, [story]);
-  return page(c, <StoryPage story={story} sources={sources} edition={edition} />);
+  const viewer = c.get("viewer");
+  const [briefing, connected] = await Promise.all([loadBriefing(c.env.DB, story.id), viewer ? connectedProvider(c.env.DB, viewer.id) : null]);
+  return page(c, <StoryPage story={story} sources={sources} edition={edition} briefing={briefing} connected={connected} />);
+});
+
+app.post("/s/:id/briefing", async (c) => {
+  const viewer = c.get("viewer");
+  if (!viewer) return c.redirect("/signin", 303);
+  const story = await storyById(c.env.DB, c.req.param("id"));
+  if (!story) return c.notFound();
+  if (!(await connectedProvider(c.env.DB, viewer.id))) return c.redirect("/account#ai", 303);
+  await requestBriefing(c.env, story.id, viewer.id);
+  return c.redirect(`/s/${story.id}#briefing`, 303);
 });
 
 app.get("/archive", async (c) => page(c, <ArchivePage editions={await listEditions(c.env.DB)} />));
@@ -212,10 +229,70 @@ app.post("/signout", async (c) => {
 
 const requireViewer = (c: Context<App>) => c.get("viewer");
 
-app.get("/account", (c) => {
+app.get("/account", async (c) => {
+  const viewer = requireViewer(c);
+  if (!viewer) return c.redirect("/signin", 303);
+  const saved = {
+    topics: "Topics saved.", on: "Daily email turned on.", off: "Daily email turned off.",
+    ai: "Connected. You can ask for a detailed briefing on any story.", "ai-off": "Disconnected.",
+  }[c.req.query("saved") ?? ""];
+  return page(c, <AccountPage saved={saved} aiProvider={await connectedProvider(c.env.DB, viewer.id)} />);
+});
+
+// ── Connecting a reader's own Grok or ChatGPT (for detailed briefings) ──
+
+const PKCE_COOKIE = "tare_ai_pkce";
+type Pkce = { verifier: string; state: string; provider: AiProvider; url: string };
+
+function readPkce(c: Context<App>): Pkce | null {
+  try {
+    const p = JSON.parse(getCookie(c, PKCE_COOKIE) ?? "null");
+    return p && typeof p.verifier === "string" && typeof p.state === "string" && isProvider(p.provider) && typeof p.url === "string" ? p : null;
+  } catch {
+    return null;
+  }
+}
+
+app.post("/account/ai/start", async (c) => {
   if (!requireViewer(c)) return c.redirect("/signin", 303);
-  const saved = { topics: "Topics saved.", on: "Daily email turned on.", off: "Daily email turned off." }[c.req.query("saved") ?? ""];
-  return page(c, <AccountPage saved={saved} />);
+  const provider = (await c.req.parseBody()).provider;
+  const chosen: AiProvider = isProvider(provider) ? provider : "grok";
+  const { verifier, state, url } = startSignIn(chosen);
+  setCookie(c, PKCE_COOKIE, JSON.stringify({ verifier, state, provider: chosen, url }), {
+    httpOnly: true, sameSite: "Lax", secure: new URL(c.req.url).protocol === "https:", path: "/account/ai", maxAge: 15 * 60,
+  });
+  return page(c, <Layout title="Connect · Tare" nav="account"><AiPaste provider={chosen} authorizeUrl={url} /></Layout>);
+});
+
+app.post("/account/ai/complete", async (c) => {
+  const viewer = requireViewer(c);
+  if (!viewer) return c.redirect("/signin", 303);
+  const pkce = readPkce(c);
+  if (!pkce) return c.redirect("/account?expired=1#ai", 303);
+  const retry = (error: string) => page(c, <Layout title="Connect · Tare" nav="account"><AiPaste provider={pkce.provider} authorizeUrl={pkce.url} error={error} /></Layout>, 400);
+  const name = PROVIDER_LABEL[pkce.provider];
+  const pasted = String((await c.req.parseBody()).callback ?? "").trim().slice(0, 4000);
+  const { code, state, error } = readCallback(pasted);
+  if (error) return retry(`${name} sign-in was cancelled or failed. Open the sign-in again.`);
+  if (!code) return retry(`That doesn't contain a sign-in code. Copy the full code or address ${name} showed you.`);
+  // A bare code (no state) belongs to the one pending attempt in this browser.
+  if (state && state !== pkce.state) return retry("That code is from a different sign-in attempt. Open the sign-in link above again.");
+  if (!c.env.AI_TOKEN_KEY) throw new Error("AI_TOKEN_KEY is not set.");
+  try {
+    await saveConnection(c.env.DB, c.env.AI_TOKEN_KEY, viewer.id, await exchange(code, pkce.verifier, pkce.provider));
+  } catch (err) {
+    console.error(`${pkce.provider} token exchange failed: ${err instanceof Error ? err.message : String(err)}`);
+    return retry(`${name} didn't accept that code. Codes expire quickly, so open the sign-in again.`);
+  }
+  deleteCookie(c, PKCE_COOKIE, { path: "/account/ai" });
+  return c.redirect("/account?saved=ai#ai", 303);
+});
+
+app.post("/account/ai/disconnect", async (c) => {
+  const viewer = requireViewer(c);
+  if (!viewer) return c.redirect("/signin", 303);
+  await deleteConnection(c.env.DB, viewer.id);
+  return c.redirect("/account?saved=ai-off#ai", 303);
 });
 
 app.post("/account/topics", async (c) => {
@@ -338,6 +415,12 @@ export default {
   async scheduled(controller, env, ctx) {
     ctx.waitUntil(runCron(controller.cron, env));
   },
-} satisfies ExportedHandler<Env>;
+  async queue(batch, env) {
+    for (const msg of batch.messages) {
+      await runBriefing(env, msg.body);
+      msg.ack();
+    }
+  },
+} satisfies ExportedHandler<Env, BriefingJob>;
 
 export { app };

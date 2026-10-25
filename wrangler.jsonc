@@ -12,13 +12,15 @@
     // Sign-up form: 5 posts per minute per IP, so nobody can use it to mail-bomb an address.
     { "name": "SIGNUP_LIMIT", "namespace_id": "1001", "simple": { "limit": 5, "period": 60 } }
   ],
+  // Detailed briefings run on a queue: they take a minute or two, longer than a page request should wait.
+  "queues": {
+    "producers": [{ "binding": "BRIEFING_QUEUE", "queue": "tare-briefings" }],
+    "consumers": [{ "queue": "tare-briefings", "max_batch_size": 2, "max_batch_timeout": 1, "max_retries": 1 }]
+  },
   "triggers": {
     "crons": [
-      // Hourly: pull every feed, since most only hold their latest 20-50 items.
+      // Hourly: pull every feed (most only hold their latest 20-50 items), then refresh today's edition.
       "7 * * * *",
-      // 10:15 UTC: build the day's edition; 10:45 retries if that failed.
-      "15 10 * * *",
-      "45 10 * * *",
       // 11:00 UTC: email it (7 a.m. New York in summer, 6 a.m. in winter); 13:00 resumes anyone missed.
       "0 11 * * *",
       "0 13 * * *"
@@ -31,8 +33,7 @@
   "routes": [{ "pattern": "tare.news", "custom_domain": true }],
   "vars": {
     "APP_URL": "https://tare.news",
-    // Switch to edition@tare.news once that domain is verified in Resend.
-    "MAIL_FROM": "Tare <edition@n3el.dev>"
+    "MAIL_FROM": "Tare <edition@tare.news>"
   },
   "observability": { "enabled": true }
 }

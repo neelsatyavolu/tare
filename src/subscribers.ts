@@ -99,9 +99,13 @@ export async function setDigest(db: D1Database, id: string, on: boolean): Promis
     .run();
 }
 
-/** Removes the account and every session for it. */
+/** Removes the account, its sessions and any connected AI account. */
 export async function deleteAccount(db: D1Database, id: string): Promise<void> {
-  await db.batch([db.prepare("DELETE FROM sessions WHERE subscriber_id = ?").bind(id), db.prepare("DELETE FROM subscribers WHERE id = ?").bind(id)]);
+  await db.batch([
+    db.prepare("DELETE FROM sessions WHERE subscriber_id = ?").bind(id),
+    db.prepare("DELETE FROM ai_connections WHERE subscriber_id = ?").bind(id),
+    db.prepare("DELETE FROM subscribers WHERE id = ?").bind(id),
+  ]);
 }
 
 export async function findById(db: D1Database, id: string): Promise<Subscriber | null> {

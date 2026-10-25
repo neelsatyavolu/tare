@@ -8,8 +8,8 @@ const feed = (items: { title: string; link: string; date: string }[]) =>
   `<rss><channel>${items.map((i) => `<item><title>${i.title}</title><link>${i.link}</link><pubDate>${i.date}</pubDate></item>`).join("")}</channel></rss>`;
 
 const outlets: Outlet[] = [
-  { id: "a", name: "A", lean: "left", feeds: ["https://a.test/rss", "https://a.test/world"] },
-  { id: "b", name: "B", lean: "right", feeds: ["https://b.test/rss"] },
+  { id: "a", name: "A", domain: "a.test", lean: "left", zeta: -1.5, zetaLow: null, zetaHigh: null, feeds: ["https://a.test/rss", "https://a.test/world"] },
+  { id: "b", name: "B", domain: "b.test", lean: "right", zeta: 1.5, zetaLow: null, zetaHigh: null, feeds: ["https://b.test/rss"] },
 ];
 
 const fakeFetch = (async (input: RequestInfo | URL) => {
@@ -42,7 +42,7 @@ describe("ingest", () => {
 
   it("keeps the same link from two outlets as two pieces of coverage", async () => {
     const shared = (async () => new Response(feed([{ title: "Wire story", link: "https://wire.test/1", date: "Sat, 24 Oct 2026 10:00:00 GMT" }]))) as typeof fetch;
-    const two: Outlet[] = [{ id: "a", name: "A", lean: "left", feeds: ["https://a.test/rss"] }, { id: "b", name: "B", lean: "right", feeds: ["https://b.test/rss"] }];
+    const two: Outlet[] = outlets.map((o) => ({ ...o, feeds: [o.feeds[0]!] }));
     expect((await ingest(env.DB, shared, NOW, two)).inserted).toBe(2);
   });
 

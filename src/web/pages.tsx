@@ -1,10 +1,13 @@
 import type { Child, FC } from "hono/jsx";
-import { BALANCE, MIN_OUTLETS, SECTION_MIN_OUTLETS } from "../build/select";
+import { BALANCE, BLINDSPOT, MIN_OUTLETS, SECTION_MIN_OUTLETS } from "../build/select";
 import type { Edition, Source, Story } from "../editions";
 import { longDate, shortDate } from "../format";
 import { LEAN_LABEL, OUTLETS, SIDE_SIZE } from "../outlets";
 import { TOPICS, topicName, type TopicId } from "../topics";
-import { editionLine, HowToRead, Layout, SourceList, StoryCard, SubscribeForm, TopicChips, useViewer } from "./components";
+import { editionLine, HowToRead, Layout, orderedSources, SourceList, StoryCard, SubscribeForm, TopicChips, useViewer } from "./components";
+import { AiConnection, BriefingBlock } from "./ai";
+import { STALE_MS, type BriefingRow } from "../briefing";
+import type { AiProvider } from "../ai/oauth";
 
 type Sources = Map<string, Source>;
 
@@ -29,7 +32,7 @@ export const EditionPage: FC<{ edition: Edition; stories: Story[]; sources: Sour
     <Layout
       title={isToday ? "Tare · Today's edition" : `Tare · ${longDate(edition.date)}`}
       nav={isToday ? "today" : "archive"}
-      editionLine={editionLine(edition.date, edition.number, stories.length)}
+      editionLine={editionLine(edition.date, edition.number, stories.length, isToday ? edition.builtAt : null)}
     >
       <HowToRead />
       {lead ? (
@@ -64,15 +67,24 @@ export const EmptyPage: FC = () => (
   </Layout>
 );
 
-export const StoryPage: FC<{ story: Story; sources: Sources; edition: Edition }> = ({ story, sources, edition }) => (
-  <Layout title={`${story.headline} · Tare`} description={story.summary.map((s) => s.text).join(" ")} editionLine={editionLine(edition.date, edition.number, 1).replace(/ · 1 story$/, "")}>
-    <div class="article">
-      <p class="meta"><a href={`/e/${edition.date}`}>← {shortDate(edition.date)} edition</a></p>
-      <StoryCard story={story} sources={sources} page />
-      <SourceList story={story} sources={sources} />
-    </div>
-  </Layout>
-);
+export const StoryPage: FC<{ story: Story; sources: Sources; edition: Edition; briefing: BriefingRow | null; connected: AiProvider | null }> = ({ story, sources, edition, briefing, connected }) => {
+  const writing = briefing?.status === "writing" && Date.now() - briefing.requestedAt < STALE_MS;
+  return (
+    <Layout
+      title={`${story.headline} · Tare`}
+      description={story.summary.map((s) => s.text).join(" ")}
+      editionLine={editionLine(edition.date, edition.number, 1).replace(/ · 1 story$/, "")}
+      refreshSeconds={writing ? 10 : undefined}
+    >
+      <div class="article">
+        <p class="meta"><a href={`/e/${edition.date}`}>← {shortDate(edition.date)} edition</a></p>
+        <StoryCard story={story} sources={sources} page />
+        <BriefingBlock storyId={story.id} briefing={briefing} connected={connected} numbers={orderedSources(story, sources).length} />
+        <SourceList story={story} sources={sources} />
+      </div>
+    </Layout>
+  );
+};
 
 export const ArchivePage: FC<{ editions: (Edition & { stories: number })[] }> = ({ editions }) => (
   <Layout title="Archive · Tare" nav="archive">
@@ -89,6 +101,8 @@ export const ArchivePage: FC<{ editions: (Edition & { stories: number })[] }> = 
   </Layout>
 );
 
+const fmt = (n: number) => (n > 0 ? "+" : n < 0 ? "−" : "") + Math.abs(n).toFixed(2);
+
 export const MethodPage: FC = () => (
   <Layout title="Method · Tare" nav="method">
     <div class="prose">
@@ -99,16 +113,16 @@ export const MethodPage: FC = () => (
       <p>Every hour Tare reads the public RSS feeds of the {OUTLETS.length} outlets below. It keeps each headline, the short description the outlet puts in its feed, and the link. It never copies article text, and every story links back to the outlets that reported it.</p>
 
       <h2>How a story makes the edition</h2>
-      <p>Each morning Tare groups the last 24 hours of headlines by event, using text embeddings to spot headlines about the same thing, and sorts each group into a section. Then it applies the same fixed rules every day. There's no algorithm tuned to you: nothing is ranked by clicks, shares or what you've read.</p>
+      <p>Every hour Tare groups the last 24 hours of headlines by event, using text embeddings to spot headlines about the same thing, and sorts each group into a section. It does this every hour, so breaking stories appear within the hour, and it applies the same fixed rules every time. There's no algorithm tuned to you: nothing is ranked by clicks, shares or what you've read.</p>
       <ol>
         <li>The <b>front page</b> is the {BALANCE.front} most widely covered stories that outlets on both the left and the right reported. Everyone gets it, whatever topics they choose.</li>
         <li>Every <b>section</b> (world, U.S., politics, business, technology, science, climate, culture and sports) gets up to {BALANCE.perSection} of its most widely covered stories with at least {MIN_OUTLETS} outlets. A quiet section still gets its single best story if {SECTION_MIN_OUTLETS} outlets covered it, so one busy topic can't crowd out the rest.</li>
-        <li>A <b>blindspot</b> is a story at least four outlets covered that one side mostly skipped (one outlet or none). Up to {BALANCE.blindspots} make each edition.</li>
+        <li>A <b>blindspot</b> is a story at least {Math.round(BLINDSPOT.minShare * 100)}% of one side's outlets covered while at most {BLINDSPOT.maxOther} outlet on the other side did, with at least {BLINDSPOT.minTotal} outlets in all. Before calling it one, Tare checks every headline the other side published that day for a looser match; if it finds one, it isn't a blindspot. Up to {BALANCE.blindspots} make each edition.</li>
       </ol>
       <p>Picking topics in your account only changes the order: your sections come first. You still see everything else.</p>
 
       <h2>The scale</h2>
-      <p>Each story shows what share of each side's outlets covered it. The needle uses shares, not raw counts, so a side can't tip the scale just by having more outlets on the list. Both the left and the right have {SIDE_SIZE.left} outlets here; the center has {SIDE_SIZE.center}.</p>
+      <p>Each story shows what share of each side's outlets covered it. The needle uses shares, not raw counts, so a side can't tip the scale just by having more outlets on the list. Right now Tare reads {SIDE_SIZE.left} left-leaning, {SIDE_SIZE.center} center and {SIDE_SIZE.right} right-leaning outlets, plus {OUTLETS.length - SIDE_SIZE.left - SIDE_SIZE.center - SIDE_SIZE.right} not rated.</p>
 
       <h2>The writing</h2>
       <p>An AI model (OpenAI's open-weight gpt-oss-120b, running on Cloudflare) writes each headline, summary and "where accounts differ" note from the headlines and descriptions alone. It's told to use neutral wording, attribute claims, and never decide which outlet is right. Every sentence has to name the sources it relies on; Tare drops any sentence that cites nothing or cites a source that isn't in the group. The numbers after each sentence link to those sources.</p>
@@ -117,13 +131,32 @@ export const MethodPage: FC = () => (
       <h2>Photos</h2>
       <p>Each story shows a photo the outlet itself put in its feed, with a credit and a link back to the outlet. A photo can frame a story as much as a headline, so Tare picks one from a center outlet when it can, and otherwise from the side that covered the story less. Photos load from the outlets' servers; Tare tells them nothing about which page you were on. Tare never generates images.</p>
 
-      <h2>The outlets and their labels</h2>
-      <p>These lean labels are Tare's own calls, guided by research on where each outlet's audience sits. They're here so you can disagree with them.</p>
+      <h2>Where the left, center and right labels come from</h2>
+      <p>
+        Not from Tare. Each outlet's lean comes from a published, peer-reviewed measure of its audience: Eady, Bonneau, Tucker and Nagler (2025),
+        "News Sharing and Partisanship on Social Media," <i>Political Analysis</i>. They scored 184 U.S. news sites by who shares their links,
+        on a scale where 0 is neutral and 1.24 is the distance between the typical Democratic and the typical Republican member of Congress.
+        Their data is public domain (CC0), so anyone can check it.
+      </p>
+      <p>
+        Tare draws the lines at half that distance and the full distance from 0: under −1.24 is <b>left</b>, −1.24 to −0.62 <b>leans left</b>,
+        −0.62 to 0.62 <b>center</b>, 0.62 to 1.24 <b>leans right</b>, and over 1.24 <b>right</b>. It measures audiences, not articles: an outlet
+        read mostly by one side lands on that side even if its reporting is straight. Outlets the study didn't cover (mostly international ones,
+        like the BBC) are <b>not rated</b>: their coverage counts, but never toward the left or the right.
+      </p>
       <table>
-        <thead><tr><th>Outlet</th><th>Label</th></tr></thead>
-        <tbody>{OUTLETS.map((o) => <tr><td>{o.name}</td><td>{LEAN_LABEL[o.lean]}</td></tr>)}</tbody>
+        <thead><tr><th>Outlet</th><th>Label</th><th>Score (90% range)</th></tr></thead>
+        <tbody>
+          {OUTLETS.map((o) => (
+            <tr>
+              <td>{o.name}</td>
+              <td>{LEAN_LABEL[o.lean]}</td>
+              <td class="mono">{o.zeta == null ? "—" : `${fmt(o.zeta)} (${fmt(o.zetaLow!)} to ${fmt(o.zetaHigh!)})`}</td>
+            </tr>
+          ))}
+        </tbody>
       </table>
-      <p class="meta">AP and Reuters don't offer public feeds, so they aren't on the list.</p>
+      <p class="meta">AP, Reuters, CNN and The Washington Post don't offer working public feeds, so they aren't read.</p>
 
       <h2>Open source</h2>
       <p>All of Tare's code, the outlet list, the labels and the exact instructions given to the AI are public under the MIT license on <a href="https://github.com/neelsatyavolu/tare">GitHub</a>. If you think a label or a rule is wrong, open an issue.</p>
@@ -186,7 +219,7 @@ export const SignInPage: FC<{ error?: string }> = ({ error }) => (
   </Layout>
 );
 
-export const AccountPage: FC<{ saved?: string }> = ({ saved }) => {
+export const AccountPage: FC<{ saved?: string; aiProvider: AiProvider | null }> = ({ saved, aiProvider }) => {
   const viewer = useViewer()!;
   const emailOn = viewer.status === "active";
   return (
@@ -209,6 +242,8 @@ export const AccountPage: FC<{ saved?: string }> = ({ saved }) => {
           <input type="hidden" name="on" value={emailOn ? "0" : "1"} />
           <div class="actions"><button type="submit">{emailOn ? "Turn off the daily email" : "Turn on the daily email"}</button></div>
         </form>
+
+        <div id="ai"><AiConnection provider={aiProvider} /></div>
 
         <h2>Sign out</h2>
         <form method="post" action="/signout">

@@ -13,6 +13,7 @@
   },
   "license": "MIT",
   "dependencies": {
+    "@neelsatyavolu/shared-ai-auth": "https://codeload.github.com/neelsatyavolu/shared-ai-auth/tar.gz/7290ee34fab152a3f0f8796e9cef38b94bc6421c",
     "fast-xml-parser": "^5.11.2",
     "hono": "^4.13.13",
     "zod": "^4.6.7"

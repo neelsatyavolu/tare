@@ -14,6 +14,14 @@ export function shortDate(date: string): string {
   return new Date(`${date}T12:00:00Z`).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" });
 }
 
+/** "10:07 a.m. ET" */
+export function easternTime(ms: number): string {
+  return new Date(ms)
+    .toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" })
+    .replace("AM", "a.m.")
+    .replace("PM", "p.m.") + " ET";
+}
+
 export function coverageLine(c: { total: number; left: number; center: number; right: number }): string {
   return `Covered by ${c.total} outlets · L ${c.left} · C ${c.center} · R ${c.right}`;
 }

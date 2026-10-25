@@ -1,0 +1,552 @@
+{
+  "_about": "Hand-kept input for scripts/discover-feeds.mjs. `known`: outlets whose ids and section feeds predate the generated list (ids must stay stable). `unrated`: outlets not in the Eady et al. 2025 data; they count as coverage but not toward left/center/right. `exclude`: domains in the Eady data that are not news publishers (pollsters, fact-checkers, advocacy groups, satire, trade press) or that no longer publish. `presets`: feed URLs to try for outlets whose homepage doesn't advertise them. `names`: display names where an outlet's site doesn't give a clean one.",
+  "known": [
+    {
+      "id": "guardian",
+      "name": "The Guardian",
+      "domain": "theguardian.com",
+      "feeds": [
+        "https://www.theguardian.com/us-news/rss",
+        "https://www.theguardian.com/world/rss",
+        "https://www.theguardian.com/technology/rss",
+        "https://www.theguardian.com/business/rss",
+        "https://www.theguardian.com/sport/rss",
+        "https://www.theguardian.com/science/rss",
+        "https://www.theguardian.com/environment/rss",
+        "https://www.theguardian.com/culture/rss"
+      ]
+    },
+    {
+      "id": "vox",
+      "name": "Vox",
+      "domain": "vox.com",
+      "feeds": [
+        "https://www.vox.com/rss/index.xml"
+      ]
+    },
+    {
+      "id": "slate",
+      "name": "Slate",
+      "domain": "slate.com",
+      "feeds": [
+        "https://slate.com/feeds/all.rss",
+        "https://slate.com/feeds/business.rss"
+      ]
+    },
+    {
+      "id": "salon",
+      "name": "Salon",
+      "domain": "salon.com",
+      "feeds": [
+        "https://www.salon.com/feed/"
+      ]
+    },
+    {
+      "id": "motherjones",
+      "name": "Mother Jones",
+      "domain": "motherjones.com",
+      "feeds": [
+        "https://www.motherjones.com/feed/"
+      ]
+    },
+    {
+      "id": "nyt",
+      "name": "The New York Times",
+      "domain": "nytimes.com",
+      "feeds": [
+        "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
+        "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
+        "https://rss.nytimes.com/services/xml/rss/nyt/US.xml",
+        "https://rss.nytimes.com/services/xml/rss/nyt/Business.xml",
+        "https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml",
+        "https://rss.nytimes.com/services/xml/rss/nyt/Science.xml",
+        "https://rss.nytimes.com/services/xml/rss/nyt/Health.xml",
+        "https://rss.nytimes.com/services/xml/rss/nyt/Climate.xml",
+        "https://rss.nytimes.com/services/xml/rss/nyt/Arts.xml"
+      ]
+    },
+    {
+      "id": "npr",
+      "name": "NPR",
+      "domain": "npr.org",
+      "feeds": [
+        "https://feeds.npr.org/1001/rss.xml",
+        "https://feeds.npr.org/1004/rss.xml",
+        "https://feeds.npr.org/1006/rss.xml",
+        "https://feeds.npr.org/1019/rss.xml",
+        "https://feeds.npr.org/1007/rss.xml",
+        "https://feeds.npr.org/1128/rss.xml",
+        "https://feeds.npr.org/1055/rss.xml"
+      ]
+    },
+    {
+      "id": "nbc",
+      "name": "NBC News",
+      "domain": "nbcnews.com",
+      "feeds": [
+        "https://feeds.nbcnews.com/nbcnews/public/news",
+        "https://feeds.nbcnews.com/nbcnews/public/world",
+        "https://feeds.nbcnews.com/nbcnews/public/health"
+      ]
+    },
+    {
+      "id": "cbs",
+      "name": "CBS News",
+      "domain": "cbsnews.com",
+      "feeds": [
+        "https://www.cbsnews.com/latest/rss/main",
+        "https://www.cbsnews.com/latest/rss/world",
+        "https://www.cbsnews.com/latest/rss/us",
+        "https://www.cbsnews.com/latest/rss/moneywatch",
+        "https://www.cbsnews.com/latest/rss/technology",
+        "https://www.cbsnews.com/latest/rss/science",
+        "https://www.cbsnews.com/latest/rss/health",
+        "https://www.cbsnews.com/latest/rss/entertainment"
+      ]
+    },
+    {
+      "id": "abc",
+      "name": "ABC News",
+      "domain": "abcnews.go.com",
+      "feeds": [
+        "https://abcnews.go.com/abcnews/topstories",
+        "https://abcnews.go.com/abcnews/internationalheadlines",
+        "https://abcnews.go.com/abcnews/usheadlines",
+        "https://abcnews.go.com/abcnews/moneyheadlines",
+        "https://abcnews.go.com/abcnews/technologyheadlines",
+        "https://abcnews.go.com/abcnews/sportsheadlines"
+      ]
+    },
+    {
+      "id": "atlantic",
+      "name": "The Atlantic",
+      "domain": "theatlantic.com",
+      "feeds": [
+        "https://www.theatlantic.com/feed/all/"
+      ]
+    },
+    {
+      "id": "politico",
+      "name": "Politico",
+      "domain": "politico.com",
+      "feeds": [
+        "https://rss.politico.com/politics-news.xml"
+      ]
+    },
+    {
+      "id": "bbc",
+      "name": "BBC News",
+      "domain": "bbc.com",
+      "feeds": [
+        "https://feeds.bbci.co.uk/news/world/rss.xml",
+        "https://feeds.bbci.co.uk/news/world/us_and_canada/rss.xml",
+        "https://feeds.bbci.co.uk/news/business/rss.xml",
+        "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
+        "https://feeds.bbci.co.uk/news/health/rss.xml",
+        "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
+        "https://feeds.bbci.co.uk/sport/rss.xml"
+      ]
+    },
+    {
+      "id": "pbs",
+      "name": "PBS NewsHour",
+      "domain": "pbs.org",
+      "feeds": [
+        "https://www.pbs.org/newshour/feeds/rss/headlines",
+        "https://www.pbs.org/newshour/feeds/rss/world",
+        "https://www.pbs.org/newshour/feeds/rss/economy",
+        "https://www.pbs.org/newshour/feeds/rss/science",
+        "https://www.pbs.org/newshour/feeds/rss/health"
+      ]
+    },
+    {
+      "id": "thehill",
+      "name": "The Hill",
+      "domain": "thehill.com",
+      "feeds": [
+        "https://thehill.com/feed/",
+        "https://thehill.com/policy/technology/feed/",
+        "https://thehill.com/business/feed/",
+        "https://thehill.com/policy/healthcare/feed/",
+        "https://thehill.com/policy/energy-environment/feed/"
+      ]
+    },
+    {
+      "id": "axios",
+      "name": "Axios",
+      "domain": "axios.com",
+      "feeds": [
+        "https://api.axios.com/feed/"
+      ]
+    },
+    {
+      "id": "bloomberg",
+      "name": "Bloomberg",
+      "domain": "bloomberg.com",
+      "feeds": [
+        "https://feeds.bloomberg.com/politics/news.rss",
+        "https://feeds.bloomberg.com/markets/news.rss",
+        "https://feeds.bloomberg.com/technology/news.rss"
+      ]
+    },
+    {
+      "id": "cnbc",
+      "name": "CNBC",
+      "domain": "cnbc.com",
+      "feeds": [
+        "https://www.cnbc.com/id/100003114/device/rss/rss.html",
+        "https://www.cnbc.com/id/19854910/device/rss/rss.html",
+        "https://www.cnbc.com/id/100727362/device/rss/rss.html"
+      ]
+    },
+    {
+      "id": "newsnation",
+      "name": "NewsNation",
+      "domain": "newsnationnow.com",
+      "feeds": [
+        "https://www.newsnationnow.com/feed/"
+      ]
+    },
+    {
+      "id": "csmonitor",
+      "name": "The Christian Science Monitor",
+      "domain": "csmonitor.com",
+      "feeds": [
+        "https://rss.csmonitor.com/feeds/all"
+      ]
+    },
+    {
+      "id": "upi",
+      "name": "UPI",
+      "domain": "upi.com",
+      "feeds": [
+        "https://rss.upi.com/news/top_news.rss",
+        "https://rss.upi.com/news/world_news.rss",
+        "https://rss.upi.com/news/sports_news.rss",
+        "https://rss.upi.com/news/entertainment_news.rss"
+      ]
+    },
+    {
+      "id": "newsweek",
+      "name": "Newsweek",
+      "domain": "newsweek.com",
+      "feeds": [
+        "https://www.newsweek.com/rss"
+      ]
+    },
+    {
+      "id": "nypost",
+      "name": "New York Post",
+      "domain": "nypost.com",
+      "feeds": [
+        "https://nypost.com/feed/",
+        "https://nypost.com/world-news/feed/",
+        "https://nypost.com/business/feed/",
+        "https://nypost.com/tech/feed/",
+        "https://nypost.com/sports/feed/",
+        "https://nypost.com/entertainment/feed/"
+      ]
+    },
+    {
+      "id": "washexam",
+      "name": "Washington Examiner",
+      "domain": "washingtonexaminer.com",
+      "feeds": [
+        "https://www.washingtonexaminer.com/feed",
+        "https://www.washingtonexaminer.com/policy/feed"
+      ]
+    },
+    {
+      "id": "washtimes",
+      "name": "The Washington Times",
+      "domain": "washingtontimes.com",
+      "feeds": [
+        "https://www.washingtontimes.com/rss/headlines/news/",
+        "https://www.washingtontimes.com/rss/headlines/news/world/",
+        "https://www.washingtontimes.com/rss/headlines/news/business-economy/",
+        "https://www.washingtontimes.com/rss/headlines/culture/technology/",
+        "https://www.washingtontimes.com/rss/headlines/sports/"
+      ]
+    },
+    {
+      "id": "reason",
+      "name": "Reason",
+      "domain": "reason.com",
+      "feeds": [
+        "https://reason.com/feed/"
+      ]
+    },
+    {
+      "id": "dispatch",
+      "name": "The Dispatch",
+      "domain": "thedispatch.com",
+      "feeds": [
+        "https://thedispatch.com/feed/"
+      ]
+    },
+    {
+      "id": "fox",
+      "name": "Fox News",
+      "domain": "foxnews.com",
+      "feeds": [
+        "https://moxie.foxnews.com/google-publisher/latest.xml",
+        "https://moxie.foxnews.com/google-publisher/world.xml",
+        "https://moxie.foxnews.com/google-publisher/us.xml",
+        "https://moxie.foxnews.com/google-publisher/politics.xml",
+        "https://moxie.foxnews.com/google-publisher/tech.xml",
+        "https://moxie.foxnews.com/google-publisher/health.xml",
+        "https://moxie.foxnews.com/google-publisher/entertainment.xml"
+      ]
+    },
+    {
+      "id": "natreview",
+      "name": "National Review",
+      "domain": "nationalreview.com",
+      "feeds": [
+        "https://www.nationalreview.com/feed/"
+      ]
+    },
+    {
+      "id": "dailywire",
+      "name": "The Daily Wire",
+      "domain": "dailywire.com",
+      "feeds": [
+        "https://www.dailywire.com/feeds/rss.xml"
+      ]
+    },
+    {
+      "id": "federalist",
+      "name": "The Federalist",
+      "domain": "thefederalist.com",
+      "feeds": [
+        "https://thefederalist.com/feed/"
+      ]
+    },
+    {
+      "id": "breitbart",
+      "name": "Breitbart",
+      "domain": "breitbart.com",
+      "feeds": [
+        "https://feeds.feedburner.com/breitbart",
+        "https://feeds.feedburner.com/breitbart/world"
+      ]
+    },
+    {
+      "id": "dailycaller",
+      "name": "The Daily Caller",
+      "domain": "dailycaller.com",
+      "feeds": [
+        "https://dailycaller.com/feed/"
+      ]
+    },
+    {
+      "id": "freebeacon",
+      "name": "Washington Free Beacon",
+      "domain": "freebeacon.com",
+      "feeds": [
+        "https://freebeacon.com/feed/"
+      ]
+    }
+  ],
+  "unrated": [
+    "bbc.com",
+    "newsnationnow.com",
+    "aljazeera.com",
+    "latimes.com"
+  ],
+  "extraDomains": [
+    {
+      "id": "aljazeera",
+      "name": "Al Jazeera",
+      "domain": "aljazeera.com",
+      "feeds": [
+        "https://www.aljazeera.com/xml/rss/all.xml"
+      ]
+    },
+    {
+      "id": "latimes",
+      "name": "Los Angeles Times",
+      "domain": "latimes.com",
+      "feeds": [
+        "https://www.latimes.com/news/rss2.0.xml"
+      ]
+    }
+  ],
+  "exclude": [
+    "politifact.com",
+    "gallup.com",
+    "morningconsult.com",
+    "pewresearch.org",
+    "cookpolitical.com",
+    "publicpolicypolling.com",
+    "poll.qu.edu",
+    "rasmussenreports.com",
+    "splcenter.org",
+    "factcheck.org",
+    "snopes.com",
+    "theonion.com",
+    "mediamatters.org",
+    "newsbusters.org",
+    "rightwingwatch.org",
+    "mrctv.org",
+    "cjr.org",
+    "poynter.org",
+    "niemanlab.org",
+    "hbr.org",
+    "fivethirtyeight.com",
+    "reuters.tv",
+    "weeklystandard.com",
+    "thinkprogress.org",
+    "buzzfeednews.com",
+    "ozy.com",
+    "circa.com",
+    "splinternews.com",
+    "crtv.com",
+    "shareblue.com",
+    "lifezette.com",
+    "rare.us",
+    "attn.com",
+    "elitedaily.com",
+    "good.is",
+    "conservativetribune.com",
+    "thedailybanter.com",
+    "crooked.com"
+  ],
+  "presets": {
+    "wsj.com": [
+      "https://feeds.content.dowjones.io/public/rss/RSSUSnews",
+      "https://feeds.content.dowjones.io/public/rss/RSSWorldNews",
+      "https://feeds.content.dowjones.io/public/rss/RSSMarketsMain",
+      "https://feeds.content.dowjones.io/public/rss/RSSWSJD"
+    ],
+    "economist.com": [
+      "https://www.economist.com/latest/rss.xml"
+    ],
+    "newsweek.com": [
+      "https://www.newsweek.com/rss"
+    ],
+    "thedailybeast.com": [
+      "https://www.thedailybeast.com/arc/outboundfeeds/rss/articles/"
+    ],
+    "huffingtonpost.com": [
+      "https://chaski.huffpost.com/us/auto/vertical/us-news",
+      "https://chaski.huffpost.com/us/auto/vertical/politics",
+      "https://www.huffpost.com/section/front-page/feed"
+    ],
+    "forbes.com": [
+      "https://www.forbes.com/news/feed/",
+      "https://www.forbes.com/business/feed/"
+    ],
+    "nymag.com": [
+      "https://nymag.com/intelligencer/rss/index.xml",
+      "https://feeds.feedburner.com/nymag/intelligencer"
+    ],
+    "vice.com": [
+      "https://www.vice.com/en/rss"
+    ],
+    "democracynow.org": [
+      "https://www.democracynow.org/democracynow.rss"
+    ],
+    "theepochtimes.com": [
+      "https://www.theepochtimes.com/c-us/feed",
+      "https://www.theepochtimes.com/feed"
+    ],
+    "newsmax.com": [
+      "https://www.newsmax.com/rss/Newsfront/16/",
+      "https://www.newsmax.com/rss/Politics/1/"
+    ],
+    "qz.com": [
+      "https://qz.com/rss"
+    ],
+    "thenation.com": [
+      "https://www.thenation.com/feed/?post_type=article"
+    ],
+    "stripes.com": [
+      "https://www.stripes.com/rss"
+    ],
+    "commentarymagazine.com": [
+      "https://www.commentary.org/feed/"
+    ],
+    "lawfareblog.com": [
+      "https://www.lawfaremedia.org/feeds/articles"
+    ],
+    "usnews.com": [
+      "https://www.usnews.com/rss/news"
+    ],
+    "yahoo.com/news": [
+      "https://news.yahoo.com/rss/",
+      "https://www.yahoo.com/news/rss"
+    ],
+    "theconversation.com": [
+      "https://theconversation.com/us/articles.atom"
+    ],
+    "revealnews.org": [
+      "https://revealnews.org/feed/"
+    ],
+    "publicintegrity.org": [
+      "https://publicintegrity.org/feed/"
+    ],
+    "inthesetimes.com": [
+      "https://inthesetimes.com/rss"
+    ],
+    "jezebel.com": [
+      "https://jezebel.com/feed"
+    ],
+    "colorlines.com": [
+      "https://colorlines.com/feed/"
+    ],
+    "campusreform.org": [
+      "https://www.campusreform.org/rss"
+    ],
+    "stream.org": [
+      "https://stream.org/feed/"
+    ],
+    "inquisitr.com": [
+      "https://www.inquisitr.com/feed"
+    ],
+    "cnn.com": [
+      "http://rss.cnn.com/rss/cnn_latest.rss",
+      "https://www.cnn.com/services/rss/"
+    ],
+    "washingtonpost.com": [
+      "https://feeds.washingtonpost.com/rss/national",
+      "https://feeds.washingtonpost.com/rss/politics",
+      "https://feeds.washingtonpost.com/rss/world"
+    ],
+    "usatoday.com": [
+      "https://rssfeeds.usatoday.com/usatoday-NewsTopStories",
+      "https://rssfeeds.usatoday.com/UsatodaycomNation-TopStories"
+    ],
+    "cbn.com/cbnnews": [
+      "https://www2.cbn.com/rss-cbn-news-all",
+      "https://www.cbn.com/rss/cbnnews"
+    ]
+  },
+  "names": {
+    "theroot.com": "The Root",
+    "progressive.org": "The Progressive",
+    "blavity.com": "Blavity",
+    "msmagazine.com": "Ms. Magazine",
+    "crooksandliars.com": "Crooks and Liars",
+    "alternet.org": "AlterNet",
+    "talkingpointsmemo.com": "Talking Points Memo",
+    "economist.com": "The Economist",
+    "taskandpurpose.com": "Task & Purpose",
+    "mediaite.com": "Mediaite",
+    "yahoo.com/news": "Yahoo News",
+    "forbes.com": "Forbes",
+    "wsj.com": "The Wall Street Journal",
+    "nationalinterest.org": "The National Interest",
+    "realclearpolitics.com": "RealClearPolitics",
+    "pjmedia.com": "PJ Media",
+    "bizpacreview.com": "BizPac Review",
+    "ijr.com": "IJR",
+    "twitchy.com": "Twitchy",
+    "spectator.org": "The American Spectator",
+    "commentarymagazine.com": "Commentary",
+    "redstate.com": "RedState",
+    "townhall.com": "Townhall",
+    "thenationalpulse.com": "The National Pulse",
+    "thepoliticalinsider.com": "The Political Insider"
+  }
+}

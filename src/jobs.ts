@@ -13,10 +13,8 @@ export type JobName = keyof typeof JOBS;
 
 /** Cron expressions in wrangler.jsonc, mapped to the job each one runs. */
 export const CRON_JOBS: Record<string, JobName> = {
-  "7 * * * *": "ingest",
-  "15 10 * * *": "build",
-  // Second try if the first build failed or died; a ready edition is skipped.
-  "45 10 * * *": "build",
+  // Hourly: pull every feed, then refresh today's edition so breaking stories appear within the hour.
+  "7 * * * *": "build",
   "0 11 * * *": "send",
   // Resumes the day's send for anyone the first run missed (Resend errors, daily quota).
   "0 13 * * *": "send",
@@ -28,7 +26,7 @@ export async function runCron(cron: string, env: Env): Promise<void> {
     console.error(`no job for cron "${cron}"`);
     return;
   }
-  // The build reads the last hour's headlines too, so it pulls feeds first; a failed pull doesn't stop it.
+  // The build reads this hour's headlines, so it pulls feeds first; a failed pull doesn't stop it.
   if (job === "build") {
     try {
       await JOBS.ingest(env);

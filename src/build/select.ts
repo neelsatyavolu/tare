@@ -1,7 +1,7 @@
 import { outletById, sideOf, SIDE_SIZE, OUTLETS, type Side } from "../outlets";
 import { TOPIC_IDS, type TopicId } from "../topics";
 
-export type Coverage = { left: number; center: number; right: number; total: number; balance: number };
+export type Coverage = { left: number; center: number; right: number; unrated: number; total: number; balance: number };
 export type Blindspot = "left" | "right" | null;
 
 /** A story needs this many distinct outlets to be considered at all. */
@@ -9,33 +9,48 @@ export const MIN_OUTLETS = 3;
 /** |balance| at or past this reads as "mostly covered by one side". */
 export const LEAN_THRESHOLD = 0.5;
 
-/** Distinct outlets per side, plus a balance from -1 (only the left covered it) to 1 (only the right). */
+/**
+ * Distinct outlets per side, plus a balance from -1 (only the left covered it) to 1 (only the right).
+ * Unrated outlets count toward the total but toward no side.
+ */
 export function coverageOf(outletIds: readonly string[]): Coverage {
   const counts: Record<Side, number> = { left: 0, center: 0, right: 0 };
+  let unrated = 0;
   for (const id of new Set(outletIds)) {
     const o = outletById(id);
-    if (o) counts[sideOf(o.lean)] += 1;
+    if (!o) continue;
+    const side = sideOf(o.lean);
+    if (side) counts[side] += 1;
+    else unrated += 1;
   }
   // Shares, not counts, so a side with more outlets in the list can't tip the scale.
   const ls = counts.left / SIDE_SIZE.left;
   const rs = counts.right / SIDE_SIZE.right;
   const balance = ls + rs === 0 ? 0 : (rs - ls) / (rs + ls);
-  return { ...counts, total: counts.left + counts.center + counts.right, balance: Math.round(balance * 100) / 100 };
+  return { ...counts, unrated, total: counts.left + counts.center + counts.right + unrated, balance: Math.round(balance * 100) / 100 };
 }
 
-/** The side that mostly skipped a story others covered widely, if any. */
+/**
+ * When a story counts as a blindspot. One or two missing outlets is noise, so it takes real evidence:
+ * enough coverage overall, at least 15% of one side's outlets (a share, so the rule holds as the source
+ * list grows), and at most one outlet from the other side.
+ */
+export const BLINDSPOT = { minTotal: 6, minShare: 0.15, maxOther: 1 } as const;
+
+/** The side that skipped a story the other side covered widely, if any. The build then double-checks it (see build.ts). */
 export function blindspotOf(c: Coverage): Blindspot {
-  if (c.total < MIN_OUTLETS + 1) return null;
-  if (c.balance >= LEAN_THRESHOLD && c.left <= 1) return "left";
-  if (c.balance <= -LEAN_THRESHOLD && c.right <= 1) return "right";
+  if (c.total < BLINDSPOT.minTotal) return null;
+  if (c.right / SIDE_SIZE.right >= BLINDSPOT.minShare && c.left <= BLINDSPOT.maxOther) return "left";
+  if (c.left / SIDE_SIZE.left >= BLINDSPOT.minShare && c.right <= BLINDSPOT.maxOther) return "right";
   return null;
 }
 
 /** Plain-English reason a story made the edition. Deterministic, so readers can check it. */
 export function whyText(c: Coverage, blindspot: Blindspot): string {
-  const base = `Covered by ${c.total} of ${OUTLETS.length} outlets: ${c.left} left, ${c.center} center, ${c.right} right.`;
-  if (blindspot === "left") return `${base} Few left-leaning outlets covered it.`;
-  if (blindspot === "right") return `${base} Few right-leaning outlets covered it.`;
+  const unrated = c.unrated ? `, ${c.unrated} not rated` : "";
+  const base = `Covered by ${c.total} of ${OUTLETS.length} outlets: ${c.left} left, ${c.center} center, ${c.right} right${unrated}.`;
+  if (blindspot === "left") return `${base} A blindspot: ${c.left} of ${SIDE_SIZE.left} left-leaning outlets covered it, and none of the others published a matching headline.`;
+  if (blindspot === "right") return `${base} A blindspot: ${c.right} of ${SIDE_SIZE.right} right-leaning outlets covered it, and none of the others published a matching headline.`;
   return base;
 }
 

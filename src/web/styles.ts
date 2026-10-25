@@ -30,6 +30,7 @@ p{margin:0 0 .8em}
 .mono,.kicker,.meta,nav,button,.btn{font-family:var(--font-mono)}
 .kicker{font-size:13px;font-weight:500;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin:0 0 8px}
 .kicker b{color:var(--ink);font-weight:500}
+.kicker b.new{color:var(--brass)}
 .meta{font-size:14px;color:var(--ink-3);font-variant-numeric:tabular-nums}
 .skip{position:absolute;left:-9999px}.skip:focus{left:16px;top:16px;background:var(--sheet);padding:8px;z-index:9}
 
@@ -113,13 +114,23 @@ details.differ .kind{display:block;font:500 11px/1.4 var(--font-mono);letter-spa
 
 /* Sources */
 .sources{margin-top:32px}
-.sources .cols{display:grid;grid-template-columns:repeat(3,1fr);gap:24px}
+.sources .cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:24px}
 .sources h4{font:500 12px/1.4 var(--font-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin:0 0 8px;border-bottom:1px solid var(--rule);padding-bottom:6px}
 .sources ol{list-style:none;margin:0;padding:0}
 .sources li{margin:0 0 14px;font-size:16px;line-height:1.4}
 .sources li:target{background:var(--brass-wash);outline:4px solid var(--brass-wash)}
 .sources .outlet{display:block;font:500 12px/1.4 var(--font-mono);color:var(--ink-2)}
 .sources .n{color:var(--brass)}
+
+/* Detailed briefing */
+.briefing{margin-top:36px}
+.briefing h3{font:600 20px/1.3 var(--font-serif);margin:20px 0 6px}
+.briefing h4{font:500 12px/1.4 var(--font-mono);letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);margin:22px 0 8px}
+.web-sources{list-style:none;padding:0;margin:0;font-size:16px}
+.web-sources li{margin:0 0 8px}
+.web-sources .n{font:500 12px var(--font-mono);color:var(--brass)}
+input.text{width:100%;max-width:560px;font:400 16px/1.4 var(--font-mono);color:var(--ink);background:transparent;border:0;border-bottom:1px solid var(--rule-strong);padding:8px 0;border-radius:0}
+input.text:focus{outline:none;border-bottom-color:var(--brass);box-shadow:0 1px 0 var(--brass)}
 
 /* Article page */
 .article{max-width:760px;margin:0 auto;padding-top:32px}

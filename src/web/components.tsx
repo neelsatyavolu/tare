@@ -1,8 +1,10 @@
 import { createContext, useContext, type Child, type FC } from "hono/jsx";
 import type { Subscriber } from "../subscribers";
 import { LEAN_THRESHOLD, type Coverage } from "../build/select";
-import type { Source, Story } from "../editions";
-import { longDate } from "../format";
+import { orderedSources, type Source, type Story } from "../editions";
+
+export { orderedSources } from "../editions";
+import { easternTime, longDate } from "../format";
 import { LEAN_LABEL, sideOf, SIDE_SIZE, type Side } from "../outlets";
 import { TOPICS, topicName, type TopicId } from "../topics";
 import { whyText } from "../build/select";
@@ -16,7 +18,7 @@ type Nav = "today" | "archive" | "method" | "subscribe" | "account" | null;
 export const ViewerContext = createContext<Subscriber | null>(null);
 export const useViewer = () => useContext(ViewerContext);
 
-export const Layout: FC<{ title: string; description?: string; nav?: Nav; editionLine?: Child; children?: Child }> = ({ title, description, nav = null, editionLine, children }) => {
+export const Layout: FC<{ title: string; description?: string; nav?: Nav; editionLine?: Child; refreshSeconds?: number; children?: Child }> = ({ title, description, nav = null, editionLine, refreshSeconds, children }) => {
   const viewer = useViewer();
   return (
   <html lang="en">
@@ -24,6 +26,8 @@ export const Layout: FC<{ title: string; description?: string; nav?: Nav; editio
       <meta charset="utf-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1" />
       <title>{title}</title>
+      {/* No client JavaScript, so a page waiting on background work reloads itself instead. */}
+      {refreshSeconds ? <meta http-equiv="refresh" content={String(refreshSeconds)} /> : null}
       <meta name="description" content={description ?? "A daily news edition that weighs how outlets across the spectrum covered each story."} />
       <meta name="color-scheme" content="light dark" />
       <link rel="icon" href="/icon.svg" type="image/svg+xml" />
@@ -66,9 +70,13 @@ export const Layout: FC<{ title: string; description?: string; nav?: Nav; editio
   );
 };
 
-export function editionLine(date: string, number: number, stories: number): string {
-  return `${longDate(date)} · No. ${number} · ${stories} ${stories === 1 ? "story" : "stories"}`;
+export function editionLine(date: string, number: number, stories: number, updatedAt?: number | null): string {
+  const updated = updatedAt ? ` · Updated ${easternTime(updatedAt)}` : "";
+  return `${longDate(date)} · No. ${number} · ${stories} ${stories === 1 ? "story" : "stories"}${updated}`;
 }
+
+/** Stories first seen this recently are marked New. */
+export const NEW_FOR_MS = 3 * 3600_000;
 
 const SIDES: Side[] = ["left", "center", "right"];
 const SIDE_NAME: Record<Side, string> = { left: "Left", center: "Center", right: "Right" };
@@ -86,7 +94,7 @@ export const Scale: FC<{ c: Coverage }> = ({ c }) => {
   const pct = (side: Side) => Math.round((c[side] / SIDE_SIZE[side]) * 100);
   const needle = ((c.balance + 1) / 2) * 100;
   return (
-    <div class="scale" role="img" aria-label={`${c.left} of ${SIDE_SIZE.left} left outlets, ${c.center} of ${SIDE_SIZE.center} center, ${c.right} of ${SIDE_SIZE.right} right. ${reading(c.balance)}.`}>
+    <div class="scale" role="img" aria-label={`${c.left} of ${SIDE_SIZE.left} left outlets, ${c.center} of ${SIDE_SIZE.center} center, ${c.right} of ${SIDE_SIZE.right} right${c.unrated ? `, plus ${c.unrated} not rated` : ""}. ${reading(c.balance)}.`}>
       <div class="pans" aria-hidden="true">
         {SIDES.map((side) => (
           <div class={`pan ${side[0]}`}>
@@ -100,15 +108,6 @@ export const Scale: FC<{ c: Coverage }> = ({ c }) => {
     </div>
   );
 };
-
-/** A story's sources in display order (left, center, right, then by outlet), which fixes the citation numbers. */
-export function orderedSources(story: Story, sources: Map<string, Source>): Source[] {
-  const rank: Record<Side, number> = { left: 0, center: 1, right: 2 };
-  return story.itemIds
-    .map((id) => sources.get(id))
-    .filter((s): s is Source => !!s)
-    .sort((a, b) => rank[sideOf(a.outlet.lean)] - rank[sideOf(b.outlet.lean)] || a.outlet.name.localeCompare(b.outlet.name));
-}
 
 const KIND_LABEL = { fact: "Facts differ", framing: "Framing", emphasis: "Emphasis", omission: "Left out" } as const;
 
@@ -157,6 +156,7 @@ export const StoryCard: FC<{ story: Story; sources: Map<string, Source>; lead?: 
     <>
       {photo}
       <p class="kicker">
+        {story.firstSeenAt && Date.now() - story.firstSeenAt < NEW_FOR_MS ? <b class="new">New · </b> : null}
         {story.blindspot ? <b>Blindspot · </b> : null}
         {topicName(story.topic)} · {story.coverage.total} outlets
       </p>
@@ -198,9 +198,9 @@ export const SourceList: FC<{ story: Story; sources: Map<string, Source> }> = ({
     <section class="sources" id="sources" aria-labelledby="sources-h">
       <div class="section-head"><h2 id="sources-h">Sources</h2></div>
       <div class="cols">
-        {SIDES.map((side) => (
+        {[...SIDES, null].map((side) => side === null && ordered.every((s) => sideOf(s.outlet.lean) !== null) ? null : (
           <div>
-            <h4>{SIDE_NAME[side]}</h4>
+            <h4>{side ? SIDE_NAME[side] : "Not rated"}</h4>
             <ol>
               {ordered.map((s, i) => sideOf(s.outlet.lean) === side ? (
                 <li id={`src-${i + 1}`}>

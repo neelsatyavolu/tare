@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractJson, replyText, sourceBlock, summarize, validateWriteup, type AiRunner, type SourceItem } from "../src/build/summarize";
+import { extractJson, replyText, sourceBlock, splitInline, summarize, validateWriteup, type AiRunner, type SourceItem } from "../src/build/summarize";
 
 const items: SourceItem[] = [
   { id: "i1", outletId: "vox", title: "Senate passes funding bill", snippet: "The vote was 52-48." },
@@ -52,6 +52,29 @@ describe("validateWriteup", () => {
 
   it("falls back to world for an unknown topic", () => {
     expect(validateWriteup({ ...good, topic: "gossip" }, items)?.topic).toBe("world");
+  });
+});
+
+describe("splitInline", () => {
+  it("splits a paragraph into sentences that keep only their own citations", () => {
+    expect(splitInline('The Senate passed it [s1, s3]. Fox said Republicans split ["s2"]. Samsung shipped the Galaxy S24 [s4]. No source here.')).toEqual([
+      { text: "The Senate passed it.", sources: ["s1", "s3"] },
+      { text: "Fox said Republicans split.", sources: ["s2"] },
+      { text: "Samsung shipped the Galaxy S24.", sources: ["s4"] },
+      { text: "No source here.", sources: [] },
+    ]);
+  });
+
+  it("handles a marker after the period and keeps non-citation brackets", () => {
+    expect(splitInline("It was restored. [s5] Officials [unnamed] confirmed it [s2].")).toEqual([
+      { text: "It was restored.", sources: ["s5"] },
+      { text: "Officials [unnamed] confirmed it.", sources: ["s2"] },
+    ]);
+  });
+
+  it("is accepted by validateWriteup, which still drops uncited sentences", () => {
+    const w = validateWriteup({ ...good, summary: "The Senate passed it [s1]. Nobody cited this." }, items);
+    expect(w?.summary).toEqual([{ text: "The Senate passed it.", cites: ["i1"] }]);
   });
 });
 
