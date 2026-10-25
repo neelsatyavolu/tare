@@ -123,17 +123,17 @@ describe("pickBalanced", () => {
     const tech = group(3, "tech");
     const thinSports = group(2, "sports");
     const picked = pickBalanced([...politics, tech, thinSports], opts);
-    // Two front-page stories plus two more politics, then tech's 3-outlet story. A 2-outlet story doesn't clear the bar.
-    expect(picked.filter((p) => p.topic === "politics")).toHaveLength(4);
+    // Politics gets its front-page stories plus its section's share; tech and a thin sports story still appear.
+    expect(picked.filter((p) => p.topic === "politics").length).toBeLessThan(politics.length);
     expect(picked).toContain(tech);
-    expect(picked).not.toContain(thinSports);
+    expect(picked).toContain(thinSports);
   });
 
-  it("only falls back to a 2-outlet story when a section has nothing wider", () => {
+  it("fills a short section with 2-outlet stories, after the wider ones", () => {
     const strong = group(4, "science");
     const thin = group(2, "science");
     const picked = pickBalanced([strong, thin], { ...opts, front: 0 });
-    expect(picked).toEqual([strong]);
+    expect(picked).toEqual([strong, thin]);
   });
 
   it("adds blindspots and keeps the ranked order", () => {

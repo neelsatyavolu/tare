@@ -135,8 +135,11 @@ export function pickBalanced<C extends Candidate<unknown> & { topic: TopicId | n
   for (const topic of TOPIC_IDS) {
     // Chosen by breadth, so a section's picks are what the press broadly covered; shown in consequence order.
     const inSection = ranked.filter((c) => c.topic === topic && !chosen.has(c)).sort(byBreadth);
-    // Only stories with enough coverage; a section with nothing that clears the bar is left out.
-    inSection.filter((c) => c.coverage.total >= MIN_OUTLETS).slice(0, opts.perSection).forEach((c) => chosen.add(c));
+    // Stories with 3+ outlets first; a section short of perSection fills up with 2-outlet stories, so every
+    // section has something to read without a thin story pushing out a widely covered one.
+    const wideEnough = inSection.filter((c) => c.coverage.total >= MIN_OUTLETS);
+    const narrow = inSection.filter((c) => c.coverage.total >= SECTION_MIN_OUTLETS && c.coverage.total < MIN_OUTLETS && (c.importance ?? 0) >= 2);
+    [...wideEnough, ...narrow].slice(0, opts.perSection).forEach((c) => chosen.add(c));
   }
 
   wide
