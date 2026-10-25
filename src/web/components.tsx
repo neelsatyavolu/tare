@@ -264,17 +264,13 @@ export const StoryCard: FC<{ story: Story; sources: Map<string, Source>; lead?: 
       {differences}
     </>
   );
-  // The lead runs across the page: story on the left, the weighing on the right. With nothing to weigh (thin
-  // coverage, no differences) the photo and the short coverage line take the left column and the story the right,
-  // so neither leaves a large empty area.
-  const solo = leanReading(story.coverage).key === "thin" && story.differences.length === 0;
-  return lead && solo ? (
+  // The lead runs across the page: the photo with the coverage scale and differences under it on the left, the
+  // article on the right, so neither column is left mostly empty.
+  return lead ? (
     <article class="story lead solo">
       <div class="lead-media">{photo}<aside class="lead-side" aria-label="Coverage">{evidence}</aside></div>
       <div class="lead-main">{text}</div>
     </article>
-  ) : lead ? (
-    <article class="story lead"><div class="lead-main">{main}</div><aside class="lead-side" aria-label="Coverage">{evidence}</aside></article>
   ) : (
     <article class="story">{main}{evidence}</article>
   );

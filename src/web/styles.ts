@@ -112,7 +112,7 @@ details.differ ul.quoted .outlet{display:block;font:500 11px/1.4 var(--font-mono
 .story h3 a:hover{text-decoration:underline;text-decoration-thickness:1px}
 .story.lead{padding:28px 0 32px;border-bottom:1px solid var(--rule);display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:40px}
 .lead-side{border-left:1px solid var(--rule);padding-left:32px;padding-top:30px}
-/* Nothing to weigh: photo and the coverage line on the left, the story on the right (photo stays its normal size). */
+/* The lead: photo with the coverage scale and differences under it on the left, the article on the right. */
 .story.lead.solo{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:36px;align-items:start}
 .story.lead.solo .lead-media .photo{margin:0 0 12px}
 .story.lead.solo .lead-side{border-left:0;padding:0}
