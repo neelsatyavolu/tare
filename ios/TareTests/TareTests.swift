@@ -26,6 +26,15 @@ final class TareTests: XCTestCase {
         XCTAssertTrue(cited.allSatisfy { (1...story.sources.count).contains($0) })
     }
 
+    func testOnboardingShowsOnlyOnAFirstLaunch() {
+        XCTAssertTrue(OnboardingView.shouldShow(onboarded: false, authorization: .notDetermined, signedIn: false))
+        XCTAssertFalse(OnboardingView.shouldShow(onboarded: true, authorization: .notDetermined, signedIn: false))
+        // Readers from before onboarding existed already chose about notifications, or signed in.
+        XCTAssertFalse(OnboardingView.shouldShow(onboarded: false, authorization: .authorized, signedIn: false))
+        XCTAssertFalse(OnboardingView.shouldShow(onboarded: false, authorization: .denied, signedIn: false))
+        XCTAssertFalse(OnboardingView.shouldShow(onboarded: false, authorization: .notDetermined, signedIn: true))
+    }
+
     func testParagraphsMatchTheSite() {
         let s = { (n: Int) in (0..<n).map { Sentence(text: "S\($0).", cites: [1]) } }
         XCTAssertEqual(ArticleText.paragraphs(s(6)).map(\.count), [3, 3])

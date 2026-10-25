@@ -274,6 +274,9 @@ button.danger:hover{background:var(--alert);color:var(--paper)}
 /* Prose pages */
 .prose{max-width:680px;margin:0 auto;padding-top:32px}
 .prose h1{font-size:44px;line-height:1.08;margin-bottom:16px}
+.welcome-points{margin:24px 0 28px;border-top:1px solid var(--rule-strong)}
+.welcome-points dt{font:500 13px/1.4 var(--font-mono);letter-spacing:.06em;text-transform:uppercase;margin:16px 0 6px}
+.welcome-points dd{margin:0;padding-bottom:16px;border-bottom:1px solid var(--rule);color:var(--ink-2)}
 .prose h2{font-size:26px;margin:36px 0 10px}
 .prose ol{padding-left:22px}
 .prose li{margin-bottom:8px}

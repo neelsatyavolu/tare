@@ -20,6 +20,7 @@ import {
 import { timingSafeEqual, utcDate } from "./util";
 import { Layout, SubscribeForm, TimeZoneContext, ViewerContext } from "./web/components";
 import { ICON } from "./web/icon";
+import { WelcomeDone, WelcomeEmail, WelcomeTopics } from "./web/welcome";
 import {
   AccountPage, ArchivePage, EditionPage, EmptyPage, ManagePage, MessagePage, MethodPage, SignInPage, StoryPage, TopicPage, UnsubscribeConfirmPage,
 } from "./web/pages";
@@ -285,10 +286,12 @@ app.get("/signin/:token", async (c) => {
 
 app.post("/signin/:token", async (c) => {
   const id = await verifyExpiring(requireSecrets(c.env).linkSecret, "signin", c.req.param("token"));
+  // A pending account has never been verified: this is the reader's first sign-in.
+  const isNew = id ? (await findById(c.env.DB, id))?.status === "pending" : false;
   const sub = id ? await verifyEmail(c.env.DB, id) : null;
   if (!sub) return page(c, <BadLink />, 404);
   await startSession(c, sub.id);
-  return c.redirect("/account", 303);
+  return c.redirect(isNew ? "/welcome" : "/account", 303);
 });
 
 app.post("/signout", async (c) => {
@@ -407,6 +410,30 @@ app.post("/account/delete", async (c) => {
   return page(c, <MessagePage title="Account deleted"><p>Your email address and topics are gone from Tare. The site stays free to read.</p></MessagePage>);
 });
 
+// ── Welcome steps for a new reader (topics, email, how to read) ────────
+
+app.get("/welcome", (c) => (requireViewer(c) ? page(c, <WelcomeTopics />) : c.redirect("/signin", 303)));
+app.get("/welcome/email", (c) => (requireViewer(c) ? page(c, <WelcomeEmail />) : c.redirect("/signin", 303)));
+app.get("/welcome/done", (c) => (requireViewer(c) ? page(c, <WelcomeDone />) : c.redirect("/signin", 303)));
+
+app.post("/welcome/topics", async (c) => {
+  const viewer = requireViewer(c);
+  if (!viewer) return c.redirect("/signin", 303);
+  await setTopics(c.env.DB, viewer.id, formTopics((await c.req.parseBody({ all: true })).topics));
+  return c.redirect("/welcome/email", 303);
+});
+
+// A reader who already gets email only picks editions; one who doesn't can turn it on ("on=1") or not.
+app.post("/welcome/email", async (c) => {
+  const viewer = requireViewer(c);
+  if (!viewer) return c.redirect("/signin", 303);
+  const form = await c.req.parseBody();
+  const turningOn = viewer.status !== "active" && form.on === "1";
+  if ((viewer.status === "active" || turningOn) && isEditionChoice(form.editions)) await setEditions(c.env.DB, viewer.id, form.editions);
+  if (turningOn) await setDigest(c.env.DB, viewer.id, true);
+  return c.redirect("/welcome/done", 303);
+});
+
 // ── Links from emails (work without signing in) ─────────────────────────
 
 async function subscriberFor(c: Context<App>) {
@@ -430,10 +457,12 @@ app.get("/confirm/:token", async (c) => {
 
 app.post("/confirm/:token", async (c) => {
   const id = await confirmTarget(c);
+  const isNew = id ? (await findById(c.env.DB, id))?.status === "pending" : false;
   const sub = id ? await confirm(c.env.DB, id) : null;
   if (!sub) return page(c, <BadLink />, 404);
   // Confirming proves the address, so it signs the reader in too.
   await startSession(c, sub.id);
+  if (isNew) return c.redirect("/welcome", 303);
   c.set("viewer", sub);
   return page(
     c,

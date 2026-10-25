@@ -4,6 +4,7 @@ import { app } from "../src/index";
 import { signLink } from "../src/links";
 import { findById, signUp, confirm } from "../src/subscribers";
 import { utcDate } from "../src/util";
+import { createSession, SESSION_COOKIE } from "../src/sessions";
 
 const DATE = utcDate(Date.now());
 const STORY_ID = "a".repeat(32);
@@ -158,10 +159,21 @@ describe("subscribe flow", () => {
     expect(await (await req(link)).text()).toContain("Confirm subscription");
     expect((await findById(env.DB, id))?.status).toBe("pending");
 
+    // A new reader is signed in and sent to the welcome steps, with the topics they picked already chosen.
     const confirmed = await req(link, { method: "POST" });
-    expect(await confirmed.text()).toContain("You&#39;re subscribed");
-    expect(confirmed.headers.get("set-cookie")).toContain("tare_session=");
+    expect(confirmed.status).toBe(303);
+    expect(confirmed.headers.get("location")).toBe("/welcome");
+    const cookie = confirmed.headers.get("set-cookie")!.split(";")[0]!;
+    expect(cookie).toContain("tare_session=");
     expect(await findById(env.DB, id)).toMatchObject({ status: "active", topics: ["tech"] });
+    const welcome = await (await req("/welcome", { headers: { cookie } })).text();
+    expect(welcome).toContain("You&#39;re subscribed");
+    expect(welcome).toContain('name="topics" value="tech" checked');
+
+    // Pressing the button again isn't a first visit: no welcome steps.
+    const again = await req(link, { method: "POST" });
+    expect(again.status).toBe(200);
+    expect(await again.text()).toContain("You&#39;re subscribed");
   });
 
   it("rejects bad addresses and quietly drops honeypot posts", async () => {
@@ -212,9 +224,15 @@ describe("accounts", () => {
     expect(await (await req(link)).text()).toContain(`Signing in as ${email}`);
     const res = await req(link, { method: "POST" });
     expect(res.status).toBe(303);
-    expect(res.headers.get("location")).toBe("/account");
     return cookieFrom(res);
   }
+
+  it("sends a new account to the welcome steps and a returning one to the account page", async () => {
+    await req("/signin", form({ email: "first@ex.com" }));
+    const link = String(sent.at(-1)!.body.text).match(/http:\/\/localhost:8787(\/signin\/\S+)/)![1]!;
+    expect((await req(link, { method: "POST" })).headers.get("location")).toBe("/welcome");
+    expect((await req(link, { method: "POST" })).headers.get("location")).toBe("/account");
+  });
 
   it("signs in by email link, shows the account and personalizes the nav", async () => {
     const cookie = await signIn("reader@ex.com");
@@ -270,5 +288,66 @@ describe("sample email", () => {
     const html = await res.text();
     expect(html).toContain("Senate passes bill");
     expect(html).toContain("That's the edition.");
+  });
+});
+
+describe("welcome steps", () => {
+  async function newReader(email: string) {
+    await req("/signin", form({ email }));
+    const link = String(sent.at(-1)!.body.text).match(/http:\/\/localhost:8787(\/signin\/\S+)/)![1]!;
+    const res = await req(link, { method: "POST" });
+    return res.headers.get("set-cookie")!.split(";")[0]!;
+  }
+  const post = (path: string, cookie: string, body: string) =>
+    req(path, { method: "POST", headers: { cookie, "content-type": "application/x-www-form-urlencoded" }, body });
+
+  it("needs a signed-in reader", async () => {
+    for (const path of ["/welcome", "/welcome/email", "/welcome/done"]) {
+      expect((await req(path)).headers.get("location")).toBe("/signin");
+    }
+    expect((await req("/welcome/topics", form({ topics: "tech" }))).headers.get("location")).toBe("/signin");
+  });
+
+  it("saves topics, turns the email on with a chosen edition, then explains how to read", async () => {
+    const cookie = await newReader("steps@ex.com");
+    const first = await (await req("/welcome", { headers: { cookie } })).text();
+    expect(first).toContain("Step 1 of 3");
+    expect(first).toContain("You&#39;re signed in");
+    expect(first).toContain('action="/welcome/topics"');
+
+    const topics = await post("/welcome/topics", cookie, "topics=science&topics=f1&topics=bogus");
+    expect(topics.headers.get("location")).toBe("/welcome/email");
+    const row = () => env.DB.prepare("SELECT topics, status, editions FROM subscribers WHERE email = 'steps@ex.com'").first<{ topics: string; status: string; editions: string }>();
+    expect((await row())?.topics).toBe('["science","f1"]');
+
+    const email = await (await req("/welcome/email", { headers: { cookie } })).text();
+    expect(email).toContain("Step 2 of 3");
+    expect(email).toContain("Email me the edition");
+    const on = await post("/welcome/email", cookie, "editions=morning&on=1");
+    expect(on.headers.get("location")).toBe("/welcome/done");
+    expect(await row()).toMatchObject({ status: "active", editions: "morning" });
+
+    const done = await (await req("/welcome/done", { headers: { cookie } })).text();
+    expect(done).toContain("Step 3 of 3");
+    expect(done).toContain("Where accounts differ");
+    expect(done).toContain('href="/account#ai"');
+    expect(done).toContain("Read today&#39;s edition");
+  });
+
+  it("leaves the email off when the reader says not now", async () => {
+    const cookie = await newReader("later@ex.com");
+    expect((await post("/welcome/email", cookie, "editions=both&on=0")).headers.get("location")).toBe("/welcome/done");
+    expect((await env.DB.prepare("SELECT status FROM subscribers WHERE email = 'later@ex.com'").first<{ status: string }>())?.status).toBe("unsubscribed");
+  });
+
+  it("lets a subscriber who already gets email just pick editions", async () => {
+    const s = await signUp(env.DB, "sub@ex.com", [], 0);
+    await confirm(env.DB, s.id);
+    const cookie = `${SESSION_COOKIE}=${await createSession(env.DB, s.id)}`;
+    const page = await (await req("/welcome/email", { headers: { cookie } })).text();
+    expect(page).not.toContain("Email me the edition");
+    expect(page).toContain('name="editions" value="both" checked');
+    await post("/welcome/email", cookie, "editions=evening");
+    expect((await findById(env.DB, s.id))?.editions).toBe("evening");
   });
 });

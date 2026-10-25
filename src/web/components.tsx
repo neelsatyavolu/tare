@@ -423,27 +423,25 @@ export const IntroStrip: FC = () => {
   );
 };
 
+/** What a first-time reader needs to know, shared by the edition's guide and the welcome steps. */
+export const HOW_TO_READ = [
+  { title: "The scale", text: "The three bars show what share of Tare's left-leaning, center and right-leaning outlets covered a story. The line under them says whether the left or the right covered it more, or that too few did to compare. The thin bar on each story counts the outlets that covered it from left (L) to right (R): darkest at the ends, lighter for those that lean, hatched for center. The labels describe who reads each outlet, not whether its reporting is accurate." },
+  { title: "The small numbers", text: "Every sentence ends with numbers. Each one is a source: tap it to see the outlet's own headline and read the original article." },
+  { title: "Where accounts differ", text: "Where outlets reported facts that can't both be true, or described the same event in ways that leave a different impression. On a story's page you see the headlines side by side. Tare doesn't say who is right." },
+  { title: "Blindspots", text: "Stories one side covered widely and the other side barely touched. They're here so you see what your usual sources might skip." },
+] as const;
+
 /** A short guide for first-time readers. Native <details>, so it works without JavaScript. */
 export const HowToRead: FC = () => (
   <details class="howto">
     <summary>New here? How to read this page</summary>
     <div class="howto-body">
-      <div>
-        <h3>The scale</h3>
-        <p>The three bars show what share of Tare's left-leaning, center and right-leaning outlets covered a story. The line under them says whether the left or the right covered it more, or that too few did to compare. The thin bar on each story counts the outlets that covered it from left (L) to right (R): darkest at the ends, lighter for those that lean, hatched for center. The labels describe who reads each outlet, not whether its reporting is accurate.</p>
-      </div>
-      <div>
-        <h3>The small numbers</h3>
-        <p>Every sentence ends with numbers. Each one is a source: tap it to see the outlet's own headline and read the original article.</p>
-      </div>
-      <div>
-        <h3>Where accounts differ</h3>
-        <p>Where outlets reported facts that can't both be true, or described the same event in ways that leave a different impression. On a story's page you see the headlines side by side. Tare doesn't say who is right.</p>
-      </div>
-      <div>
-        <h3>Blindspots</h3>
-        <p>Stories one side covered widely and the other side barely touched. They're here so you see what your usual sources might skip.</p>
-      </div>
+      {HOW_TO_READ.map((p) => (
+        <div>
+          <h3>{p.title}</h3>
+          <p>{p.text}</p>
+        </div>
+      ))}
     </div>
   </details>
 );

@@ -8,8 +8,17 @@ final class PushFlowUITests: XCTestCase {
         app.launch()
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
 
+        // A fresh install starts with the onboarding cards; the last one turns notifications on.
+        let next = app.buttons["Next"]
+        if next.waitForExistence(timeout: 10) {
+            for _ in 0..<3 { next.tap() }
+            app.buttons["Turn on notifications"].tap()
+            let allow = springboard.buttons["Allow"]
+            if allow.waitForExistence(timeout: 10) { allow.tap() }
+        }
+
         let turnOn = app.buttons["Turn on"]
-        if turnOn.waitForExistence(timeout: 20) {
+        if turnOn.waitForExistence(timeout: 10) {
             turnOn.tap()
             let allow = springboard.buttons["Allow"]
             if allow.waitForExistence(timeout: 10) { allow.tap() }
