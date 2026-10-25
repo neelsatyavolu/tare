@@ -2,6 +2,7 @@ import { createContext, useContext, type Child, type FC } from "hono/jsx";
 import type { Subscriber } from "../subscribers";
 import { leanReading, type Coverage } from "../build/select";
 import { cardLine, orderedSources, type Source, type Story } from "../editions";
+import { readFirst, readFirstLabel, WELL_KNOWN } from "../read-first";
 
 export { orderedSources } from "../editions";
 import { easternStamp, easternTime, longDate } from "../format";
@@ -258,8 +259,6 @@ const Kicker: FC<{ story: Story; tag?: boolean }> = ({ story, tag = false }) => 
   );
 };
 
-const EXPLAINER = /\b(what to know|what we know|explained|explainer|q&a|key questions|everything you need to know)\b/i;
-
 const excerpt = (s: string) => (s.length > 220 ? `${s.slice(0, 220).replace(/\s+\S*$/, "")}…` : s);
 
 /**
@@ -276,25 +275,9 @@ export function strongest(cites: readonly string[], sources: Map<string, Source>
   return cites.map((id) => sources.get(id)).filter((s): s is Source => !!s).slice(0, 2).sort((a, b) => a.publishedAt - b.publishedAt);
 }
 
-/**
- * The single article to start with: a center outlet first, then unrated, then a side; within each, the one the
- * summary relies on most (the plainest account of the event), then the best-known name.
- */
-export function readFirst(story: Story, sources: Map<string, Source>): Source | null {
-  const list = () => story.itemIds.map((id) => sources.get(id)).filter((s): s is Source => !!s);
-  const group = (s: Source) => ({ center: 0, left: 2, right: 2 } as const)[sideOf(s.outlet.lean) ?? "center"] + (sideOf(s.outlet.lean) === null ? 1 : 0);
-  const cited = (s: Source) => story.summary.filter((x) => x.cites.includes(s.id)).length;
-  // An explainer is the best start for someone new to the story, whichever side published it.
-  const explainer = list().find((s) => EXPLAINER.test(s.title));
-  if (explainer) return explainer;
-  const fame = (s: Source) => (WELL_KNOWN.indexOf(s.outlet.id) + 1) || WELL_KNOWN.length + 1;
-  return [...list()].sort((a, b) => group(a) - group(b) || cited(b) - cited(a) || fame(a) - fame(b))[0] ?? null;
-}
-
-/** Outlets readers know, shown by name so "8 outlets" doesn't read as fringe. Order is display priority. */
-const WELL_KNOWN = ["nyt", "wsj", "fox", "nbc", "cbs", "abc", "npr", "pbs", "bbc", "politico", "thehill", "axios", "bloomberg", "cnbc", "guardian", "nypost", "washtimes", "newsweek", "atlantic", "usnews", "economist", "breitbart", "dailywire", "vox", "time"];
-
 /** "NBC News, PBS NewsHour, Fox News and 5 more": up to three, at most one per side first, well-known outlets first. */
+export { readFirst };
+
 export function namedOutlets(story: Story, sources: Map<string, Source>): string {
   const outlets = [...new Map(story.itemIds.map((id) => sources.get(id)).filter((s): s is Source => !!s).map((s) => [s.outlet.id, s.outlet])).values()];
   const rank = (id: string) => (WELL_KNOWN.indexOf(id) + 1 || 99);
@@ -333,7 +316,7 @@ export const CompactStory: FC<{ story: Story; sources: Map<string, Source> }> = 
 const ReadFirst: FC<{ story: Story; sources: Map<string, Source> }> = ({ story, sources }) => {
   const s = readFirst(story, sources);
   return s ? (
-    <p class="read-first"><span class="why-label">{EXPLAINER.test(s.title) ? "Background" : "Read first"}</span> <a href={s.url} rel="noopener noreferrer nofollow" target="_blank">{s.title}</a> <span class="meta">· {s.outlet.name}</span></p>
+    <p class="read-first"><span class="why-label">{readFirstLabel(s)}</span> <a href={s.url} rel="noopener noreferrer nofollow" target="_blank">{s.title}</a> <span class="meta">· {s.outlet.name}</span></p>
   ) : null;
 };
 

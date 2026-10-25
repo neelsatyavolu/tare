@@ -24,6 +24,7 @@ import {
   AccountPage, ArchivePage, EditionPage, EmptyPage, ManagePage, MessagePage, MethodPage, SignInPage, StoryPage, UnsubscribeConfirmPage,
 } from "./web/pages";
 import { CSS } from "./web/styles";
+import { readFirst } from "./read-first";
 
 type App = { Bindings: Env; Variables: { viewer: Subscriber | null } };
 const app = new Hono<App>();
@@ -134,7 +135,11 @@ app.get("/sample-email", async (c) => {
       return src?.imageUrl ? [[s.id, { url: src.imageUrl, credit: src.outlet.name }] as const] : [];
     }),
   );
-  const mail = digestEmail(edition, digestFor(stories, []), c.env.APP_URL, `${c.env.APP_URL}/#subscribe`, photos);
+  const firstReads = new Map(stories.filter((s) => s.front).flatMap((s) => {
+    const src = readFirst(s, sources);
+    return src ? [[s.id, src] as const] : [];
+  }));
+  const mail = digestEmail(edition, digestFor(stories, []), c.env.APP_URL, `${c.env.APP_URL}/#subscribe`, photos, firstReads);
   c.header("cache-control", "private, no-cache");
   return c.html(mail.html);
 });

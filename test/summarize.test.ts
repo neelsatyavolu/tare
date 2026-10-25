@@ -277,6 +277,8 @@ describe("aboutCoverage", () => {
     expect(aboutCoverage("Several media highlight U.S. involvement in the race.")).toBe(true);
     expect(aboutCoverage("A shooting injured 11 or 12 people, depending on the outlet.")).toBe(false);
     expect(aboutCoverage("Fox News reported that the toll rose to nine.")).toBe(false);
+    expect(aboutCoverage("Officials called it extremism, while others label the attackers terrorists.")).toBe(true);
+    expect(aboutCoverage("Trump touted the plant, a claim that draws political attention ahead of the midterms.")).toBe(true);
   });
 });
 

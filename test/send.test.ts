@@ -2,7 +2,8 @@ import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Story } from "../src/editions";
 import { sendEdition } from "../src/mail/send";
-import { digestFor } from "../src/mail/templates";
+import { digestEmail, digestFor } from "../src/mail/templates";
+import { outletById } from "../src/outlets";
 import { confirm, findById, signUp } from "../src/subscribers";
 
 const NOW = Date.parse("2026-10-24T11:00:00Z");
@@ -102,5 +103,16 @@ describe("sendEdition", () => {
   it("does nothing without a ready edition", async () => {
     await env.DB.exec("DELETE FROM editions");
     expect((await sendEdition(env, recorder().fetcher, NOW)).status).toBe("no-edition");
+  });
+});
+
+describe("digestEmail", () => {
+  it("gives the lead its background link, as on the site", () => {
+    const stories = STORIES as unknown as Story[];
+    const lead = stories.find((s) => s.front)!;
+    const src = { id: "x", outlet: outletById("nyt")!, title: "What to Know About the Vote", url: "https://nyt.test/a", publishedAt: 0, imageUrl: null };
+    const mail = digestEmail({ date: "2026-10-24", number: 1, status: "ready", itemCount: 0, builtAt: null, sentAt: null } as never, digestFor(stories, []), "https://tare.test", "https://tare.test/m", new Map(), new Map([[lead.id, src]]));
+    expect(mail.html).toContain("Background");
+    expect(mail.html).toContain("https://nyt.test/a");
   });
 });

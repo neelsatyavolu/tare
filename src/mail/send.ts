@@ -1,4 +1,5 @@
 import { editionByDate, sourcesFor, storiesFor } from "../editions";
+import { readFirst } from "../read-first";
 import type { Env } from "../env";
 import { signLink } from "../links";
 import { dueSubscribers, markSent } from "../subscribers";
@@ -51,6 +52,10 @@ export async function sendEdition(
     const src = s.imageItemId ? sources.get(s.imageItemId) : undefined;
     if (src?.imageUrl) photos.set(s.id, { url: src.imageUrl, credit: src.outlet.name });
   }
+  const firstReads = new Map(stories.filter((s) => s.front).flatMap((s) => {
+    const src = readFirst(s, sources);
+    return src ? [[s.id, src] as const] : [];
+  }));
   let sent = 0;
 
   for (let i = 0; i < due.length; i += BATCH_MAX) {
@@ -59,7 +64,7 @@ export async function sendEdition(
       chunk.map(async (sub) => {
         const manageUrl = `${env.APP_URL}/manage/${await signLink(linkSecret, "manage", sub.id)}`;
         const unsubscribeUrl = `${env.APP_URL}/unsubscribe/${await signLink(linkSecret, "manage", sub.id)}`;
-        const mail = digestEmail(edition, digestFor(stories, sub.topics), env.APP_URL, manageUrl, photos);
+        const mail = digestEmail(edition, digestFor(stories, sub.topics), env.APP_URL, manageUrl, photos, firstReads);
         return {
           from: env.MAIL_FROM,
           to: sub.email,

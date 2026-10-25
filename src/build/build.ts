@@ -296,7 +296,9 @@ export async function buildEdition(db: D1Database, ai: AiRunner, now = Date.now(
       const rewrite = !carried || opts.force || outdated || needsRewrite(carried.writtenTotal, carried.coverage.total);
       if (!rewrite || budget <= 0) return carried && checkBlindspot(carried, group, members);
       budget -= 1;
-      const fresh = await writeUp(ai, group, date, now);
+      const written = await writeUp(ai, group, date, now);
+      // A story the editor flagged on both tries, with nothing published yet, runs as an attributed stand-in instead.
+      const fresh = written?.flagged && !carried ? await standIn(group, date, now) : written;
       // A rewrite keeps the story's id and first-seen time, so its link and "new" marker don't change. Its sources
       // are the fresh write-up's, so the source list always matches the counts.
       // A failed rewrite (stand-in, version 0) never replaces an existing write-up.
