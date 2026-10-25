@@ -554,11 +554,12 @@ export default {
   async scheduled(controller, env, ctx) {
     ctx.waitUntil(runCron(controller.cron, env));
   },
+  // Briefings in a batch are written side by side, so one reader's request never waits behind another's.
   async queue(batch, env) {
-    for (const msg of batch.messages) {
+    await Promise.all(batch.messages.map(async (msg) => {
       await runBriefing(env, msg.body);
       msg.ack();
-    }
+    }));
   },
 } satisfies ExportedHandler<Env, BriefingJob>;
 

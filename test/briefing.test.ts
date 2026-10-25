@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { seal, saveConnection, unseal, usableTokens } from "../src/ai/vault";
 import type { AiTokens } from "../src/ai/oauth";
 import { loadBriefing, requestBriefing, runBriefing, validateBriefing } from "../src/briefing";
+import { respond } from "../src/ai/responses";
 import { signUp } from "../src/subscribers";
 
 const KEY = env.AI_TOKEN_KEY!;
@@ -116,5 +117,38 @@ describe("briefing jobs", () => {
     );
     const t = await usableTokens(env.DB, KEY, reader.id);
     expect(t?.accessToken).toBe("new");
+  });
+});
+
+describe("respond", () => {
+  afterEach(() => vi.restoreAllMocks());
+
+  it("uses the fast model at the lowest effort the model accepts, and remembers it", async () => {
+    const asked: { model: string; effort: string | null }[] = [];
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url, init) => {
+      if (!String(url).includes("chatgpt.com")) return new Response("{}", { status: 404 });
+      const body = JSON.parse(String(init?.body));
+      asked.push({ model: body.model, effort: body.reasoning?.effort ?? null });
+      return body.reasoning?.effort === "none"
+        ? new Response('{"error":{"message":"Unsupported value: \'none\' is not supported with reasoning.effort for this model."}}', { status: 400 })
+        : sse("ok");
+    });
+    const codex: AiTokens = { ...TOKENS, provider: "codex" };
+    expect((await respond(codex, [{ role: "user", content: "hi" }])).text).toBe("ok");
+    expect(asked).toEqual([{ model: "gpt-6-luna", effort: "none" }, { model: "gpt-6-luna", effort: "minimal" }]);
+    await respond(codex, [{ role: "user", content: "again" }]);
+    expect(asked.at(-1)).toEqual({ model: "gpt-6-luna", effort: "minimal" });
+    expect(asked).toHaveLength(3);
+  });
+
+  it("doesn't retry other bad requests", async () => {
+    let calls = 0;
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (url) => {
+      if (!String(url).includes("x.ai")) return new Response("{}", { status: 404 });
+      calls++;
+      return new Response('{"error":"prompt too long"}', { status: 400 });
+    });
+    await expect(respond(TOKENS, [{ role: "user", content: "hi" }])).rejects.toThrow(/returned an error \(400\)/);
+    expect(calls).toBe(1);
   });
 });

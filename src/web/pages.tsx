@@ -110,7 +110,7 @@ export const StoryPage: FC<{ story: Story; sources: Sources; edition: Edition; b
       title={`${story.headline} · Tare`}
       description={story.summary.map((s) => s.text).join(" ")}
       editionLine={editionLine(edition.date, edition.number, 1).replace(/ · 1 story$/, "")}
-      refreshSeconds={writing ? 10 : undefined}
+      refreshSeconds={writing ? 5 : undefined}
     >
       <div class="article">
         <p class="meta"><a href={`/e/${edition.date}`}>← {shortDate(edition.date)} edition</a></p>

@@ -40,9 +40,11 @@ export async function refresh(previous: AiTokens): Promise<AiTokens> {
 let catalog = bundledModels;
 let catalogRefreshAt = 0;
 
-// Fast models at low effort: a briefing reads several articles, and Ballotwise measured Grok 4.6 at
-// roughly half the time of 4.7 for similar research (2026-10-16).
-const PREFERRED_MODEL: Record<AiProvider, string> = { grok: "grok-4.6", codex: "gpt-6.1-sol" };
+// The fastest model each provider offers, at the lowest effort it accepts (see EFFORTS in responses.ts): a
+// briefing runs on the reader's own account, so it should cost them as little time and quota as possible.
+// Ballotwise measured Grok 4.6 at roughly half the time of 4.7 for similar research (2026-10-16); Luna is
+// ChatGPT's fast tier.
+const PREFERRED_MODEL: Record<AiProvider, string> = { grok: "grok-4.6", codex: "gpt-6-luna" };
 
 /** The preferred model while the shared catalog lists it, otherwise the catalog's first model for that provider. */
 export async function modelFor(provider: AiProvider): Promise<string> {

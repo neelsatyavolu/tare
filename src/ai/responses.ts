@@ -44,11 +44,23 @@ async function* sseEvents(body: ReadableStream<Uint8Array>): AsyncGenerator<Stre
 
 type Message = { role: "system" | "user" | "assistant"; content: string };
 
+/**
+ * Reasoning efforts to try, cheapest first; null sends no reasoning setting (the model's default). Models
+ * differ in which they accept, so a request the provider rejects over its effort is retried one step up, and
+ * the effort that worked is remembered for that model.
+ */
+export const EFFORTS = ["none", "minimal", "low", null] as const;
+type Effort = (typeof EFFORTS)[number];
+const acceptedEffort = new Map<string, number>();
+
+/** A 400 that names the reasoning setting, rather than anything else about the request. */
+export const rejectsEffort = (status: number, body: string) => status === 400 && /effort|reasoning/i.test(body);
+
 /** The Responses request for the reader's provider. ChatGPT's backend takes the system prompt as `instructions` and typed parts. */
-async function request(tokens: AiTokens, input: Message[], webSearch: boolean): Promise<[string, RequestInit]> {
+function request(tokens: AiTokens, model: string, effort: Effort, input: Message[], webSearch: boolean): [string, RequestInit] {
   const common = {
-    model: await modelFor(tokens.provider),
-    reasoning: { effort: "low" },
+    model,
+    ...(effort ? { reasoning: { effort } } : {}),
     store: false,
     stream: true,
     ...(webSearch ? { tools: [{ type: "web_search" }] } : {}),
@@ -87,11 +99,19 @@ async function request(tokens: AiTokens, input: Message[], webSearch: boolean): 
 
 export async function respond(tokens: AiTokens, input: Message[], opts: { webSearch?: boolean } = {}): Promise<{ text: string; retrieved: Set<string> }> {
   const name = PROVIDER_LABEL[tokens.provider];
+  const model = await modelFor(tokens.provider);
+  const key = `${tokens.provider}:${model}`;
   let res: Response;
-  try {
-    res = await fetch(...(await request(tokens, input, opts.webSearch ?? false)));
-  } catch {
-    throw new AiError(`Could not reach ${name}. Try again.`, 502);
+  for (let step = acceptedEffort.get(key) ?? 0; ; step++) {
+    try {
+      res = await fetch(...request(tokens, model, EFFORTS[step]!, input, opts.webSearch ?? false));
+    } catch {
+      throw new AiError(`Could not reach ${name}. Try again.`, 502);
+    }
+    // Only a 400 is read here: reading a 200 would wait for the whole stream.
+    if (res.status === 400 && step < EFFORTS.length - 1 && rejectsEffort(res.status, await res.clone().text().catch(() => ""))) continue;
+    if (res.ok) acceptedEffort.set(key, step);
+    break;
   }
   if (res.status === 401 || res.status === 403) throw new AiError(`${name} rejected this connection. Reconnect ${name} from your account page.`, 401);
   if (res.status === 429) throw new AiError(`Your ${name} account hit its usage limit. Try again later.`, 429);
