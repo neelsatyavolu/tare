@@ -9,6 +9,7 @@ final class AppDelegate: NSObject, UIApplicationDelegate, @preconcurrency UNUser
     let router = Router()
     let editionStore = EditionStore()
     let notifications = NotificationSettings()
+    let account = Account()
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
         UNUserNotificationCenter.current().delegate = self

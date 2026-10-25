@@ -110,3 +110,41 @@ struct SourceRef: Codable, Sendable, Hashable, Identifiable {
     let publishedAt: Double
     let snippet: String?
 }
+
+// MARK: Account and briefings
+
+struct SignedIn: Decodable, Sendable {
+    let token: String
+    let email: String
+}
+
+struct Me: Decodable, Sendable {
+    struct AI: Decodable, Sendable { let provider: String; let name: String }
+    let email: String
+    /// The Grok or ChatGPT account connected on tare.news, which writes this reader's briefings.
+    let ai: AI?
+}
+
+/// A story's detailed briefing, as `GET /api/v1/stories/:id/briefing` returns it.
+struct BriefingState: Decodable, Sendable, Equatable {
+    struct Paragraph: Decodable, Sendable, Equatable { let text: String; let cites: [Int]; let web: [String] }
+    struct Section: Decodable, Sendable, Equatable, Identifiable { let heading: String; let paragraphs: [Paragraph]; var id: String { heading } }
+    struct WebPage: Decodable, Sendable, Equatable, Identifiable { let id: String; let title: String; let url: URL }
+
+    /// "none", "writing", "ready" or "failed".
+    let status: String
+    let provider: String?
+    let error: String?
+    let sections: [Section]
+    let web: [WebPage]
+
+    enum CodingKeys: String, CodingKey { case status, provider, error, sections, web }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        status = try c.decode(String.self, forKey: .status)
+        provider = try c.decodeIfPresent(String.self, forKey: .provider)
+        error = try c.decodeIfPresent(String.self, forKey: .error)
+        sections = try c.decodeIfPresent([Section].self, forKey: .sections) ?? []
+        web = try c.decodeIfPresent([WebPage].self, forKey: .web) ?? []
+    }
+}

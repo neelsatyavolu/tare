@@ -9,7 +9,7 @@ struct EditionView: View {
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
-                Masthead(edition: store.edition)
+                Masthead(edition: store.edition) { showingSettings = true }
                 if !notifications.isOn && notifications.authorization == .notDetermined && store.edition != nil {
                     NotificationPrompt()
                 }
@@ -47,13 +47,12 @@ struct EditionView: View {
         }
         .background(Theme.paper)
         .refreshable { await store.load() }
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { showingSettings = true } label: { Image(systemName: "gearshape") }
-                    .accessibilityLabel("Settings")
-            }
+        // No navigation bar on the front page: it was an empty band that then covered the masthead. A paper
+        // strip keeps scrolled text out from under the status bar.
+        .toolbar(.hidden, for: .navigationBar)
+        .overlay(alignment: .top) {
+            Color.clear.frame(height: 0).background(Theme.paper.ignoresSafeArea(edges: .top))
         }
-        .toolbarBackground(Theme.paper, for: .navigationBar)
         .sheet(isPresented: $showingSettings) { SettingsView() }
     }
 }
@@ -61,6 +60,7 @@ struct EditionView: View {
 /// The wordmark between rules, and the edition line under it, as on the site.
 struct Masthead: View {
     let edition: Edition?
+    var openSettings: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 6) {
@@ -85,6 +85,15 @@ struct Masthead: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 4)
+        .overlay(alignment: .topTrailing) {
+            if let openSettings {
+                Button(action: openSettings) {
+                    Image(systemName: "gearshape").font(.system(size: 19)).foregroundStyle(Theme.ink2).frame(width: 44, height: 44)
+                }
+                .accessibilityLabel("Settings")
+                .padding(.top, 8)
+            }
+        }
     }
 
     static func line(_ edition: Edition) -> String {
@@ -107,9 +116,7 @@ struct NotificationPrompt: View {
                 .foregroundStyle(Theme.ink)
             HStack(spacing: 14) {
                 Button("Turn on") { Task { await notifications.requestPermission() } }
-                    .font(Theme.mono(13, medium: true))
-                    .buttonStyle(.borderedProminent)
-                    .tint(Theme.ink)
+                    .buttonStyle(InkButtonStyle())
                 Text("Change them any time in Settings.")
                     .font(Theme.mono(11))
                     .foregroundStyle(Theme.ink3)

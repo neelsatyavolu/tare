@@ -26,7 +26,7 @@ In debug builds, launching with `-openStory <id>` opens a story directly. `tare:
 Devices register their APNs token and choices with `POST /api/v1/devices` (no account; the server keeps the token, the edition choice and whether to send breaking news). The Worker sends to APNs directly:
 
 - **Morning edition** at 7 a.m. and **evening edition** at 6 p.m. in the phone's time zone, which the app sends when it registers (the hourly :00 run).
-- **Breaking news** after an hourly build: at most one per build, a new importance-5 front-page story covered by 5+ outlets.
+- **Breaking news** after an hourly build: each new front-page story rated major or historic (importance 4–5) and covered by 3+ outlets, at most three per build.
 
 The Worker needs these secrets (`wrangler secret put`), plus `APNS_TOPIC` and `APPLE_TEAM_ID`, which are already in `wrangler.jsonc`:
 
@@ -47,3 +47,7 @@ Then `scripts/testflight.sh` archives, signs (distribution certificate and App S
 ## Design
 
 Same system as the site (`../DESIGN.md`): newsprint and night palettes, Libre Caslon Display headlines, Source Serif 4 text, IBM Plex Mono labels, one brass accent, no color for political sides. The fonts are bundled under the SIL Open Font License (`Tare/Resources/Fonts/OFL-*.txt`).
+
+## Account
+
+Reading needs no account. Settings > Sign in emails a six-digit code (`POST /api/v1/signin`, then `/signin/verify`), which returns a Tare session token kept in the Keychain. Signed in, a story's "Detailed briefing" section asks for one (`POST /api/v1/stories/:id/briefing`), written with the Grok or ChatGPT account the reader connected at tare.news/account.

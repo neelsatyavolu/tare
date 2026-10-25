@@ -11,11 +11,15 @@ struct TareApp: App {
                 .environment(delegate.router)
                 .environment(delegate.editionStore)
                 .environment(delegate.notifications)
+                .environment(delegate.account)
                 .tint(Theme.brass)
         }
         .onChange(of: scenePhase) { _, phase in
             // Coming back to the app: the edition may have been rebuilt since (it updates hourly).
-            if phase == .active { Task { await delegate.editionStore.refreshIfStale() } }
+            if phase == .active {
+                Task { await delegate.editionStore.refreshIfStale() }
+                Task { await delegate.account.refresh() }
+            }
         }
     }
 }

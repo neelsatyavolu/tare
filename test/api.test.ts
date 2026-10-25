@@ -1,5 +1,5 @@
 import { env } from "cloudflare:workers";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { app } from "../src/index";
 import { utcDate } from "../src/util";
 
@@ -56,5 +56,54 @@ describe("/api/v1", () => {
     expect((await req("/api/v1/devices", json({ token: "not-a-token" }))).status).toBe(400);
     await req(`/api/v1/devices/${token}`, { method: "DELETE" });
     expect(await env.DB.prepare("SELECT token FROM devices").first()).toBeNull();
+  });
+});
+
+describe("/api/v1 sign-in and briefings", () => {
+  let mails: any[] = [];
+  beforeEach(async () => {
+    mails = [];
+    await env.DB.batch([env.DB.prepare("DELETE FROM subscribers"), env.DB.prepare("DELETE FROM signin_codes"), env.DB.prepare("DELETE FROM briefings")]);
+    vi.spyOn(globalThis, "fetch").mockImplementation(async (_url, init) => {
+      mails.push(JSON.parse(String(init?.body)));
+      return new Response('{"id":"m1"}', { status: 200 });
+    });
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  const signIn = async (email: string) => {
+    expect((await req("/api/v1/signin", json({ email }))).status).toBe(200);
+    return String(mails.at(-1).text).match(/code is (\d{6})/)![1]!;
+  };
+
+  it("signs in with an emailed code, once, and the token reads the account", async () => {
+    const code = await signIn("reader@example.com");
+    const wrong = await req("/api/v1/signin/verify", json({ email: "reader@example.com", code: code === "000000" ? "111111" : "000000" }));
+    expect(wrong.status).toBe(400);
+    const ok = await req("/api/v1/signin/verify", json({ email: "Reader@Example.com", code }));
+    expect(ok.status).toBe(200);
+    const { token } = (await ok.json()) as { token: string };
+    // A code works once.
+    expect((await req("/api/v1/signin/verify", json({ email: "reader@example.com", code }))).status).toBe(400);
+
+    const me = await req("/api/v1/me", { headers: { authorization: `Bearer ${token}` } });
+    expect(await me.json()).toEqual({ email: "reader@example.com", ai: null });
+    // Without an AI account connected, asking for a briefing points to the site.
+    const ask = await req(`/api/v1/stories/${LEAD}/briefing`, { method: "POST", headers: { authorization: `Bearer ${token}` } });
+    expect(ask.status).toBe(409);
+
+    await req("/api/v1/signout", { method: "POST", headers: { authorization: `Bearer ${token}` } });
+    expect((await req("/api/v1/me", { headers: { authorization: `Bearer ${token}` } })).status).toBe(401);
+  });
+
+  it("burns a code after five wrong tries", async () => {
+    const code = await signIn("guess@example.com");
+    for (let i = 0; i < 5; i++) await req("/api/v1/signin/verify", json({ email: "guess@example.com", code: String((Number(code) + 1 + i) % 1_000_000).padStart(6, "0") }));
+    expect((await req("/api/v1/signin/verify", json({ email: "guess@example.com", code }))).status).toBe(400);
+  });
+
+  it("needs a session to ask for a briefing, and reports none yet", async () => {
+    expect((await req(`/api/v1/stories/${LEAD}/briefing`, { method: "POST" })).status).toBe(401);
+    expect(await (await req(`/api/v1/stories/${LEAD}/briefing`)).json()).toEqual({ status: "none" });
   });
 });

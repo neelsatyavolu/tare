@@ -48,6 +48,7 @@ struct StoryView: View {
                     if !story.differences.isEmpty {
                         DifferencesView(differences: story.differences) { openURL = $0 }
                     }
+                    BriefingView(storyId: story.id) { openURL = $0 }
                     if !story.sources.isEmpty {
                         SourcesView(sources: story.sources) { openURL = $0 }
                     } else if full == nil {

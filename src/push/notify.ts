@@ -7,7 +7,11 @@ import { devicesDue, devicesForBreaking, markPushed } from "./devices";
 /** A story counts as breaking only this soon after Tare first saw it, so a rebuild can't push old news. */
 const BREAKING_WINDOW_MS = 2 * 3600_000;
 /** Enough outlets that the story is established, not a single early report. */
-const BREAKING_MIN_OUTLETS = 5;
+const BREAKING_MIN_OUTLETS = 3;
+/** Major (4) or historic (5) on Tare's importance scale. */
+const BREAKING_MIN_IMPORTANCE = 4;
+/** A busy hour still sends only this many, so a news surge can't flood a phone. */
+const BREAKING_PER_BUILD = 3;
 
 /** The hourly edition push: each phone whose local clock is at 7 a.m. or 6 p.m. hears what leads the edition. */
 export async function notifyDue(env: Env, fetcher: typeof fetch = fetch, now = Date.now()): Promise<PushReport | null> {
@@ -35,16 +39,18 @@ export async function notifyDue(env: Env, fetcher: typeof fetch = fetch, now = D
   return total;
 }
 
-/** The story to push as breaking news this hour, if any: new, most important, on the front page, widely covered. */
-export function breakingStory(stories: readonly Story[], alreadyPushed: ReadonlySet<string>, now: number): Story | null {
+/** The stories to push as breaking news this hour: new, major, on the front page, covered by several outlets. Most important first. */
+export function breakingStories(stories: readonly Story[], alreadyPushed: ReadonlySet<string>, now: number): Story[] {
   const fresh = stories.filter(
-    (s) => s.front && (s.importance ?? 0) >= 5 && s.coverage.total >= BREAKING_MIN_OUTLETS && s.firstSeenAt !== null &&
+    (s) => s.front && (s.importance ?? 0) >= BREAKING_MIN_IMPORTANCE && s.coverage.total >= BREAKING_MIN_OUTLETS && s.firstSeenAt !== null &&
       now - s.firstSeenAt <= BREAKING_WINDOW_MS && !alreadyPushed.has(s.id),
   );
-  return fresh.sort((a, b) => (b.firstSeenAt ?? 0) - (a.firstSeenAt ?? 0))[0] ?? null;
+  return fresh
+    .sort((a, b) => (b.importance ?? 0) - (a.importance ?? 0) || (b.firstSeenAt ?? 0) - (a.firstSeenAt ?? 0))
+    .slice(0, BREAKING_PER_BUILD);
 }
 
-/** After a build: pushes at most one breaking story, and remembers it so it goes out once. */
+/** After a build: pushes each new breaking story, and remembers them so each goes out once. */
 export async function notifyBreaking(env: Env, fetcher: typeof fetch = fetch, now = Date.now()): Promise<PushReport | null> {
   const edition = await latestEdition(env.DB);
   if (!edition) return null;
@@ -52,14 +58,23 @@ export async function notifyBreaking(env: Env, fetcher: typeof fetch = fetch, no
   const ids = stories.map((s) => s.id);
   if (ids.length === 0) return null;
   const { results } = await env.DB.prepare(`SELECT story_id FROM pushed_stories WHERE story_id IN (${ids.map(() => "?").join(",")})`).bind(...ids).all<{ story_id: string }>();
-  const story = breakingStory(stories, new Set(results.map((r) => r.story_id)), now);
-  if (!story) return null;
-  await env.DB.prepare("INSERT OR IGNORE INTO pushed_stories (story_id, pushed_at) VALUES (?, ?)").bind(story.id, now).run();
-  return pushAll(env.DB, apnsConfig(env), await devicesForBreaking(env.DB), {
-    title: "Breaking",
-    body: story.headline,
-    storyId: story.id,
-    thread: "breaking",
-    ttl: 2 * 3600,
-  }, fetcher, now);
+  const breaking = breakingStories(stories, new Set(results.map((r) => r.story_id)), now);
+  if (breaking.length === 0) return null;
+  const mark = env.DB.prepare("INSERT OR IGNORE INTO pushed_stories (story_id, pushed_at) VALUES (?, ?)");
+  await env.DB.batch(breaking.map((s) => mark.bind(s.id, now)));
+  const devices = await devicesForBreaking(env.DB);
+  const total: PushReport = { sent: 0, failed: 0, removed: 0 };
+  for (const story of breaking) {
+    const report = await pushAll(env.DB, apnsConfig(env), devices, {
+      title: "Breaking",
+      body: story.headline,
+      storyId: story.id,
+      thread: "breaking",
+      ttl: 2 * 3600,
+    }, fetcher, now);
+    total.sent += report.sent;
+    total.failed += report.failed;
+    total.removed += report.removed;
+  }
+  return total;
 }

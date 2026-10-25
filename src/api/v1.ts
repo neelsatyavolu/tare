@@ -11,6 +11,7 @@ import { topicName } from "../topics";
 import { DATE_RE } from "../editions";
 import { kindLabel, namedOutlets } from "../web/components";
 import { registerDevice, removeDevice, parseDevice } from "../push/devices";
+import { account } from "./account";
 
 /**
  * The JSON API the iOS app reads. Same data and the same rules as the site: the app never computes an
@@ -141,3 +142,6 @@ api.delete("/devices/:token", async (c) => {
   await removeDevice(c.env.DB, c.req.param("token"));
   return c.json({ ok: true });
 });
+
+// Sign-in and briefings: account.ts.
+api.route("/", account);

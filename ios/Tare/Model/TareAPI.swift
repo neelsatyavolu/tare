@@ -9,10 +9,18 @@ struct TareAPI: Sendable {
 
     enum APIError: LocalizedError {
         case status(Int)
+        /// The server's own explanation, e.g. "That code didn't work."
+        case message(Int, String)
         var errorDescription: String? {
             switch self {
             case .status(404): "There's no edition yet. Check back soon."
             case .status(let code): "Tare couldn't be reached (\(code)). Try again in a moment."
+            case .message(_, let text): text
+            }
+        }
+        var statusCode: Int {
+            switch self {
+            case .status(let code), .message(let code, _): code
             }
         }
     }
@@ -35,6 +43,53 @@ struct TareAPI: Sendable {
         let (_, response) = try await session.data(for: request)
         try check(response)
     }
+
+    // MARK: Account (sign in with an emailed code; the token is a Tare session)
+
+    func requestCode(email: String) async throws {
+        let _: OK = try await send("signin", body: ["email": email])
+    }
+
+    func verify(email: String, code: String) async throws -> SignedIn {
+        try await send("signin/verify", body: ["email": email, "code": code])
+    }
+
+    func me(token: String) async throws -> Me {
+        try await send("me", method: "GET", token: token)
+    }
+
+    func signOut(token: String) async throws {
+        let _: OK = try await send("signout", token: token)
+    }
+
+    func briefing(storyId: String) async throws -> BriefingState {
+        try await send("stories/\(storyId)/briefing", method: "GET")
+    }
+
+    func requestBriefing(storyId: String, token: String) async throws {
+        let _: OK = try await send("stories/\(storyId)/briefing", token: token)
+    }
+
+    /// An uncached JSON request; a failure carries the server's message when it sent one.
+    private func send<T: Decodable>(_ path: String, method: String = "POST", body: [String: String]? = nil, token: String? = nil) async throws -> T {
+        var request = URLRequest(url: base.appending(path: path))
+        request.httpMethod = method
+        request.cachePolicy = .reloadIgnoringLocalCacheData
+        if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization") }
+        if let body {
+            request.setValue("application/json", forHTTPHeaderField: "content-type")
+            request.httpBody = try JSONEncoder().encode(body)
+        }
+        let (data, response) = try await session.data(for: request)
+        if let http = response as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+            let message = (try? JSONDecoder().decode(ServerError.self, from: data))?.error
+            throw message.map { APIError.message(http.statusCode, $0) } ?? APIError.status(http.statusCode)
+        }
+        return try JSONDecoder().decode(T.self, from: data)
+    }
+
+    private struct OK: Decodable {}
+    private struct ServerError: Decodable { let error: String }
 
     private func get<T: Decodable>(_ path: String, query: [URLQueryItem] = []) async throws -> T {
         let url = base.appending(path: path)

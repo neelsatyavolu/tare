@@ -63,3 +63,15 @@ struct SectionHead: View {
         .accessibilityAddTraits(.isHeader)
     }
 }
+
+/// The site's button: paper-colored text on an ink block, square corners, in both palettes.
+struct InkButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(Theme.mono(13, medium: true))
+            .foregroundStyle(Theme.paper)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 9)
+            .background(Theme.ink.opacity(configuration.isPressed ? 0.8 : 1))
+    }
+}

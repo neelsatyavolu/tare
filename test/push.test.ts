@@ -4,7 +4,7 @@ import { coverageOf } from "../src/build/select";
 import type { Story } from "../src/editions";
 import { payload, providerToken, pushAll, type ApnsConfig } from "../src/push/apns";
 import { devicesDue, markPushed, registerDevice, type Device } from "../src/push/devices";
-import { breakingStory } from "../src/push/notify";
+import { breakingStories } from "../src/push/notify";
 
 async function p8(): Promise<{ pem: string; publicKey: CryptoKey }> {
   const pair = (await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"])) as CryptoKeyPair;
@@ -75,25 +75,30 @@ describe("devicesDue", () => {
   });
 });
 
-describe("breakingStory", () => {
+describe("breakingStories", () => {
   const now = 100 * 3600_000;
   const wide = coverageOf(["vox", "nyt", "axios", "pbs", "fox", "nypost"]);
   const story = (id: string, over: Partial<Story>): Story => ({
     id, editionDate: "2026-10-25", rank: 0, front: true, topic: "world", headline: id, summary: [], differences: [], coverage: wide,
     blindspot: null, itemIds: [], imageItemId: null, firstSeenAt: now - 600_000, importance: 5, dek: null, why: null, writtenAt: null, ...over,
   });
+  const ids = (list: Story[]) => list.map((s) => s.id);
 
-  it("picks the newest major front-page story not already pushed", () => {
-    const older = story("older", { firstSeenAt: now - 3600_000 });
-    const newer = story("newer", {});
-    expect(breakingStory([older, newer], new Set(), now)?.id).toBe("newer");
-    expect(breakingStory([older, newer], new Set(["newer"]), now)?.id).toBe("older");
+  it("picks every new major front-page story not already pushed, most important first", () => {
+    const major = story("major", { importance: 4 });
+    const historic = story("historic", { firstSeenAt: now - 3600_000 });
+    expect(ids(breakingStories([major, historic], new Set(), now))).toEqual(["historic", "major"]);
+    expect(ids(breakingStories([major, historic], new Set(["historic"]), now))).toEqual(["major"]);
+  });
+
+  it("caps a busy hour at three", () => {
+    expect(breakingStories(["a", "b", "c", "d"].map((id) => story(id, {})), new Set(), now)).toHaveLength(3);
   });
 
   it("ignores minor, old, narrow or off-front stories", () => {
-    expect(breakingStory([story("minor", { importance: 4 })], new Set(), now)).toBeNull();
-    expect(breakingStory([story("old", { firstSeenAt: now - 3 * 3600_000 })], new Set(), now)).toBeNull();
-    expect(breakingStory([story("narrow", { coverage: coverageOf(["vox", "fox"]) })], new Set(), now)).toBeNull();
-    expect(breakingStory([story("inside", { front: false })], new Set(), now)).toBeNull();
+    expect(breakingStories([story("minor", { importance: 3 })], new Set(), now)).toEqual([]);
+    expect(breakingStories([story("old", { firstSeenAt: now - 3 * 3600_000 })], new Set(), now)).toEqual([]);
+    expect(breakingStories([story("narrow", { coverage: coverageOf(["vox", "fox"]) })], new Set(), now)).toEqual([]);
+    expect(breakingStories([story("inside", { front: false })], new Set(), now)).toEqual([]);
   });
 });

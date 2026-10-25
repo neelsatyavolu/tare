@@ -53,6 +53,18 @@ export function signinEmail(signinUrl: string): { subject: string; html: string;
   };
 }
 
+export function signinCodeEmail(code: string): { subject: string; html: string; text: string } {
+  const body = `<tr><td style="padding:28px 0">
+<p style="margin:0 0 16px;font:18px/1.55 ${SERIF}">Enter this code in the Tare app to sign in. It works for 15 minutes.</p>
+<p style="margin:0 0 20px;font:600 32px/1.2 ${MONO};letter-spacing:6px">${code}</p>
+<p style="margin:0;font:14px/1.55 ${SERIF};color:${C.ink2}">If you didn't ask for this, ignore this email. Nobody can sign in without the code.</p></td></tr>`;
+  return {
+    subject: `${code} is your Tare sign-in code`,
+    html: shell("Your Tare sign-in code", body, "Tare"),
+    text: `Your Tare sign-in code is ${code}. It works for 15 minutes.\n\nIf you didn't ask for this, ignore this email.`,
+  };
+}
+
 export function manageEmail(manageUrl: string): { subject: string; html: string; text: string } {
   const body = `<tr><td style="padding:28px 0">
 <p style="margin:0 0 16px;font:18px/1.55 ${SERIF}">This address already gets Tare. You can change your topics or unsubscribe here:</p>

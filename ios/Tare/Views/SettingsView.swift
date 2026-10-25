@@ -2,6 +2,8 @@ import SwiftUI
 
 struct SettingsView: View {
     @Environment(NotificationSettings.self) private var notifications
+    @Environment(Account.self) private var account
+    @State private var signingIn = false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
 
@@ -9,6 +11,22 @@ struct SettingsView: View {
         @Bindable var notifications = notifications
         NavigationStack {
             Form {
+                Section {
+                    if let email = account.email ?? (account.isSignedIn ? "Signed in" : nil) {
+                        LabeledContent("Signed in as", value: email)
+                        LabeledContent("Briefings written with", value: account.ai?.name ?? "Not connected")
+                        if account.ai == nil {
+                            Link("Connect Grok or ChatGPT on tare.news", destination: URL(string: "https://tare.news/account#ai")!)
+                        }
+                        Button("Sign out", role: .destructive) { Task { await account.signOut() } }
+                    } else {
+                        Button("Sign in") { signingIn = true }
+                    }
+                } header: {
+                    Text("Account")
+                } footer: {
+                    Text("Signing in lets you ask for detailed briefings, written with the Grok or ChatGPT account you connect on tare.news. Reading needs no account.")
+                }
                 Section {
                     if notifications.isOn {
                         Toggle("Morning edition", isOn: $notifications.morning)
@@ -26,7 +44,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Notifications")
                 } footer: {
-                    Text("The morning edition arrives at 7 a.m. and the evening edition at 6 p.m., your time. Breaking news is only the most consequential stories, at most one an hour. Tare keeps your device's notification token and these choices, nothing else.")
+                    Text("The morning edition arrives at 7 a.m. and the evening edition at 6 p.m., your time. Breaking news is major new stories on the front page, as several outlets report them; at most three an hour. Tare keeps your device's notification token and these choices, nothing else.")
                 }
                 Section("About") {
                     Link("How Tare works", destination: URL(string: "https://tare.news/method")!)
@@ -39,6 +57,8 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
+            .sheet(isPresented: $signingIn) { SignInView() }
+            .task { await account.refresh() }
         }
     }
 }

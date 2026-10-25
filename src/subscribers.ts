@@ -105,9 +105,15 @@ export async function setDigest(db: D1Database, id: string, on: boolean): Promis
 export async function deleteAccount(db: D1Database, id: string): Promise<void> {
   await db.batch([
     db.prepare("DELETE FROM sessions WHERE subscriber_id = ?").bind(id),
+    db.prepare("DELETE FROM signin_codes WHERE subscriber_id = ?").bind(id),
     db.prepare("DELETE FROM ai_connections WHERE subscriber_id = ?").bind(id),
     db.prepare("DELETE FROM subscribers WHERE id = ?").bind(id),
   ]);
+}
+
+export async function findByEmail(db: D1Database, email: string): Promise<Subscriber | null> {
+  const row = await db.prepare(`SELECT ${COLUMNS} FROM subscribers WHERE email = ?`).bind(email).first<Row>();
+  return row ? toSubscriber(row) : null;
 }
 
 export async function findById(db: D1Database, id: string): Promise<Subscriber | null> {
