@@ -22,7 +22,7 @@ const MIN_ITEMS = 40;
 /** Groups sent to the section classifier; the rest are too thinly covered to make the edition. */
 const CLASSIFY_LIMIT = 120;
 const FRONT_SIZE = 6;
-const CONCURRENCY = 6;
+const CONCURRENCY = 10;
 /** New write-ups per run. The first run of the day uses most of it; later runs only write up new events. */
 const WRITE_BUDGET = 32;
 const LOCK_MS = 14 * 60_000;
