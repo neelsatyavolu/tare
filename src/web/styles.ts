@@ -79,8 +79,6 @@ nav.jump a:hover{color:var(--ink);border-bottom-color:var(--ink)}
 .why-matters{max-width:66ch;border-left:2px solid var(--brass);padding-left:12px;color:var(--ink)}
 .quoted .snippet{display:block;margin:2px 0 0;font-style:italic;color:var(--ink-2)}
 .scale.thin .reading-thin{margin:0;font:13px/1.5 var(--font-mono);color:var(--ink-3)}
-.lead.solo{grid-template-columns:1fr;gap:0}
-.lead.solo .lead-side{border-left:0;padding:8px 0 0}
 .read-first{margin:6px 0 0}
 .named{font:400 15px/1.5 var(--font-serif);color:var(--ink-2);margin:6px 0 0}
 .no-center{margin:6px 0 0;font:400 12px/1.4 var(--font-mono);color:var(--ink-3)}
@@ -105,6 +103,8 @@ details.differ ul.quoted .outlet{display:block;font:500 11px/1.4 var(--font-mono
 .story h3 a:hover{text-decoration:underline;text-decoration-thickness:1px}
 .story.lead{padding:28px 0 32px;border-bottom:1px solid var(--rule);display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:40px}
 .lead-side{border-left:1px solid var(--rule);padding-left:32px;padding-top:30px}
+.story.lead.solo{grid-template-columns:1fr;gap:0}
+.story.lead.solo .lead-side{border-left:0;padding:8px 0 0}
 .lead-side .scale{margin-top:0}
 .lead-side details.differ{border-top:0}
 .story.lead h3{font-size:44px;line-height:1.08;max-width:22ch}

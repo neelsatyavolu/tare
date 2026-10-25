@@ -15,6 +15,12 @@ export function shortDate(date: string): string {
 }
 
 /** "10:07 a.m. ET" */
+/** "Oct 24, 7:59 a.m. ET": a source's publish time with its date, since a feed window spans two days. */
+export function easternStamp(ms: number): string {
+  const day = new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric", timeZone: "America/New_York" });
+  return `${day}, ${easternTime(ms)}`;
+}
+
 export function easternTime(ms: number): string {
   return new Date(ms)
     .toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: "America/New_York" })

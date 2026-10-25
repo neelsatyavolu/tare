@@ -4,7 +4,7 @@ import { leanReading, type Coverage } from "../build/select";
 import { cardLine, orderedSources, type Source, type Story } from "../editions";
 
 export { orderedSources } from "../editions";
-import { easternTime, longDate } from "../format";
+import { easternStamp, easternTime, longDate } from "../format";
 import { LEAN_LABEL, OUTLETS, sideOf, SIDE_SIZE, type Side } from "../outlets";
 import { TOPICS, topicName, type TopicId } from "../topics";
 import { whyText } from "../build/select";
@@ -198,7 +198,7 @@ export const StoryCard: FC<{ story: Story; sources: Map<string, Source>; lead?: 
               <ul class="quoted">
                 {strongest(d.cites, sources).map((s) => (
                   <li>
-                    <span class="outlet">{s.outlet.name} · {LEAN_LABEL[s.outlet.lean]}{s.publishedAt ? ` · ${easternTime(s.publishedAt)}` : ""}</span> <a href={s.url} rel="noopener noreferrer nofollow" target="_blank">{s.title}</a>
+                    <span class="outlet">{s.outlet.name} · {LEAN_LABEL[s.outlet.lean]}{s.publishedAt ? ` · ${easternStamp(s.publishedAt)}` : ""}</span> <a href={s.url} rel="noopener noreferrer nofollow" target="_blank">{s.title}</a>
                     {/* The description often holds the detail that differs, so it's quoted too. */}
                     {s.snippet ? <q class="snippet">{excerpt(s.snippet)}</q> : null}
                   </li>
@@ -338,7 +338,7 @@ export const SourceList: FC<{ story: Story; sources: Map<string, Source> }> = ({
             <ol>
               {ordered.map((s, i) => sideOf(s.outlet.lean) === side ? (
                 <li id={`src-${i + 1}`}>
-                  <span class="outlet"><span class="n">{i + 1}</span> {s.outlet.name} · {LEAN_LABEL[s.outlet.lean]}{s.publishedAt ? ` · ${easternTime(s.publishedAt)}` : ""}</span>
+                  <span class="outlet"><span class="n">{i + 1}</span> {s.outlet.name} · {LEAN_LABEL[s.outlet.lean]}{s.publishedAt ? ` · ${easternStamp(s.publishedAt)}` : ""}</span>
                   <a href={s.url} rel="noopener noreferrer nofollow" target="_blank">{s.title}</a>
                 </li>
               ) : null)}

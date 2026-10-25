@@ -71,6 +71,20 @@ describe("validateWriteup", () => {
     expect(w.differences.map((d) => d.cites)).toEqual([["t1", "t4"]]);
   });
 
+  it("drops a facts-differ box when the summary already explains the count as an update", () => {
+    const w = validateWriteup({
+      ...good,
+      summary: [{ text: "Earlier reports said seven were killed; later reports said nine.", sources: ["s1", "s2"] }],
+      differences: [{ kind: "fact", text: "Seven or nine killed.", sources: ["s1", "s2"] }],
+    }, items)!;
+    expect(w.differences).toEqual([]);
+  });
+
+  it("drops a card line that is too long instead of cutting it mid-word", () => {
+    const long = "word ".repeat(80).trim();
+    expect(validateWriteup({ ...good, dek: { text: long, sources: ["s1"] } }, items)!.dek).toBeNull();
+  });
+
   it("drops forecast sentences from the summary when others remain", () => {
     const w = validateWriteup({
       ...good,

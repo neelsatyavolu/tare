@@ -15,7 +15,7 @@ export const SUMMARY_MODEL = "@cf/openai/gpt-oss-120b";
  * 8: no hedged ("could", "may", "likely") why-lines at all.
  * 9: current officeholders in the prompt, so titles stay consistent across stories.
  */
-export const WRITEUP_VERSION = 18;
+export const WRITEUP_VERSION = 19;
 
 /**
  * Facts that change rarely but that the model, trained earlier, tends to get wrong. Keep current: they go
@@ -86,8 +86,8 @@ Rules:
 - Neutral wording. No loaded, emotive or judging words, no speculation, no predictions, no "critics say" unless a source says it. Attribute claims and quotes to whoever made them.
 - headline: what happened, in plain words, under 100 characters; for an event in which people died, say how many, sentence case, no colon subtitle, no clickbait, no quote marks unless quoting.
 - dek: one sentence for the home page, under 30 words, in this order: what happened, why (the reason or trigger, if a source gives it), and the concrete consequence or the central dispute. No commentary, political messaging or description of coverage. With its sources.
-- why: one sentence on a specific consequence the sources state as fact (a policy that changes, a number of people affected, a decision now due), not general significance, not a forecast and not a repeat of the summary. Never use "could", "may", "might" or "likely". If the sources don't give one, give an empty text and no sources.
-- summary: 2 to 4 sentences, under 90 words in total, about the event itself. Every sentence must make sense on its own and not contradict itself or another sentence ("tied, each trailing the other" is wrong; "polls showed a tie" is right). Each sentence must make sense on its own: name the person or body ("Ukraine's defense ministry"), never refer back with "the ministry" or "he". The first sentence states what the headline says happened and adds a detail the headline doesn't have (where, who, how many, or what triggered it); the rest give the most important context: the stakes, what each side says, or what is still unknown. Don't describe how outlets covered it or quote labels one outlet used; that belongs in differences.
+- why: one sentence on a specific consequence the sources state as fact (a policy that changes, a number of people affected, a decision now due), not general significance, not a forecast, not a repeat of the summary and not a detail of the event itself (a casualty count belongs in the summary). Never use "could", "may", "might" or "likely". If the sources don't give one, give an empty text and no sources.
+- summary: 2 to 4 sentences, under 90 words in total, about the event itself. Every sentence must make sense on its own and not contradict itself or another sentence ("tied, each trailing the other" is wrong; "polls showed a tie" is right). Each sentence must make sense on its own: name the person or body ("Ukraine's defense ministry"), never refer back with "the ministry" or "he". Every fact the headline states (an arrest, a death toll, a dollar amount) must also be in the summary. The first sentence states what the headline says happened and adds a detail the headline doesn't have (where, who, how many, or what triggered it); the rest give the most important context: the stakes, what each side says, or what is still unknown. Don't describe how outlets covered it or quote labels one outlet used; that belongs in differences.
 - differences: at most 2, each listing sources from every side of the difference. Include one only if the accounts differ on who did it, whether it is confirmed or alleged, who is to blame, or how many/how much. kind is "fact" (claims that cannot both be true: 11 vs 12 injured, yes, but "14 years" vs "over a decade" is not) or "framing" (the same event described so that a reader would come away believing something different; quote the words). Different aspects of the same event, wording nits, rounding and one outlet adding a detail are not differences. Leave the list empty when the accounts don't really differ: that is common and fine. Never invent a disagreement and never say which outlet is right. List each difference's sources so the first two are the clearest example, one of each side, and their own headline or description must show the difference as you describe it; if no source text shows it, leave the difference out.
 - off_topic: numbers of any sources that are about a different event than most of the others.
 - topic: one of ${TOPICS.map((t) => `${t.id} (${t.name})`).join(", ")}. "politics" is U.S. politics only; elections and governments elsewhere are "world".
@@ -163,6 +163,8 @@ export function speculative(c: Cited | null): boolean {
   return !!c && HEDGE.test(c.text);
 }
 
+const MAX_LINE = 300;
+const TOLD_AS_UPDATE = /\b(earlier|initial|first) reports?\b|\blater (reports?|accounts?)\b|\b(rose|raised|risen|climbed|revised) (to|from)\b/i;
 const UPDATED = /\b(rises|rose|risen|climbs|climbed|jumps|jumped|increases|increased|grows|grew) to\b/i;
 const textOf = (it: SourceItem) => `${it.title} ${it.snippet}`;
 const sideKey = (outletId: string) => {
@@ -225,6 +227,8 @@ export function validateWriteup(raw: unknown, items: readonly SourceItem[]): Wri
   // Forecasts ("could reshape...") are dropped too: Tare reports what happened, not what might.
   const aboutEvent = summary.filter((s) => !aboutCoverage(s.text) && !speculative(s));
   const kept = aboutEvent.length > 0 ? aboutEvent : summary;
+  // If the summary already explains a changing count as an update, a "facts differ" box would contradict it.
+  const updateTold = kept.some((s) => TOLD_AS_UPDATE.test(s.text));
 
   const differences = r.differences.flatMap((d) => {
     const cites = resolve(d.sources);
@@ -235,7 +239,7 @@ export function validateWriteup(raw: unknown, items: readonly SourceItem[]): Wri
     if (outletsOf(cites).size < 2) return [];
     const [a, b] = cites.map((id) => items.find((it) => it.id === id)!);
     // A count one source says "rose to" is an update over the day, not a disagreement.
-    if (kind === "fact" && cites.some((id) => UPDATED.test(textOf(items.find((it) => it.id === id)!)))) return [];
+    if (kind === "fact" && (updateTold || cites.some((id) => UPDATED.test(textOf(items.find((it) => it.id === id)!))))) return [];
     // Framing differences are shown as a pair of quotes; two outlets from the same side aren't a cross-spectrum difference.
     if (kind === "framing" && sideKey(a!.outletId) === sideKey(b!.outletId)) return [];
     return [{ kind, text, cites }];
@@ -245,7 +249,8 @@ export function validateWriteup(raw: unknown, items: readonly SourceItem[]): Wri
   const one = (c: { text: string; sources: string[] } | null | undefined): Cited | null => {
     const cites = c ? resolve(c.sources) : null;
     const text = c ? clean(c.text) : "";
-    return cites && text && !leaksLabels(text) ? { text: text.slice(0, 300), cites } : null;
+    // Too long for a card line: drop it (the card falls back to the first summary sentence) rather than cut a word in half.
+    return cites && text && text.length <= MAX_LINE && !leaksLabels(text) ? { text, cites } : null;
   };
   const topic = TOPIC_IDS.find((t) => t === r.topic) ?? "world";
   const why = one(r.why);
