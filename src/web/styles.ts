@@ -111,6 +111,14 @@ details.differ ul.quoted .outlet{display:block;font:500 11px/1.4 var(--font-mono
 .lead-side{border-left:1px solid var(--rule);padding-left:32px;padding-top:30px}
 .story.lead.solo{grid-template-columns:1fr;gap:0}
 .story.lead.solo .lead-side{border-left:0;padding:8px 0 0}
+/* With nothing in the sidebar, the photo takes the left column and the story the right, so the photo stays the size
+   it is in the two-column lead instead of stretching (and blurring) across the page. */
+@media (min-width:761px){
+.story.lead.solo .lead-main{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);column-gap:36px;align-items:start}
+.story.lead.solo .lead-main>.photo{grid-column:1;grid-row:1 / span 12;margin:0}
+.story.lead.solo .lead-main>:not(.photo){grid-column:2}
+.story.lead.solo .lead-main h3{font-size:36px}
+}
 .lead-side .scale{margin-top:0}
 .lead-side details.differ{border-top:0}
 .story.lead h3{font-size:44px;line-height:1.08;max-width:22ch}
