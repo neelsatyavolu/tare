@@ -6,7 +6,7 @@ Flag only serious problems a careful reader would notice:
 - a claim that is impossible or self-contradictory (a solo home run erasing a four-run deficit; "tied, each ahead");
 - the headline, card line and summary disagreeing on a fact (a number, who announced or did something);
 - a summary that never says what the headline says happened;
-- a sentence a reader would have to reread to understand (an ambiguous "which" or "who", clauses piled on clauses);
+- a sentence a reader would have to reread to understand (an ambiguous "which" or "who", clauses piled on clauses, more than about 30 words), or a reference with nothing to point to ("the letters" before any letters are named);
 - a difference whose quoted source texts don't show the difference it describes, or that calls two compatible things a conflict;
 - when a previously published version is given: the new one drops a fact or distinction the previous one had (12 injured, 11 of them shot), or changes a name or number, without a source showing the change.
 

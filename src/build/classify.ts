@@ -6,8 +6,8 @@ const PER_CALL = 40;
 /** Sorting and rating is simple and runs on every new group, so it stays on the cheaper model. */
 const CLASSIFY_MODEL = "@cf/openai/gpt-oss-120b";
 
-/** Bump when the sections or IMPORTANCE_RUBRIC change, so remembered ratings are redone. 2: royals and celebrities at 1, attacks at 5. */
-export const CLASSIFY_VERSION = 2;
+/** Bump when the sections or IMPORTANCE_RUBRIC change, so remembered ratings are redone. 2: royals and celebrities at 1, attacks at 5. 3: politicians' social posts at 1. */
+export const CLASSIFY_VERSION = 3;
 const HEADLINES_PER_GROUP = 3;
 
 /**
@@ -19,7 +19,7 @@ export const IMPORTANCE_RUBRIC = [
   { level: 4, meaning: "Significant national or international news: policy fights, legal actions by governments, threats to public safety, deadly accidents, major market moves." },
   { level: 3, meaning: "Notable but narrower: a single company's announcement, regional events, important trials, major sports finals, significant science or health findings." },
   { level: 2, meaning: "Minor news: routine sports results, small business deals, local incidents, weather without major damage." },
-  { level: 1, meaning: "Celebrity and royal news (including their families), gossip, viral moments, old social media posts, puzzles and listicles." },
+  { level: 1, meaning: "Celebrity and royal news (including their families), gossip, viral moments, a politician's social media post or video and the reactions to it (unless it led to something concrete: a law, a lawsuit, a firing, a resignation), old social media posts, puzzles and listicles." },
 ] as const;
 
 export const CLASSIFY_INSTRUCTIONS = `Sort news story groups into sections and rate how much each matters. Each group is a few headlines about one event, from different outlets.

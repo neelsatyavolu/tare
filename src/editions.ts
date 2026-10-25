@@ -114,6 +114,9 @@ export function shownSummary(s: Story): Story["summary"] {
   return rest.length > 0 ? rest : s.summary;
 }
 
+/** A slip like "Starlink and Starlink speeds": the same word on both sides of "and"/"or". */
+export const DOUBLED = /\b([A-Z][\w'-]+) (?:and|or) \1\b/;
+
 /** A sentence that reads as a follow-on to something not shown ("have also intervened", "defended the same ad"). */
 export const CONTINUATION = /\b(also|the same|had earlier|meanwhile|separately|as well|in response)\b/i;
 
@@ -123,7 +126,8 @@ export const CONTINUATION = /\b(also|the same|had earlier|meanwhile|separately|a
  * or nothing: a follow-on would read as the event.
  */
 export function cardLine(s: Story): string {
-  const line = (s.dek ?? s.summary[0])?.text ?? "";
+  const dek = s.dek && !DOUBLED.test(s.dek.text) ? s.dek : null;
+  const line = (dek ?? s.summary[0])?.text ?? "";
   if (!restatesHeadline(s, line)) return line;
   return s.summary.find((x) => !restatesHeadline(s, x.text) && !CONTINUATION.test(x.text))?.text ?? "";
 }
