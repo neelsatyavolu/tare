@@ -117,7 +117,7 @@ export const MethodPage: FC = () => (
       <ol>
         <li>The <b>front page</b> is the {BALANCE.front} most widely covered stories that outlets on both the left and the right reported. Everyone gets it, whatever topics they choose.</li>
         <li>Every <b>section</b> (world, U.S., politics, business, technology, science, climate, culture and sports) gets up to {BALANCE.perSection} of its most widely covered stories with at least {MIN_OUTLETS} outlets. A quiet section still gets its single best story if {SECTION_MIN_OUTLETS} outlets covered it, so one busy topic can't crowd out the rest.</li>
-        <li>A <b>blindspot</b> is a story at least {Math.round(BLINDSPOT.minShare * 100)}% of one side's outlets covered while at most {BLINDSPOT.maxOther} outlet on the other side did, with at least {BLINDSPOT.minTotal} outlets in all. Before calling it one, Tare checks every headline the other side published that day for a looser match; if it finds one, it isn't a blindspot. Up to {BALANCE.blindspots} make each edition.</li>
+        <li>A <b>blindspot</b> is a story at least {BLINDSPOT.minCount} outlets and {Math.round(BLINDSPOT.minShare * 100)}% of one side covered while at most {BLINDSPOT.maxOther} outlet on the other side did, with at least {BLINDSPOT.minTotal} outlets in all. Before calling it one, Tare checks every headline the other side published that day for a looser match; if it finds one, it isn't a blindspot. Up to {BALANCE.blindspots} make each edition.</li>
       </ol>
       <p>Picking topics in your account only changes the order: your sections come first. You still see everything else.</p>
 

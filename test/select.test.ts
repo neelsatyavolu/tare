@@ -9,7 +9,7 @@ const L = bySide("left");
 const C = bySide("center");
 const R = bySide("right");
 const UNRATED = OUTLETS.filter((o) => o.lean === "unrated").map((o) => o.id);
-const enough = (size: number) => Math.ceil(size * BLINDSPOT.minShare);
+const enough = (size: number) => Math.max(BLINDSPOT.minCount, Math.ceil(size * BLINDSPOT.minShare));
 
 describe("source list", () => {
   it("rates every outlet from the published data or marks it unrated, with unique ids", () => {

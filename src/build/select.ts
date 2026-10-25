@@ -32,16 +32,19 @@ export function coverageOf(outletIds: readonly string[]): Coverage {
 
 /**
  * When a story counts as a blindspot. One or two missing outlets is noise, so it takes real evidence:
- * enough coverage overall, at least 15% of one side's outlets (a share, so the rule holds as the source
- * list grows), and at most one outlet from the other side.
+ * enough coverage overall, at least 3 outlets and 7% of one side (a share, so the rule holds as the source
+ * list grows; most outlets publish only a few stories a day, so higher shares missed clear cases), and at
+ * most one outlet from the other side. The build then checks every headline the other side published.
  */
-export const BLINDSPOT = { minTotal: 6, minShare: 0.15, maxOther: 1 } as const;
+export const BLINDSPOT = { minTotal: 6, minShare: 0.07, minCount: 3, maxOther: 1 } as const;
+
+const covered = (count: number, size: number) => count >= BLINDSPOT.minCount && count / size >= BLINDSPOT.minShare;
 
 /** The side that skipped a story the other side covered widely, if any. The build then double-checks it (see build.ts). */
 export function blindspotOf(c: Coverage): Blindspot {
   if (c.total < BLINDSPOT.minTotal) return null;
-  if (c.right / SIDE_SIZE.right >= BLINDSPOT.minShare && c.left <= BLINDSPOT.maxOther) return "left";
-  if (c.left / SIDE_SIZE.left >= BLINDSPOT.minShare && c.right <= BLINDSPOT.maxOther) return "right";
+  if (covered(c.right, SIDE_SIZE.right) && c.left <= BLINDSPOT.maxOther) return "left";
+  if (covered(c.left, SIDE_SIZE.left) && c.right <= BLINDSPOT.maxOther) return "right";
   return null;
 }
 
