@@ -171,3 +171,12 @@ describe("article text", () => {
     expect(page).not.toContain("Continue reading");
   });
 });
+
+describe("where accounts differ", () => {
+  it("starts collapsed, on the story page too", async () => {
+    const differing: Story = { ...story, differences: [{ kind: "fact", text: "Tolls differ.", cites: ["i0", "i1"] }] };
+    const html = await render(<StoryCard story={differing} sources={sources} page />);
+    expect(html).toContain('<details class="differ">');
+    expect(html).not.toContain('class="differ" open');
+  });
+});

@@ -226,8 +226,8 @@ export const StoryCard: FC<{ story: Story; sources: Map<string, Source>; lead?: 
   const differences = story.differences.length === 0 ? (
     null
   ) : (
-    // On the front, open only when the accounts can't both be true; framing differences stay a click away.
-    <details class="differ" open={page || (lead && story.differences.some((d) => d.kind === "fact"))}>
+    // Collapsed everywhere: the article comes first, and the comparison is one tap away.
+    <details class="differ">
       <summary>Where accounts differ ({story.differences.length})</summary>
       <ul>
         {story.differences.map((d) => (
