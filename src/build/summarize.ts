@@ -9,8 +9,9 @@ export const SUMMARY_MODEL = "@cf/openai/gpt-oss-120b";
  * 2: today's date in the prompt, no added facts, the central dispute required, stricter differences, check pass.
  * 3: a checked one-sentence dek for the home page and an optional "why it matters" line; no unsourced titles.
  * 4: decks carry the central claim of responsibility; "why" may not predict effects the sources don't state.
+ * 5: a code rule drops "why" lines whose hedges (could, may, likely...) no cited source uses.
  */
-export const WRITEUP_VERSION = 4;
+export const WRITEUP_VERSION = 5;
 
 export type SourceItem = { id: string; outletId: string; title: string; snippet: string };
 export type Cited = { text: string; cites: string[] };
@@ -119,6 +120,20 @@ export function extractJson(text: string): unknown {
 
 const clean = (s: string) => s.replace(/\s+/g, " ").trim();
 
+const HEDGES = /\b(could|may|might|likely|expected to|poised to|set to)\b/gi;
+
+/**
+ * A "why it matters" line that predicts an effect ("could influence voters") its sources don't state. The
+ * model check misses these, so this is a plain rule: every hedge word must appear in a cited source.
+ */
+export function speculative(c: Cited | null, items: readonly SourceItem[]): boolean {
+  if (!c) return false;
+  const hedges = [...new Set((c.text.match(HEDGES) ?? []).map((h) => h.toLowerCase()))];
+  if (hedges.length === 0) return false;
+  const cited = items.filter((it) => c.cites.includes(it.id)).map((it) => `${it.title} ${it.snippet}`.toLowerCase());
+  return hedges.some((h) => !cited.some((t) => new RegExp(`\\b${h}\\b`).test(t)));
+}
+
 /** "Sentence one [s1, s2]. Sentence two [\"s3\"]." → one entry per sentence, each with only its own citations. */
 export function splitInline(paragraph: string): { text: string; sources: string[] }[] {
   return paragraph.split(/(?<=[.!?…](?:\s*\[[^\]]*\])?)\s+(?=[A-Z“"'])/).map((sentence) => {
@@ -183,7 +198,7 @@ export function validateWriteup(raw: unknown, items: readonly SourceItem[]): Wri
     return cites && text && !leaksLabels(text) ? { text: text.slice(0, 300), cites } : null;
   };
   const topic = TOPIC_IDS.find((t) => t === r.topic) ?? "world";
-  return { topic, headline, dek: one(r.dek), why: one(r.why), summary: summary.slice(0, 4), differences, offTopic: [...offTopic].map((l) => byLabel.get(l)!.id) };
+  return { topic, headline, dek: one(r.dek), why: speculative(one(r.why), items) ? null : one(r.why), summary: summary.slice(0, 4), differences, offTopic: [...offTopic].map((l) => byLabel.get(l)!.id) };
 }
 
 /** One model call per story. Throws on transport errors; returns null when the reply can't be used. */

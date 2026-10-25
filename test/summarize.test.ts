@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractJson, replyText, sourceBlock, splitInline, summarize, validateWriteup, type AiRunner, type SourceItem } from "../src/build/summarize";
+import { extractJson, replyText, sourceBlock, speculative, splitInline, summarize, validateWriteup, type AiRunner, type SourceItem } from "../src/build/summarize";
 
 const items: SourceItem[] = [
   { id: "i1", outletId: "vox", title: "Senate passes funding bill", snippet: "The vote was 52-48." },
@@ -53,6 +53,15 @@ describe("validateWriteup", () => {
 
   it("falls back to world for an unknown topic", () => {
     expect(validateWriteup({ ...good, topic: "gossip" }, items)?.topic).toBe("world");
+  });
+});
+
+describe("speculative", () => {
+  const src: SourceItem[] = [{ id: "a", outletId: "fox", title: "Audi to build Georgia plant", snippet: "The plant may add 4,500 jobs." }];
+  it("flags hedged effects its sources don't state, and allows ones they do", () => {
+    expect(speculative({ text: "It could influence voters ahead of the midterms.", cites: ["a"] }, src)).toBe(true);
+    expect(speculative({ text: "The plant may add about 4,500 jobs.", cites: ["a"] }, src)).toBe(false);
+    expect(speculative({ text: "About 4,500 people will work there.", cites: ["a"] }, src)).toBe(false);
   });
 });
 
