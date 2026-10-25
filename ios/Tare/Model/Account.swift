@@ -40,6 +40,12 @@ final class Account {
         }
     }
 
+    func setAutoBriefings(_ on: Bool) async {
+        guard let token else { return }
+        try? await api.setAutoBriefings(on, token: token)
+        await refresh()
+    }
+
     func signOut() async {
         if let token { try? await api.signOut(token: token) }
         forget()

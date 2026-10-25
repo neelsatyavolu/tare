@@ -58,6 +58,16 @@ struct TareAPI: Sendable {
         try await send("me", method: "GET", token: token)
     }
 
+    func setAutoBriefings(_ on: Bool, token: String) async throws {
+        var request = URLRequest(url: base.appending(path: "me/auto-briefings"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "content-type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization")
+        request.httpBody = try JSONEncoder().encode(["on": on])
+        let (_, response) = try await session.data(for: request)
+        try check(response)
+    }
+
     func signOut(token: String) async throws {
         let _: OK = try await send("signout", token: token)
     }

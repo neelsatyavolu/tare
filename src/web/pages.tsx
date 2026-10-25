@@ -272,7 +272,7 @@ export const SignInPage: FC<{ error?: string }> = ({ error }) => (
   </Layout>
 );
 
-export const AccountPage: FC<{ saved?: string; aiProvider: AiProvider | null }> = ({ saved, aiProvider }) => {
+export const AccountPage: FC<{ saved?: string; aiProvider: AiProvider | null; autoBriefings?: boolean }> = ({ saved, aiProvider, autoBriefings = false }) => {
   const viewer = useViewer()!;
   const emailOn = viewer.status === "active";
   return (
@@ -302,7 +302,7 @@ export const AccountPage: FC<{ saved?: string; aiProvider: AiProvider | null }> 
           <div class="actions"><button type="submit">{emailOn ? "Turn off email" : "Turn on email"}</button></div>
         </form>
 
-        <div id="ai"><AiConnection provider={aiProvider} /></div>
+        <div id="ai"><AiConnection provider={aiProvider} auto={autoBriefings} /></div>
 
         <h2>Sign out</h2>
         <form method="post" action="/signout">

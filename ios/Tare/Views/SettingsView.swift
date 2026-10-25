@@ -15,7 +15,12 @@ struct SettingsView: View {
                     if let email = account.email ?? (account.isSignedIn ? "Signed in" : nil) {
                         LabeledContent("Signed in as", value: email)
                         LabeledContent("Briefings written with", value: account.ai?.name ?? "Not connected")
-                        if account.ai == nil {
+                        if let ai = account.ai {
+                            Toggle("Automatic briefings", isOn: Binding(
+                                get: { ai.autoBriefings ?? false },
+                                set: { on in Task { await account.setAutoBriefings(on) } }
+                            ))
+                        } else {
                             Link("Connect Grok or ChatGPT on tare.news", destination: URL(string: "https://tare.news/account#ai")!)
                         }
                         Button("Sign out", role: .destructive) { Task { await account.signOut() } }
@@ -25,7 +30,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Account")
                 } footer: {
-                    Text("Signing in lets you ask for detailed briefings, written with the Grok or ChatGPT account you connect on tare.news. Reading needs no account.")
+                    Text("Signing in lets you ask for detailed briefings, written with the Grok or ChatGPT account you connect on tare.news. With automatic briefings on, that account also writes them for front-page stories in the background, at most 6 a day, using its fastest model at the lowest effort. Reading needs no account.")
                 }
                 Section {
                     if notifications.isOn {

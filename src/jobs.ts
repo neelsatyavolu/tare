@@ -1,5 +1,6 @@
 import { buildEdition, RUN_BUDGET_MS } from "./build/build";
 import { notifyBreaking, notifyDue } from "./push/notify";
+import { queueAutoBriefings } from "./auto-briefings";
 import type { Env } from "./env";
 import { ingest } from "./ingest/ingest";
 import { sendDue, sendEdition } from "./mail/send";
@@ -58,6 +59,11 @@ export async function runCron(cron: string, env: Env): Promise<void> {
       if (breaking) console.log(JSON.stringify({ job: "breaking", breaking }));
     } catch (err) {
       console.error(`breaking push failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    try {
+      console.log(JSON.stringify({ job: "auto-briefings", result: await queueAutoBriefings(env) }));
+    } catch (err) {
+      console.error(`auto briefings failed: ${err instanceof Error ? err.message : String(err)}`);
     }
     return;
   }

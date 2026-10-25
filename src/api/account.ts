@@ -7,6 +7,7 @@ import type { Env } from "../env";
 import { sendOne } from "../mail/resend";
 import { requireSecrets } from "../mail/send";
 import { signinCodeEmail } from "../mail/templates";
+import { autoBriefingsOn, setAutoBriefings } from "../auto-briefings";
 import { createSession, endSession, sessionSubscriber } from "../sessions";
 import { newCode, redeemCode, saveCode } from "../signin-codes";
 import { findByEmail, parseEmail, releaseEmailClaim, requestSignin, verifyEmail } from "../subscribers";
@@ -61,8 +62,18 @@ account.post("/signin/verify", async (c) => {
 account.get("/me", async (c) => {
   const sub = await viewer(c);
   if (!sub) return c.json({ error: "signed out" }, 401);
-  const provider = await connectedProvider(c.env.DB, sub.id);
-  return c.json({ email: sub.email, ai: provider ? { provider, name: PROVIDER_LABEL[provider] } : null });
+  const [provider, auto] = await Promise.all([connectedProvider(c.env.DB, sub.id), autoBriefingsOn(c.env.DB, sub.id)]);
+  return c.json({ email: sub.email, ai: provider ? { provider, name: PROVIDER_LABEL[provider], autoBriefings: auto } : null });
+});
+
+/** Turns automatic briefings on or off. Body: {on: boolean}. */
+account.post("/me/auto-briefings", async (c) => {
+  const sub = await viewer(c);
+  if (!sub) return c.json({ error: "signed out" }, 401);
+  if (!(await connectedProvider(c.env.DB, sub.id))) return c.json({ error: "Connect Grok or ChatGPT on tare.news first.", connect: true }, 409);
+  const on = ((await c.req.json().catch(() => null)) as { on?: unknown } | null)?.on === true;
+  await setAutoBriefings(c.env.DB, sub.id, on);
+  return c.json({ ok: true, autoBriefings: on });
 });
 
 account.post("/signout", async (c) => {

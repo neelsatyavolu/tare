@@ -88,14 +88,14 @@ export async function loadBriefing(db: D1Database, storyId: string): Promise<Bri
 }
 
 /** Queues a briefing unless one is ready or already being written. Returns true when a job was queued. */
-export async function requestBriefing(env: Env, storyId: string, subscriberId: string, now = Date.now()): Promise<boolean> {
+export async function requestBriefing(env: Env, storyId: string, subscriberId: string, now = Date.now(), opts: { auto?: boolean } = {}): Promise<boolean> {
   const claimed = await env.DB
     .prepare(
-      `INSERT INTO briefings (story_id, status, requested_by, requested_at) VALUES (?, 'writing', ?, ?)
-       ON CONFLICT(story_id) DO UPDATE SET status = 'writing', requested_by = excluded.requested_by, requested_at = excluded.requested_at, error = NULL
+      `INSERT INTO briefings (story_id, status, requested_by, requested_at, auto) VALUES (?, 'writing', ?, ?, ?)
+       ON CONFLICT(story_id) DO UPDATE SET status = 'writing', requested_by = excluded.requested_by, requested_at = excluded.requested_at, auto = excluded.auto, error = NULL
        WHERE briefings.status = 'failed' OR (briefings.status = 'writing' AND briefings.requested_at < ?)`,
     )
-    .bind(storyId, subscriberId, now, now - STALE_MS)
+    .bind(storyId, subscriberId, now, opts.auto ? 1 : 0, now - STALE_MS)
     .run();
   if ((claimed.meta.changes ?? 0) !== 1) return false;
   await env.BRIEFING_QUEUE.send({ storyId, subscriberId } satisfies BriefingJob);

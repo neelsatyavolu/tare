@@ -30,6 +30,7 @@ import { readFirst } from "./read-first";
 import { DEFAULT_TIME_ZONE, isEditionChoice, isTimeZone, zoneName } from "./slots";
 import { clusterSample, rewriteSample } from "./admin-debug";
 import { api } from "./api/v1";
+import { autoBriefingsOn, setAutoBriefings } from "./auto-briefings";
 import { apnsConfig, pushAll } from "./push/apns";
 import { devicesForBreaking, parseDevice } from "./push/devices";
 import { parseReport, recentReports, REPORT_MAX, REPORT_MIN, saveReport } from "./reports";
@@ -304,8 +305,10 @@ app.get("/account", async (c) => {
   const saved = {
     topics: "Topics saved.", editions: "Email editions saved.", on: "Email turned on.", off: "Email turned off.",
     ai: "Connected. You can ask for a detailed briefing on any story.", "ai-off": "Disconnected.",
+    "auto-on": "Automatic briefings turned on.", "auto-off": "Automatic briefings turned off.",
   }[c.req.query("saved") ?? ""];
-  return page(c, <AccountPage saved={saved} aiProvider={await connectedProvider(c.env.DB, viewer.id)} />);
+  const [aiProvider, autoBriefings] = await Promise.all([connectedProvider(c.env.DB, viewer.id), autoBriefingsOn(c.env.DB, viewer.id)]);
+  return page(c, <AccountPage saved={saved} aiProvider={aiProvider} autoBriefings={autoBriefings} />);
 });
 
 // ── Connecting a reader's own Grok or ChatGPT (for detailed briefings) ──
@@ -355,6 +358,14 @@ app.post("/account/ai/complete", async (c) => {
   }
   deleteCookie(c, PKCE_COOKIE, { path: "/account/ai" });
   return c.redirect("/account?saved=ai#ai", 303);
+});
+
+app.post("/account/ai/auto", async (c) => {
+  const viewer = requireViewer(c);
+  if (!viewer) return c.redirect("/signin", 303);
+  const on = (await c.req.parseBody()).on === "1";
+  await setAutoBriefings(c.env.DB, viewer.id, on);
+  return c.redirect(`/account?saved=auto-${on ? "on" : "off"}#ai`, 303);
 });
 
 app.post("/account/ai/disconnect", async (c) => {

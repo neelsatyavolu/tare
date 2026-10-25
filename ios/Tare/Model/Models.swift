@@ -128,7 +128,12 @@ struct SignedIn: Decodable, Sendable {
 }
 
 struct Me: Decodable, Sendable {
-    struct AI: Decodable, Sendable { let provider: String; let name: String }
+    struct AI: Decodable, Sendable {
+        let provider: String
+        let name: String
+        /// Whether this account writes briefings for front-page stories on its own after each update.
+        var autoBriefings: Bool? = nil
+    }
     let email: String
     /// The Grok or ChatGPT account connected on tare.news, which writes this reader's briefings.
     let ai: AI?

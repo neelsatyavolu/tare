@@ -2,16 +2,26 @@ import type { FC } from "hono/jsx";
 import { PROVIDER_LABEL, type AiProvider } from "../ai/oauth";
 import { STALE_MS, type BriefingRow } from "../briefing";
 import { useViewer } from "./components";
+import { AUTO_PER_READER_PER_DAY } from "../auto-briefings";
 
 /** Account-page block for connecting a ChatGPT or Grok account (used only for detailed briefings). */
-export const AiConnection: FC<{ provider: AiProvider | null }> = ({ provider }) => (
+export const AiConnection: FC<{ provider: AiProvider | null; auto?: boolean }> = ({ provider, auto = false }) => (
   <>
     <h2>Detailed briefings</h2>
     {provider ? (
-      <form method="post" action="/account/ai/disconnect">
+      <>
         <p>Connected: <b>{PROVIDER_LABEL[provider]}</b>. When you ask for a detailed briefing on a story, Tare uses your {PROVIDER_LABEL[provider]} account to read the full articles and write it. Once written, it's shown to every reader.</p>
-        <div class="actions"><button type="submit">Disconnect {PROVIDER_LABEL[provider]}</button></div>
-      </form>
+        <form method="post" action="/account/ai/auto">
+          <p>
+            Automatic briefings are <b>{auto ? "on" : "off"}</b>. {auto ? "Your" : `When on, your`} {PROVIDER_LABEL[provider]} account writes briefings for front-page stories that don't have one yet, in the background after each hourly update: at most {AUTO_PER_READER_PER_DAY} a day, using its fastest model at the lowest effort. They're shared with every reader, like the ones you ask for.
+          </p>
+          <input type="hidden" name="on" value={auto ? "0" : "1"} />
+          <div class="actions"><button class={auto ? undefined : "primary"} type="submit">{auto ? "Turn off automatic briefings" : "Turn on automatic briefings"}</button></div>
+        </form>
+        <form method="post" action="/account/ai/disconnect">
+          <div class="actions"><button type="submit">Disconnect {PROVIDER_LABEL[provider]}</button></div>
+        </form>
+      </>
     ) : (
       <form method="post" action="/account/ai/start">
         <p>Connect your own Grok or ChatGPT account to ask for a detailed briefing on any story: a longer, cited write-up made from the full articles. It uses your subscription, not a Tare one.</p>
