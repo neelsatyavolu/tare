@@ -1,0 +1,90 @@
+import { describe, expect, it } from "vitest";
+import { extractJson, replyText, sourceBlock, summarize, validateWriteup, type AiRunner, type SourceItem } from "../src/build/summarize";
+
+const items: SourceItem[] = [
+  { id: "i1", outletId: "vox", title: "Senate passes funding bill", snippet: "The vote was 52-48." },
+  { id: "i2", outletId: "fox", title: "Senate approves spending package", snippet: "Republicans split on the measure." },
+  { id: "i3", outletId: "bbc", title: "US Senate votes on budget", snippet: "" },
+  { id: "i4", outletId: "nypost", title: "Celebrity opens restaurant", snippet: "Unrelated." },
+];
+
+const good = {
+  topic: "politics",
+  headline: "“Senate passes funding bill 52-48”",
+  summary: [
+    { text: "The Senate passed a funding bill  52-48.", sources: ["s1", "s3"] },
+    { text: "Fox News reported Republicans split.", sources: ["s2"] },
+    { text: "Made-up sentence.", sources: [] },
+    { text: "Cites a missing source.", sources: ["s9"] },
+    { text: "Cites the off-topic one.", sources: ["s4"] },
+    { text: "As s2 reported, it passed.", sources: ["s2"] },
+    { text: "Samsung shipped the Galaxy S24.", sources: ["s3"] },
+  ],
+  differences: [
+    { kind: "framing", text: "Vox says 'funding bill'; Fox says 'spending package'.", sources: ["s1", "s2"] },
+    { kind: "fact", text: "Only one outlet.", sources: ["s1"] },
+    { kind: "omission", text: "Only Fox mentions the Republican split.", sources: ["s2"] },
+    { kind: "vibes", text: "Bad kind.", sources: ["s1", "s2"] },
+    { kind: "fact", text: "s1 and s2 disagree.", sources: ["s1", "s2"] },
+  ],
+  off_topic: ["s4"],
+};
+
+describe("validateWriteup", () => {
+  it("keeps cited sentences, maps labels to ids and drops the rest", () => {
+    const w = validateWriteup(good, items)!;
+    expect(w.headline).toBe("Senate passes funding bill 52-48");
+    expect(w.topic).toBe("politics");
+    expect(w.summary).toEqual([
+      { text: "The Senate passed a funding bill 52-48.", cites: ["i1", "i3"] },
+      { text: "Fox News reported Republicans split.", cites: ["i2"] },
+      { text: "Samsung shipped the Galaxy S24.", cites: ["i3"] },
+    ]);
+    expect(w.differences.map((d) => d.kind)).toEqual(["framing", "omission"]);
+    expect(w.offTopic).toEqual(["i4"]);
+  });
+
+  it("returns null when no sentence survives or the shape is wrong", () => {
+    expect(validateWriteup({ ...good, summary: [{ text: "x", sources: [] }] }, items)).toBeNull();
+    expect(validateWriteup({ headline: "x" }, items)).toBeNull();
+    expect(validateWriteup(null, items)).toBeNull();
+  });
+
+  it("falls back to world for an unknown topic", () => {
+    expect(validateWriteup({ ...good, topic: "gossip" }, items)?.topic).toBe("world");
+  });
+});
+
+describe("replyText / extractJson", () => {
+  it("reads the binding's reply shapes", () => {
+    expect(replyText({ response: "hi" })).toBe("hi");
+    expect(replyText({ response: { a: 1 } })).toBe('{"a":1}');
+    expect(replyText({ choices: [{ message: { content: "yo" } }] })).toBe("yo");
+    expect(replyText({ output: [{ type: "reasoning" }, { type: "message", content: [{ text: "ok" }] }] })).toBe("ok");
+    expect(replyText(42)).toBe("");
+  });
+
+  it("pulls JSON out of fenced text", () => {
+    expect(extractJson('```json\n{"a":1}\n```')).toEqual({ a: 1 });
+    expect(extractJson("nothing")).toBeNull();
+    expect(extractJson("{broken")).toBeNull();
+  });
+});
+
+describe("sourceBlock", () => {
+  it("numbers sources and labels the outlet's lean", () => {
+    expect(sourceBlock(items.slice(0, 2))).toBe(
+      "[s1] Vox (left)\nHeadline: Senate passes funding bill\nDescription: The vote was 52-48.\n\n[s2] Fox News (right)\nHeadline: Senate approves spending package\nDescription: Republicans split on the measure.",
+    );
+  });
+});
+
+describe("summarize", () => {
+  it("sends the sources to the model and validates the reply", async () => {
+    const calls: Record<string, unknown>[] = [];
+    const ai: AiRunner = { run: async (_m, input) => (calls.push(input), { response: JSON.stringify(good) }) };
+    const w = await summarize(ai, items);
+    expect(w?.summary).toHaveLength(3);
+    expect(JSON.stringify(calls[0])).toContain("[s4] New York Post (leans right)");
+  });
+});

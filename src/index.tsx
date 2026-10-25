@@ -1,0 +1,343 @@
+import { Hono, type Context } from "hono";
+import type { Child } from "hono/jsx";
+import { editionByDate, latestEdition, listEditions, sourcesFor, storiesFor, storyById } from "./editions";
+import type { Env } from "./env";
+import { JOBS, runCron, type JobName } from "./jobs";
+import { signExpiring, signLink, verifyExpiring, verifyLink } from "./links";
+import { sendOne } from "./mail/resend";
+import { requireSecrets } from "./mail/send";
+import { confirmEmail, manageEmail, signinEmail } from "./mail/templates";
+import { clearSessionCookie, createSession, endSession, sessionSubscriber, sessionToken, setSessionCookie } from "./sessions";
+import {
+  confirm, deleteAccount, findById, parseEmail, parseTopics, releaseEmailClaim, requestSignin, setDigest, setTopics, signUp, unsubscribe,
+  verifyEmail, type EmailOutcome, type Subscriber,
+} from "./subscribers";
+import { timingSafeEqual, utcDate } from "./util";
+import { Layout, SubscribeForm, ViewerContext } from "./web/components";
+import { ICON } from "./web/icon";
+import {
+  AccountPage, ArchivePage, EditionPage, EmptyPage, ManagePage, MessagePage, MethodPage, SignInPage, StoryPage, UnsubscribeConfirmPage,
+} from "./web/pages";
+import { CSS } from "./web/styles";
+
+type App = { Bindings: Env; Variables: { viewer: Subscriber | null } };
+const app = new Hono<App>();
+
+const CSP = [
+  "default-src 'self'",
+  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+  "font-src https://fonts.gstatic.com",
+  // Story photos load from the outlets' own servers.
+  "img-src 'self' data: https:",
+  "script-src 'none'",
+  "form-action 'self'",
+  "frame-ancestors 'none'",
+  "base-uri 'none'",
+].join("; ");
+
+app.use(async (c, next) => {
+  await next();
+  c.header("content-security-policy", CSP);
+  c.header("x-content-type-options", "nosniff");
+  c.header("referrer-policy", "strict-origin-when-cross-origin");
+  c.header("permissions-policy", "camera=(), microphone=(), geolocation=(), interest-cohort=()");
+});
+
+// Cross-site form posts are refused. SameSite=Lax already keeps the session cookie off them; this also
+// covers the token-in-URL forms. Requests without an Origin header (mail providers' one-click unsubscribe,
+// the admin API) pass.
+app.use(async (c, next) => {
+  const origin = c.req.header("origin");
+  if (c.req.method === "POST" && origin && origin !== new URL(c.req.url).origin) return c.text("Cross-site request refused.", 403);
+  await next();
+});
+
+// Loads the signed-in reader, if there's a session cookie. Static files skip the lookup.
+app.use(async (c, next) => {
+  const token = sessionToken(c);
+  c.set("viewer", token ? await sessionSubscriber(c.env.DB, token) : null);
+  await next();
+});
+
+/** Renders a page for this request's reader. Pages vary by sign-in, so browsers must revalidate them. */
+function page(c: Context<App>, node: Child, status: 200 | 400 | 404 | 429 | 500 | 502 = 200) {
+  c.header("cache-control", "private, no-cache");
+  return c.html(<ViewerContext.Provider value={c.get("viewer")}>{node}</ViewerContext.Provider>, status);
+}
+
+const formTopics = (raw: unknown) => parseTopics(Array.isArray(raw) ? raw : raw ? [raw] : []);
+
+app.get("/styles.css", (c) => {
+  // The URL carries a content hash (CSS_VERSION), so it can be cached for good.
+  c.header("cache-control", "public, max-age=31536000, immutable");
+  return c.body(CSS, 200, { "content-type": "text/css; charset=utf-8" });
+});
+app.get("/icon.svg", (c) => {
+  c.header("cache-control", "public, max-age=86400");
+  return c.body(ICON, 200, { "content-type": "image/svg+xml" });
+});
+app.get("/robots.txt", (c) =>
+  c.text("User-agent: *\nDisallow: /manage/\nDisallow: /confirm/\nDisallow: /unsubscribe/\nDisallow: /signin/\nDisallow: /account\n"),
+);
+app.get("/health", (c) => c.json({ ok: true }));
+
+// ── Reading ─────────────────────────────────────────────────────────────
+
+async function renderEdition(c: Context<App>, date: string | null) {
+  const edition = date ? await editionByDate(c.env.DB, date) : await latestEdition(c.env.DB);
+  if (!edition) return date ? c.notFound() : page(c, <EmptyPage />);
+  const stories = await storiesFor(c.env.DB, edition.date);
+  const sources = await sourcesFor(c.env.DB, stories);
+  return page(c, <EditionPage edition={edition} stories={stories} sources={sources} isToday={!date || edition.date === utcDate(Date.now())} />);
+}
+
+app.get("/", (c) => renderEdition(c, null));
+app.get("/e/:date", (c) => renderEdition(c, c.req.param("date")));
+
+app.get("/s/:id", async (c) => {
+  const story = await storyById(c.env.DB, c.req.param("id"));
+  if (!story) return c.notFound();
+  const edition = await editionByDate(c.env.DB, story.editionDate);
+  if (!edition) return c.notFound();
+  const sources = await sourcesFor(c.env.DB, [story]);
+  return page(c, <StoryPage story={story} sources={sources} edition={edition} />);
+});
+
+app.get("/archive", async (c) => page(c, <ArchivePage editions={await listEditions(c.env.DB)} />));
+app.get("/method", (c) => page(c, <MethodPage />));
+
+// ── Email out ───────────────────────────────────────────────────────────
+
+const CheckInbox = () => (
+  <MessagePage title="Check your inbox">
+    <p>If that address can get Tare, we've sent it a link. It can take a minute to arrive; check spam if you don't see it.</p>
+  </MessagePage>
+);
+
+const BadLink = () => (
+  <MessagePage title="That link didn't work">
+    <p>It may have expired or been cut off. Open it straight from the email, or <a href="/signin">get a new sign-in link</a>.</p>
+  </MessagePage>
+);
+
+/**
+ * Sends the email a form post earned (confirm, manage or sign-in link). On failure it hands the cooldown
+ * back so the reader can retry at once, and renders an error page instead of throwing.
+ */
+async function sendFor(c: Context<App>, outcome: EmailOutcome) {
+  if (!outcome.send) return null;
+  const { apiKey, linkSecret } = requireSecrets(c.env);
+  const base = c.env.APP_URL;
+  const mail =
+    outcome.send === "confirm" ? confirmEmail(`${base}/confirm/${await signExpiring(linkSecret, "confirm", outcome.id)}`)
+    : outcome.send === "signin" ? signinEmail(`${base}/signin/${await signExpiring(linkSecret, "signin", outcome.id)}`)
+    : manageEmail(`${base}/manage/${await signLink(linkSecret, "manage", outcome.id)}`);
+  try {
+    await sendOne(apiKey, { from: c.env.MAIL_FROM, to: outcome.email, ...mail });
+    return null;
+  } catch (err) {
+    console.error(`mail failed: ${err instanceof Error ? err.message : String(err)}`);
+    await releaseEmailClaim(c.env.DB, outcome.id, outcome.previous, outcome.claimedAt);
+    return page(c, <MessagePage title="That didn't send"><p>We couldn't send the email just now. Try again in a moment.</p></MessagePage>, 502);
+  }
+}
+
+/** Shared gate for forms that send email: honeypot, address check, per-IP rate limit. */
+async function emailFormGate(c: Context<App>, form: Record<string, unknown>, onBadEmail: () => Response | Promise<Response>) {
+  // Bots fill every field; people never see this one.
+  if (form.website) return { stop: page(c, <CheckInbox />) };
+  const email = parseEmail(form.email);
+  if (!email) return { stop: await onBadEmail() };
+  const { success } = await c.env.SIGNUP_LIMIT.limit({ key: c.req.header("cf-connecting-ip") ?? "unknown" });
+  if (!success) return { stop: page(c, <MessagePage title="Slow down"><p>Too many requests from here. Try again in a minute.</p></MessagePage>, 429) };
+  return { email };
+}
+
+app.post("/subscribe", async (c) => {
+  const form = await c.req.parseBody({ all: true });
+  const gate = await emailFormGate(c, form, () =>
+    page(c, <Layout title="Subscribe · Tare" nav="subscribe"><SubscribeForm error="That doesn't look like an email address." /></Layout>, 400),
+  );
+  if (gate.stop) return gate.stop;
+
+  const failed = await sendFor(c, await signUp(c.env.DB, gate.email, formTopics(form.topics)));
+  return failed ?? page(c, <CheckInbox />);
+});
+
+// ── Accounts (email-only, no passwords) ─────────────────────────────────
+
+async function startSession(c: Context<App>, id: string) {
+  setSessionCookie(c, await createSession(c.env.DB, id));
+}
+
+app.get("/signin", (c) => (c.get("viewer") ? c.redirect("/account", 303) : page(c, <SignInPage />)));
+
+app.post("/signin", async (c) => {
+  const form = await c.req.parseBody();
+  const gate = await emailFormGate(c, form, () => page(c, <SignInPage error="That doesn't look like an email address." />, 400));
+  if (gate.stop) return gate.stop;
+
+  const failed = await sendFor(c, await requestSignin(c.env.DB, gate.email));
+  return failed ?? page(c, <CheckInbox />);
+});
+
+// Emailed links only show a button; the POST acts. Mail scanners open links, but they don't press buttons.
+const ConfirmButton = ({ title, action, label, children }: { title: string; action: string; label: string; children?: Child }) => (
+  <MessagePage title={title}>
+    {children}
+    <form method="post" action={action}><div class="actions"><button class="primary" type="submit">{label}</button></div></form>
+  </MessagePage>
+);
+
+app.get("/signin/:token", async (c) => {
+  const id = await verifyExpiring(requireSecrets(c.env).linkSecret, "signin", c.req.param("token"));
+  const sub = id ? await findById(c.env.DB, id) : null;
+  if (!sub) return page(c, <BadLink />, 404);
+  return page(c, <ConfirmButton title="Sign in to Tare" action={`/signin/${c.req.param("token")}`} label="Sign in"><p>Signing in as {sub.email}.</p></ConfirmButton>);
+});
+
+app.post("/signin/:token", async (c) => {
+  const id = await verifyExpiring(requireSecrets(c.env).linkSecret, "signin", c.req.param("token"));
+  const sub = id ? await verifyEmail(c.env.DB, id) : null;
+  if (!sub) return page(c, <BadLink />, 404);
+  await startSession(c, sub.id);
+  return c.redirect("/account", 303);
+});
+
+app.post("/signout", async (c) => {
+  await endSession(c.env.DB, sessionToken(c));
+  clearSessionCookie(c);
+  return c.redirect("/", 303);
+});
+
+const requireViewer = (c: Context<App>) => c.get("viewer");
+
+app.get("/account", (c) => {
+  if (!requireViewer(c)) return c.redirect("/signin", 303);
+  const saved = { topics: "Topics saved.", on: "Daily email turned on.", off: "Daily email turned off." }[c.req.query("saved") ?? ""];
+  return page(c, <AccountPage saved={saved} />);
+});
+
+app.post("/account/topics", async (c) => {
+  const viewer = requireViewer(c);
+  if (!viewer) return c.redirect("/signin", 303);
+  await setTopics(c.env.DB, viewer.id, formTopics((await c.req.parseBody({ all: true })).topics));
+  return c.redirect("/account?saved=topics", 303);
+});
+
+app.post("/account/email", async (c) => {
+  const viewer = requireViewer(c);
+  if (!viewer) return c.redirect("/signin", 303);
+  const on = (await c.req.parseBody()).on === "1";
+  await setDigest(c.env.DB, viewer.id, on);
+  return c.redirect(`/account?saved=${on ? "on" : "off"}`, 303);
+});
+
+app.post("/account/delete", async (c) => {
+  const viewer = requireViewer(c);
+  if (!viewer) return c.redirect("/signin", 303);
+  await deleteAccount(c.env.DB, viewer.id);
+  clearSessionCookie(c);
+  c.set("viewer", null);
+  return page(c, <MessagePage title="Account deleted"><p>Your email address and topics are gone from Tare. The site stays free to read.</p></MessagePage>);
+});
+
+// ── Links from emails (work without signing in) ─────────────────────────
+
+async function subscriberFor(c: Context<App>) {
+  const id = await verifyLink(requireSecrets(c.env).linkSecret, "manage", c.req.param("token") ?? "");
+  return id ? findById(c.env.DB, id) : null;
+}
+
+const confirmTarget = (c: Context<App>) => verifyExpiring(requireSecrets(c.env).linkSecret, "confirm", c.req.param("token") ?? "");
+
+app.get("/confirm/:token", async (c) => {
+  const id = await confirmTarget(c);
+  const sub = id ? await findById(c.env.DB, id) : null;
+  if (!sub) return page(c, <BadLink />, 404);
+  return page(
+    c,
+    <ConfirmButton title="Confirm your subscription" action={`/confirm/${c.req.param("token")}`} label="Confirm subscription">
+      <p>Tare will email the daily edition to {sub.email}.</p>
+    </ConfirmButton>,
+  );
+});
+
+app.post("/confirm/:token", async (c) => {
+  const id = await confirmTarget(c);
+  const sub = id ? await confirm(c.env.DB, id) : null;
+  if (!sub) return page(c, <BadLink />, 404);
+  // Confirming proves the address, so it signs the reader in too.
+  await startSession(c, sub.id);
+  c.set("viewer", sub);
+  return page(
+    c,
+    <MessagePage title="You're subscribed">
+      <p>The next edition arrives tomorrow morning, by 7 a.m. Eastern. You're signed in, so you can change your topics any time.</p>
+      <div class="actions"><a class="btn primary" href="/">Read today's edition</a><a class="btn" href="/account">Your account</a></div>
+    </MessagePage>,
+  );
+});
+
+app.get("/manage/:token", async (c) => {
+  const sub = await subscriberFor(c);
+  if (!sub) return page(c, <BadLink />, 404);
+  return page(c, <ManagePage token={c.req.param("token")} email={sub.email} topics={sub.topics} status={sub.status} />);
+});
+
+app.post("/manage/:token", async (c) => {
+  const sub = await subscriberFor(c);
+  if (!sub) return page(c, <BadLink />, 404);
+  const topics = formTopics((await c.req.parseBody({ all: true })).topics);
+  await setTopics(c.env.DB, sub.id, topics);
+  return page(c, <ManagePage token={c.req.param("token")} email={sub.email} topics={topics} status={sub.status} saved />);
+});
+
+// GET only asks, so link scanners in mail clients can't unsubscribe anyone. POST does it (including RFC 8058 one-click).
+app.get("/unsubscribe/:token", async (c) => {
+  const sub = await subscriberFor(c);
+  if (!sub) return page(c, <BadLink />, 404);
+  return page(c, <UnsubscribeConfirmPage token={c.req.param("token")} />);
+});
+
+app.post("/unsubscribe/:token", async (c) => {
+  const sub = await subscriberFor(c);
+  if (!sub) return page(c, <BadLink />, 404);
+  await unsubscribe(c.env.DB, sub.id);
+  return page(
+    c,
+    <MessagePage title="You're unsubscribed">
+      <p>You won't get any more emails. Your account stays, so you can still sign in and read every edition.</p>
+    </MessagePage>,
+  );
+});
+
+// ── Operations ──────────────────────────────────────────────────────────
+
+// Manual runs: POST /admin/run/build?force=1 with the admin token.
+app.post("/admin/run/:job", async (c) => {
+  c.header("cache-control", "no-store");
+  const token = c.env.ADMIN_TOKEN;
+  const given = (c.req.header("authorization") ?? "").replace(/^Bearer /, "");
+  if (!token || !timingSafeEqual(given, token)) return c.json({ error: "unauthorized" }, 401);
+  const job = c.req.param("job") as JobName;
+  if (!(job in JOBS)) return c.json({ error: "unknown job" }, 404);
+  const result = job === "build" ? await JOBS.build(c.env, c.req.query("force") === "1") : await JOBS[job](c.env);
+  return c.json({ job, result });
+});
+
+app.notFound((c) => page(c, <MessagePage title="Not in this edition"><p><a href="/">Back to today's edition</a>.</p></MessagePage>, 404));
+
+app.onError((err, c) => {
+  console.error(`unhandled: ${err.message}`);
+  return page(c, <MessagePage title="Something went wrong"><p>Try again in a moment.</p></MessagePage>, 500);
+});
+
+export default {
+  fetch: app.fetch,
+  async scheduled(controller, env, ctx) {
+    ctx.waitUntil(runCron(controller.cron, env));
+  },
+} satisfies ExportedHandler<Env>;
+
+export { app };

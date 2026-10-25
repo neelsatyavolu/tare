@@ -1,0 +1,125 @@
+import type { Edition, Story } from "../editions";
+import { coverageLine, esc, longDate } from "../format";
+import { OUTLETS } from "../outlets";
+import { topicName, type TopicId } from "../topics";
+
+// Inline styles only: mail clients drop <style> and web fonts. Palette from DESIGN.md (Newsprint).
+const C = { paper: "#F3EFE6", sheet: "#FBF9F4", ink: "#1C1A16", ink2: "#5E594F", ink3: "#6F695E", rule: "#D6D0C4", brass: "#8A5A12" };
+const SERIF = "Georgia, 'Times New Roman', serif";
+const MONO = "Menlo, Consolas, 'Courier New', monospace";
+
+const kicker = (text: string) =>
+  `<p style="margin:0 0 6px;font:500 11px/1.4 ${MONO};letter-spacing:.1em;text-transform:uppercase;color:${C.ink3}">${esc(text)}</p>`;
+
+function shell(title: string, body: string, footer: string): string {
+  return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>${esc(title)}</title></head>
+<body style="margin:0;background:${C.paper};color:${C.ink}">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.paper}"><tr><td align="center" style="padding:24px 12px">
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%">
+<tr><td style="border-top:3px double ${C.ink};border-bottom:1px solid ${C.ink};padding:14px 0;text-align:center">
+<div style="font:400 40px/1 ${SERIF};letter-spacing:-.01em;color:${C.ink}">Tare</div></td></tr>
+${body}
+<tr><td style="padding:24px 0 0;border-top:1px solid ${C.rule};font:12px/1.6 ${MONO};color:${C.ink3}">${footer}</td></tr>
+</table></td></tr></table></body></html>`;
+}
+
+const button = (href: string, label: string) =>
+  `<a href="${esc(href)}" style="display:inline-block;padding:12px 18px;background:${C.ink};color:${C.paper};font:500 13px/1 ${MONO};letter-spacing:.06em;text-transform:uppercase;text-decoration:none">${esc(label)}</a>`;
+
+export function confirmEmail(confirmUrl: string): { subject: string; html: string; text: string } {
+  const body = `<tr><td style="padding:28px 0">
+<p style="margin:0 0 16px;font:18px/1.55 ${SERIF}">Confirm your email to start getting Tare's daily edition. One email a morning, covering the stories outlets across the spectrum reported, and how their accounts differ.</p>
+<p style="margin:0 0 20px">${button(confirmUrl, "Confirm subscription")}</p>
+<p style="margin:0;font:14px/1.55 ${SERIF};color:${C.ink2}">If you didn't sign up, ignore this email. Nothing happens unless you confirm.</p></td></tr>`;
+  return {
+    subject: "Confirm your Tare subscription",
+    html: shell("Confirm your Tare subscription", body, `Tare · headlines from ${OUTLETS.length} outlets, weighed daily.`),
+    text: `Confirm your email to start getting Tare's daily edition:\n${confirmUrl}\n\nIf you didn't sign up, ignore this email.`,
+  };
+}
+
+export function signinEmail(signinUrl: string): { subject: string; html: string; text: string } {
+  const body = `<tr><td style="padding:28px 0">
+<p style="margin:0 0 16px;font:18px/1.55 ${SERIF}">Here's your link to sign in to Tare. It works for 30 minutes.</p>
+<p style="margin:0 0 20px">${button(signinUrl, "Sign in to Tare")}</p>
+<p style="margin:0;font:14px/1.55 ${SERIF};color:${C.ink2}">If you didn't ask for this, ignore this email. Nobody can sign in without the link.</p></td></tr>`;
+  return {
+    subject: "Your Tare sign-in link",
+    html: shell("Your Tare sign-in link", body, "Tare"),
+    text: `Sign in to Tare (this link works for 30 minutes):\n${signinUrl}\n\nIf you didn't ask for this, ignore this email.`,
+  };
+}
+
+export function manageEmail(manageUrl: string): { subject: string; html: string; text: string } {
+  const body = `<tr><td style="padding:28px 0">
+<p style="margin:0 0 16px;font:18px/1.55 ${SERIF}">This address already gets Tare. You can change your topics or unsubscribe here:</p>
+<p style="margin:0">${button(manageUrl, "Manage subscription")}</p></td></tr>`;
+  return {
+    subject: "Your Tare subscription",
+    html: shell("Your Tare subscription", body, "Tare"),
+    text: `This address already gets Tare. Change your topics or unsubscribe:\n${manageUrl}`,
+  };
+}
+
+export type Digest = { front: Story[]; yours: Story[]; blindspots: Story[] };
+
+/** Everyone gets the front page; then up to 8 stories from their topics; then up to 2 blindspots. */
+export function digestFor(stories: readonly Story[], topics: readonly TopicId[]): Digest {
+  const front = stories.filter((s) => s.front);
+  const yours = stories.filter((s) => !s.front && topics.includes(s.topic)).slice(0, 8);
+  const taken = new Set([...front, ...yours]);
+  const blindspots = stories.filter((s) => s.blindspot && !taken.has(s)).slice(0, 2);
+  return { front, yours, blindspots };
+}
+
+export type EmailPhoto = { url: string; credit: string };
+
+function photoHtml(p: EmailPhoto, href: string): string {
+  return `<a href="${esc(href)}"><img src="${esc(p.url)}" width="600" alt="" style="display:block;width:100%;max-width:600px;height:auto;border:0"></a>
+<p style="margin:4px 0 12px;font:11px/1.4 ${MONO};color:${C.ink3}">Photo: ${esc(p.credit)}</p>`;
+}
+
+function storyHtml(s: Story, appUrl: string, photo?: EmailPhoto): string {
+  const url = `${appUrl}/s/${s.id}`;
+  const label = s.blindspot ? `Blindspot · ${topicName(s.topic)}` : topicName(s.topic);
+  return `<tr><td style="padding:20px 0;border-bottom:1px solid ${C.rule}">
+${photo ? photoHtml(photo, url) : ""}${kicker(label)}
+<a href="${esc(url)}" style="font:400 24px/1.2 ${SERIF};color:${C.ink};text-decoration:none">${esc(s.headline)}</a>
+<p style="margin:10px 0 10px;font:17px/1.55 ${SERIF};color:${C.ink}">${esc(s.summary.map((x) => x.text).join(" "))}</p>
+<p style="margin:0;font:12px/1.5 ${MONO};color:${C.ink3}">${esc(coverageLine(s.coverage))}${s.differences.length ? ` · <a href="${esc(url)}" style="color:${C.brass}">How accounts differ</a>` : ""}</p>
+</td></tr>`;
+}
+
+function storyText(s: Story, appUrl: string): string {
+  return `${s.blindspot ? "[Blindspot] " : ""}${s.headline}\n${s.summary.map((x) => x.text).join(" ")}\n${coverageLine(s.coverage)}\n${appUrl}/s/${s.id}`;
+}
+
+const section = (title: string) => `<tr><td style="padding:28px 0 0">${kicker(title)}<div style="border-top:1px solid ${C.ink}"></div></td></tr>`;
+
+/** `photos` (story id → photo) are shown on front-page stories only, to keep the email light. */
+export function digestEmail(
+  edition: Edition,
+  d: Digest,
+  appUrl: string,
+  manageUrl: string,
+  photos: ReadonlyMap<string, EmailPhoto> = new Map(),
+): { subject: string; html: string; text: string } {
+  const lead = d.front[0] ?? d.yours[0] ?? d.blindspots[0];
+  const subject = `Tare · ${longDate(edition.date).replace(/, \d{4}$/, "")}${lead ? `: ${lead.headline}` : ""}`;
+  const parts: [string, Story[]][] = [["Front page", d.front], ["Your topics", d.yours], ["Blindspots", d.blindspots]];
+  const shown = parts.filter(([, list]) => list.length > 0);
+
+  const body = `<tr><td style="padding:10px 0 0;text-align:center;font:12px/1.4 ${MONO};letter-spacing:.08em;text-transform:uppercase;color:${C.ink3}">${esc(longDate(edition.date))} · No. ${edition.number}</td></tr>
+${shown.map(([title, list]) => section(title) + list.map((s) => storyHtml(s, appUrl, s.front ? photos.get(s.id) : undefined)).join("")).join("")}
+<tr><td style="padding:24px 0;font:17px/1.55 ${SERIF};color:${C.ink2}">That's the edition. <a href="${esc(`${appUrl}/e/${edition.date}`)}" style="color:${C.brass}">Read it on the web</a> with every source.</td></tr>`;
+  const footer = `You get this because you subscribed to Tare. <a href="${esc(manageUrl)}" style="color:${C.ink3}">Change topics or unsubscribe</a>. Summaries are written by AI from headlines and descriptions only; <a href="${esc(`${appUrl}/method`)}" style="color:${C.ink3}">how it works</a>.`;
+
+  const text = [
+    `TARE · ${longDate(edition.date)} · No. ${edition.number}`,
+    ...shown.map(([title, list]) => `\n${title.toUpperCase()}\n\n${list.map((s) => storyText(s, appUrl)).join("\n\n")}`),
+    `\nThat's the edition. Read it with every source: ${appUrl}/e/${edition.date}`,
+    `\nChange topics or unsubscribe: ${manageUrl}`,
+  ].join("\n");
+
+  return { subject, html: shell(subject, body, footer), text };
+}

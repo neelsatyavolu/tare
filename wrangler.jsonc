@@ -1,0 +1,38 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "tare",
+  "main": "src/index.tsx",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "d1_databases": [
+    { "binding": "DB", "database_name": "tare", "database_id": "e1f94abe-16c5-4650-9703-66c0ed8d1aa7", "migrations_dir": "migrations" }
+  ],
+  "ai": { "binding": "AI" },
+  "ratelimits": [
+    // Sign-up form: 5 posts per minute per IP, so nobody can use it to mail-bomb an address.
+    { "name": "SIGNUP_LIMIT", "namespace_id": "1001", "simple": { "limit": 5, "period": 60 } }
+  ],
+  "triggers": {
+    "crons": [
+      // Hourly: pull every feed, since most only hold their latest 20-50 items.
+      "7 * * * *",
+      // 10:15 UTC: build the day's edition; 10:45 retries if that failed.
+      "15 10 * * *",
+      "45 10 * * *",
+      // 11:00 UTC: email it (7 a.m. New York in summer, 6 a.m. in winter); 13:00 resumes anyone missed.
+      "0 11 * * *",
+      "0 13 * * *"
+    ]
+  },
+  "limits": { "cpu_ms": 120000 },
+  // Public only through the custom domain; no *.workers.dev address.
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "tare.news", "custom_domain": true }],
+  "vars": {
+    "APP_URL": "https://tare.news",
+    // Switch to edition@tare.news once that domain is verified in Resend.
+    "MAIL_FROM": "Tare <edition@n3el.dev>"
+  },
+  "observability": { "enabled": true }
+}
