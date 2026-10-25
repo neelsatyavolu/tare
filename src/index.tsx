@@ -27,6 +27,7 @@ import { CSS } from "./web/styles";
 import { readFirst } from "./read-first";
 import { isEditionChoice } from "./slots";
 import { clusterSample, rewriteSample } from "./admin-debug";
+import { api } from "./api/v1";
 import { parseReport, recentReports, REPORT_MAX, REPORT_MIN, saveReport } from "./reports";
 import { displayImage } from "./build/photos";
 
@@ -52,6 +53,9 @@ app.use(async (c, next) => {
   c.header("referrer-policy", "strict-origin-when-cross-origin");
   c.header("permissions-policy", "camera=(), microphone=(), geolocation=(), interest-cohort=()");
 });
+
+// The iOS app's JSON API. Mounted before the session lookup: the app has no cookie and needs none.
+app.route("/api/v1", api);
 
 // Cross-site form posts are refused. SameSite=Lax already keeps the session cookie off them; this also
 // covers the token-in-URL forms. Requests without an Origin header (mail providers' one-click unsubscribe,

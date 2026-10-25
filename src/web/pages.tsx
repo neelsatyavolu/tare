@@ -1,4 +1,5 @@
 import { utcDate } from "../util";
+import { editionLayout } from "../layout";
 import type { EditionChoice } from "../slots";
 import { REPORT_MAX, REPORT_MIN } from "../reports";
 import type { Child, FC } from "hono/jsx";
@@ -23,20 +24,12 @@ const Section: FC<{ title: string; id?: string; children?: Child }> = ({ title, 
 );
 
 /** Stories only one side covered (with no center coverage) go after the section's main stories. */
-const oneSidedLast = (list: Story[]) => {
-  const oneSided = (s: Story) => s.coverage.center === 0 && (s.coverage.left === 0 || s.coverage.right === 0);
-  return [...list.filter((s) => !oneSided(s)), ...list.filter(oneSided)];
-};
-
 export const EditionPage: FC<{ edition: Edition; stories: Story[]; sources: Sources; isToday: boolean }> = ({ edition, stories, sources, isToday }) => {
-  const front = stories.filter((s) => s.front);
-  const [lead, ...restFront] = front;
-  const blindspots = stories.filter((s) => !s.front && s.blindspot);
-  const following = new Set<string>(useViewer()?.topics ?? []);
   // Signed-in readers see the topics they follow first.
-  const byTopic = TOPICS.map((t) => ({ topic: t, followed: following.has(t.id), list: stories.filter((s) => !s.front && !s.blindspot && s.topic === t.id) }))
-    .filter((g) => g.list.length > 0)
-    .sort((a, b) => Number(b.followed) - Number(a.followed));
+  const layout = editionLayout(stories, useViewer()?.topics ?? []);
+  const [lead, ...restFront] = layout.front;
+  const blindspots = layout.blindspots;
+  const byTopic = layout.topics.map((g) => ({ topic: { id: g.id, name: g.name }, followed: g.followed, list: g.stories }));
 
   return (
     <Layout
@@ -65,7 +58,7 @@ export const EditionPage: FC<{ edition: Edition; stories: Story[]; sources: Sour
       ) : null}
       {byTopic.map((g) => (
         <Section title={g.followed ? `${g.topic.name} · Following` : g.topic.name} id={g.topic.id}>
-          <div class="compact-grid">{oneSidedLast(g.list).map((s) => <CompactStory story={s} sources={sources} />)}</div>
+          <div class="compact-grid">{g.list.map((s) => <CompactStory story={s} sources={sources} />)}</div>
         </Section>
       ))}
       <p class="end">That's the edition.</p>

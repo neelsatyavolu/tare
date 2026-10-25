@@ -1,4 +1,6 @@
 import { buildEdition, RUN_BUDGET_MS } from "./build/build";
+import { notifyBreaking, notifyEdition } from "./push/notify";
+import { SEND_HOUR_UTC, type Slot } from "./slots";
 import type { Env } from "./env";
 import { ingest } from "./ingest/ingest";
 import { sendEdition } from "./mail/send";
@@ -6,11 +8,25 @@ import { sendEdition } from "./mail/send";
 export const JOBS = {
   ingest: (env: Env) => ingest(env.DB),
   build: (env: Env, force = false, deadlineAt?: number) => buildEdition(env.DB, env.AI, Date.now(), { force, deadlineAt }),
-  send: (env: Env) => sendEdition(env, fetch, Date.now(), undefined, "am"),
-  "send-evening": (env: Env) => sendEdition(env, fetch, Date.now(), undefined, "pm"),
+  send: async (env: Env) => ({ email: await sendEdition(env, fetch, Date.now(), undefined, "am"), push: await pushOnce(env, "am") }),
+  "send-evening": async (env: Env) => ({ email: await sendEdition(env, fetch, Date.now(), undefined, "pm"), push: await pushOnce(env, "pm") }),
 } as const;
 
 export type JobName = keyof typeof JOBS;
+
+/**
+ * The edition push goes out with the first send run of a slot only (the retry run resends email to those it
+ * missed; pushing again would buzz phones twice). The first runs are at SEND_HOUR_UTC.
+ */
+async function pushOnce(env: Env, slot: Slot) {
+  if (new Date().getUTCHours() !== SEND_HOUR_UTC[slot]) return null;
+  try {
+    return await notifyEdition(env, slot);
+  } catch (err) {
+    console.error(`edition push failed: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
 
 /** Cron expressions in wrangler.jsonc, mapped to the job each one runs. */
 export const CRON_JOBS: Record<string, JobName> = {
@@ -42,6 +58,12 @@ export async function runCron(cron: string, env: Env): Promise<void> {
     console.log(JSON.stringify({ job, ingestMs: Date.now() - (deadlineAt - RUN_BUDGET_MS) }));
     const result = await JOBS.build(env, false, deadlineAt);
     console.log(JSON.stringify({ job, result }));
+    try {
+      const breaking = await notifyBreaking(env);
+      if (breaking) console.log(JSON.stringify({ job: "breaking", breaking }));
+    } catch (err) {
+      console.error(`breaking push failed: ${err instanceof Error ? err.message : String(err)}`);
+    }
     return;
   }
   const result = await JOBS[job](env);

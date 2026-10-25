@@ -14,6 +14,11 @@ export interface Env {
   LINK_SECRET?: string;
   /** 32 random bytes, base64: seals readers' connected AI tokens. */
   AI_TOKEN_KEY?: string;
+  /** Push notifications: the APNs auth key (.p8 contents), its key ID, the Apple team ID and the app's bundle ID. */
+  APNS_KEY?: string;
+  APNS_KEY_ID?: string;
+  APPLE_TEAM_ID?: string;
+  APNS_TOPIC?: string;
 }
 
 declare global {
@@ -29,6 +34,10 @@ declare global {
       ADMIN_TOKEN?: string;
       LINK_SECRET?: string;
       AI_TOKEN_KEY?: string;
+      APNS_KEY?: string;
+      APNS_KEY_ID?: string;
+      APPLE_TEAM_ID?: string;
+      APNS_TOPIC?: string;
       TEST_MIGRATIONS: D1Migration[];
     }
   }

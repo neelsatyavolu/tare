@@ -35,7 +35,10 @@
   "routes": [{ "pattern": "tare.news", "custom_domain": true }],
   "vars": {
     "APP_URL": "https://tare.news",
-    "MAIL_FROM": "Tare <edition@tare.news>"
+    "MAIL_FROM": "Tare <edition@tare.news>",
+    // The iOS app's bundle ID; APNS_KEY, APNS_KEY_ID and APPLE_TEAM_ID are secrets.
+    "APNS_TOPIC": "co.xanom.tare",
+    "APPLE_TEAM_ID": "VTQW687WBQ"
   },
   "observability": { "enabled": true }
 }

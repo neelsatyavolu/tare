@@ -159,7 +159,7 @@ describe("admin", () => {
     expect((await req("/admin/run/send", { method: "POST" })).status).toBe(401);
     expect((await req("/admin/run/nope", { method: "POST", headers: { authorization: "Bearer test-admin-token" } })).status).toBe(404);
     const ok = await req("/admin/run/send", { method: "POST", headers: { authorization: "Bearer test-admin-token" } });
-    expect(await ok.json()).toMatchObject({ job: "send", result: { status: "sent", sent: 0 } });
+    expect(await ok.json()).toMatchObject({ job: "send", result: { email: { status: "sent", sent: 0 } } });
   });
 });
 
