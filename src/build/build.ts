@@ -27,7 +27,12 @@ const CONCURRENCY = 6;
 const WRITE_BUDGET = 32;
 const LOCK_MS = 14 * 60_000;
 /** No new rewrites start after this long, so a build finishes inside the 15-minute cron limit; the rest wait an hour. */
-const WRITE_DEADLINE_MS = 10 * 60_000;
+const WRITE_DEADLINE_MS = 6 * 60_000;
+/**
+ * Hard stop for rewrites already running: one still going at this point is abandoned and its story keeps the
+ * published version, so the build always saves inside the 15-minute cron limit (a killed build saves nothing).
+ */
+const WRITE_HARD_STOP_MS = 11 * 60_000;
 
 type ItemRow = { id: string; outlet_id: string; title: string; snippet: string; published_at: number; image_url: string | null; embedding: unknown; topic: string | null; importance: number | null; classify_version: number };
 type Member = Embedded & SourceItem & { imageUrl: string | null; topic: string | null; importance: number | null };
@@ -108,6 +113,21 @@ async function sections(db: D1Database, ai: AiRunner, groups: readonly Candidate
 
 /** A story this widely covered always appears, even when its write-up fails; see `standIn`. */
 export const ALWAYS_PUBLISH = 8;
+
+const TIMED_OUT = Symbol("timed out");
+
+/** The write-up, or TIMED_OUT if it is still running at WRITE_HARD_STOP_MS after the build started. */
+async function beforeHardStop<T>(work: Promise<T>, startedAt: number): Promise<T | typeof TIMED_OUT> {
+  const left = WRITE_HARD_STOP_MS - (Date.now() - startedAt);
+  if (left <= 0) return TIMED_OUT;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const stop = new Promise<typeof TIMED_OUT>((resolve) => (timer = setTimeout(() => resolve(TIMED_OUT), left)));
+  try {
+    return await Promise.race([work, stop]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
 
 /**
  * Stands in for a write-up that failed on a widely covered story: a center (else unrated) outlet's own
@@ -301,7 +321,8 @@ export async function buildEdition(db: D1Database, ai: AiRunner, now = Date.now(
       const rewrite = !carried || opts.force || outdated || needsRewrite(carried.writtenTotal, carried.coverage.total);
       if (!rewrite || budget <= 0 || Date.now() - startedAt > WRITE_DEADLINE_MS) return carried && checkBlindspot(carried, group, members);
       budget -= 1;
-      const written = await writeUp(ai, group, date, now, carried);
+      const written = await beforeHardStop(writeUp(ai, group, date, now, carried), startedAt);
+      if (written === TIMED_OUT) return carried && checkBlindspot(carried, group, members);
       // A story the editor flagged on both tries, with nothing published yet, runs as an attributed stand-in instead.
       const fresh = written?.flagged && !carried ? await standIn(group, date, now) : written;
       // A rewrite keeps the story's id and first-seen time, so its link and "new" marker don't change. Its sources
