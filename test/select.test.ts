@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BLINDSPOT, blindspotOf, coverageOf, frontPage, leanReading, pickBalanced, rankGroups, whyText } from "../src/build/select";
+import { BLINDSPOT, blindspotOf, coverageOf, freshness, frontPage, leanReading, pickBalanced, rankGroups, whyText } from "../src/build/select";
 import { TOPIC_IDS, type TopicId } from "../src/topics";
 import { leanOf, OUTLETS, sideOf, SIDE_SIZE } from "../src/outlets";
 
@@ -194,6 +194,16 @@ describe("frontPage", () => {
     const rally = { id: "rally", importance: 2, blindspot: null, coverage: coverageOf(wide17) };
     const ids = [...frontPage([major("a"), major("b"), protests, rally], 2)].map((s) => s.id);
     expect(ids).toEqual(["a", "b", "protests"]);
+  });
+
+  it("puts the newest important story on top", () => {
+    const now = 100 * 3600_000;
+    const wide = coverageOf([...L.slice(0, 3), ...C.slice(0, 3), ...R.slice(0, 3)]);
+    const old = { id: "old", importance: 5, blindspot: null, coverage: wide, fresh: freshness(5, now - 20 * 3600_000, now) };
+    const breaking = { id: "new", importance: 4, blindspot: null, coverage: wide, fresh: freshness(4, now - 600_000, now) };
+    expect([...frontPage([old, breaking], 2)].map((s) => s.id)).toEqual(["new", "old"]);
+    // Freshness only lifts important news.
+    expect(freshness(3, now, now)).toBe(0);
   });
 
   it("always picks importance-5 stories, however narrow, over wider minor ones", () => {

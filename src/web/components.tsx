@@ -3,6 +3,7 @@ import type { Subscriber } from "../subscribers";
 import { leanReading, type Coverage } from "../build/select";
 import { cardLine, orderedSources, shownSummary, type Source, type Story } from "../editions";
 import { readFirst, readFirstLabel, WELL_KNOWN } from "../read-first";
+import { displayImage } from "../build/photos";
 
 export { orderedSources } from "../editions";
 import { easternStamp, easternTime, longDate } from "../format";
@@ -160,7 +161,7 @@ const Cites: FC<{ cites: string[]; numbers: Map<string, number>; base: string }>
  * the outlet doesn't learn which Tare page it was shown on. Cards lazy-load theirs.
  */
 const Photo: FC<{ source: Source; href?: string; eager?: boolean }> = ({ source, href, eager = false }) => {
-  const img = <img src={source.imageUrl!} alt="" loading={eager ? "eager" : "lazy"} decoding="async" referrerpolicy="no-referrer" />;
+  const img = <img src={displayImage(source.imageUrl!)} alt="" loading={eager ? "eager" : "lazy"} decoding="async" referrerpolicy="no-referrer" />;
   return (
     <figure class="photo">
       {href ? <a href={href} tabindex={-1} aria-hidden="true">{img}</a> : img}
@@ -301,7 +302,7 @@ export const CompactStory: FC<{ story: Story; sources: Map<string, Source> }> = 
     <article class="compact">
       {photo?.imageUrl ? (
         <a class="thumb" href={href} tabindex={-1} aria-hidden="true">
-          <img src={photo.imageUrl} alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" />
+          <img src={displayImage(photo.imageUrl)} alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" />
         </a>
       ) : null}
       <div class="compact-body">

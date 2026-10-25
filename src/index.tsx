@@ -27,6 +27,7 @@ import { CSS } from "./web/styles";
 import { readFirst } from "./read-first";
 import { rewriteSample } from "./admin-debug";
 import { parseReport, recentReports, REPORT_MAX, REPORT_MIN, saveReport } from "./reports";
+import { displayImage } from "./build/photos";
 
 type App = { Bindings: Env; Variables: { viewer: Subscriber | null } };
 const app = new Hono<App>();
@@ -148,7 +149,7 @@ app.get("/sample-email", async (c) => {
   const photos = new Map(
     stories.flatMap((s) => {
       const src = s.imageItemId ? sources.get(s.imageItemId) : undefined;
-      return src?.imageUrl ? [[s.id, { url: src.imageUrl, credit: src.outlet.name }] as const] : [];
+      return src?.imageUrl ? [[s.id, { url: displayImage(src.imageUrl), credit: src.outlet.name }] as const] : [];
     }),
   );
   const firstReads = new Map(stories.filter((s) => s.front).flatMap((s) => {

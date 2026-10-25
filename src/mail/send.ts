@@ -6,6 +6,7 @@ import { dueSubscribers, markSent } from "../subscribers";
 import { sha256Hex, utcDate } from "../util";
 import { BATCH_MAX, MailError, sendBatch, type Email } from "./resend";
 import { digestEmail, digestFor, type EmailPhoto } from "./templates";
+import { displayImage } from "../build/photos";
 
 export type SendReport = { date: string; status: "sent" | "no-edition" | "partial"; sent: number; due: number; error?: string };
 
@@ -50,7 +51,7 @@ export async function sendEdition(
   const photos = new Map<string, EmailPhoto>();
   for (const s of stories) {
     const src = s.imageItemId ? sources.get(s.imageItemId) : undefined;
-    if (src?.imageUrl) photos.set(s.id, { url: src.imageUrl, credit: src.outlet.name });
+    if (src?.imageUrl) photos.set(s.id, { url: displayImage(src.imageUrl), credit: src.outlet.name });
   }
   const firstReads = new Map(stories.filter((s) => s.front).flatMap((s) => {
     const src = readFirst(s, sources);

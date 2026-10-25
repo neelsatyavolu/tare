@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import { buildEdition, checkBlindspot, EMBED_MODEL, pickImage } from "../src/build/build";
+import { displayImage, weakImage } from "../src/build/photos";
 import { WRITEUP_VERSION, type AiRunner } from "../src/build/summarize";
 
 const NOW = Date.parse("2026-10-24T10:15:00Z");
@@ -109,6 +110,14 @@ describe("pickImage", () => {
   it("otherwise takes it from the side that covered the story less", () => {
     expect(pickImage([src("a", "fox"), src("b", "nypost"), src("c", "vox")])).toBe("c");
     expect(pickImage([src("a", "fox"), src("b", "vox"), src("c", "nyt")])).toBe("a");
+  });
+
+  it("passes over video frames and small thumbnails when a sharp photo exists", () => {
+    const nbcVideo = "https://media-cldnry.s-nbcnews.com/image/upload/t_fit_1500w/mpx/2704722219/2026_10/frame_1920x1080.jpg";
+    const abcThumb = "https://s.abcnews.com/images/US/wirestory_abc_4x3_384.jpg";
+    expect(pickImage([src("a", "nbc", nbcVideo), src("b", "abc", abcThumb), src("c", "fox")])).toBe("c");
+    // With nothing better, a weak photo still beats none.
+    expect(pickImage([src("a", "nbc", nbcVideo)])).toBe("a");
   });
 
   it("skips sources without a photo and returns null when none has one", () => {
@@ -226,5 +235,15 @@ describe("buildEdition", () => {
     await env.DB.exec("DELETE FROM items");
     const r = await buildEdition(env.DB, fakeAi(), NOW);
     expect(r).toMatchObject({ status: "failed", error: "only 0 headlines in the last 24 hours" });
+  });
+});
+
+describe("photo URLs", () => {
+  it("knows weak photos and asks the BBC for a larger size", () => {
+    expect(weakImage("https://s.abcnews.com/images/US/x_4x3_384.jpg")).toBe(true);
+    expect(weakImage("https://media-cldnry.s-nbcnews.com/image/upload/t_fit_1500w/rockcms/2026-10/photo.jpg")).toBe(false);
+    const bbc = "https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/7561/live/photo.jpg";
+    expect(weakImage(bbc)).toBe(false);
+    expect(displayImage(bbc)).toBe("https://ichef.bbci.co.uk/ace/standard/976/cpsprodpb/7561/live/photo.jpg");
   });
 });

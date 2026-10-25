@@ -6,7 +6,7 @@ import { outletById, sideOf } from "../outlets";
 import { decodeVector, embedPending } from "./embed";
 import { matchStories, needsRewrite } from "./match";
 import { pickImage } from "./photos";
-import { blindspotOf, coverageOf, frontOrder, frontPage, pickBalanced, rankGroups, SECTION_MIN_OUTLETS, sectionOrder, type Blindspot, type Candidate, type Coverage } from "./select";
+import { blindspotOf, coverageOf, freshness, frontOrder, frontPage, pickBalanced, rankGroups, SECTION_MIN_OUTLETS, sectionOrder, type Blindspot, type Candidate, type Coverage } from "./select";
 import { summarize, WRITEUP_VERSION, type AiRunner, type Cited, type Difference, type SourceItem } from "./summarize";
 
 export { pickImage } from "./photos";
@@ -196,7 +196,8 @@ function carryOver(ex: ExistingRow, group: Picked, outletOf: ReadonlyMap<string,
     coverage,
     blindspot: blindspotOf(coverage),
     itemIds,
-    imageItemId: ex.image_item_id ?? pickImage(onePerOutlet(group.members)),
+    // Re-picked each hour, so a sharper photo from a newly arrived source can replace a weak one.
+    imageItemId: pickImage(onePerOutlet(group.members)) ?? ex.image_item_id,
     importance: group.importance ?? ex.importance,
     writeupVersion: ex.writeup_version,
     writtenAt: ex.written_at,
@@ -312,7 +313,9 @@ export async function buildEdition(db: D1Database, ai: AiRunner, now = Date.now(
       return story && checkBlindspot(story, group, members);
     });
 
-    const stories = [...new Map(lineup.filter((s): s is LineupStory => s !== null).map((s) => [s.id, s])).values()];
+    // How new each story's latest report is decides which important story leads; it's used for ordering, not stored.
+    const timed = lineup.map((s, i) => s && { ...s, fresh: freshness(s.importance, picked[i]!.latest, now) });
+    const stories = [...new Map(timed.filter((s): s is LineupStory & { fresh: number } => s !== null).map((s) => [s.id, s])).values()];
     if (stories.length === 0 && existing.length === 0) throw new Error("no story survived the write-up checks");
     if (stories.length === 0) throw new Error("no story this hour; keeping the previous lineup");
 

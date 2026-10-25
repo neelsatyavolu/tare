@@ -151,7 +151,7 @@ export function pickBalanced<C extends Candidate<unknown> & { topic: TopicId | n
 /** Front-page stories and blindspots must be at least this important (see IMPORTANCE_RUBRIC). */
 export const MIN_IMPORTANCE = 3;
 
-type Weighed = { coverage: Coverage; importance: number | null };
+type Weighed = { coverage: Coverage; importance: number | null; fresh?: number };
 
 /** Most important first, then most widely covered. An unrated group counts as minor (2), so it can't jump the queue. */
 export const byWeight = (a: Weighed, b: Weighed) => (b.importance ?? 2) - (a.importance ?? 2) || b.coverage.total - a.coverage.total;
@@ -191,10 +191,19 @@ export function frontPage<T extends Weighed & { blindspot?: Blindspot }>(stories
 export const FRONT_EXTRA = 2;
 
 /**
- * Front-page score: importance, plus a bonus for breadth that is capped at 1.5, so consequence leads and
- * wide coverage breaks ties without letting attention outrank a more important story by more than a step.
+ * Front-page score: importance, plus a bonus for breadth capped at 1.5, so consequence leads and wide coverage
+ * breaks ties without letting attention outrank a more important story by more than a step; plus, for important
+ * stories, a freshness bonus (see freshness) so the newest important news sits on top.
  */
-export const frontScore = (s: Weighed) => (s.importance ?? 2) + Math.min(1.5, Math.log2(Math.max(1, s.coverage.total)) / 3);
+export const frontScore = (s: Weighed) => (s.importance ?? 2) + Math.min(1.5, Math.log2(Math.max(1, s.coverage.total)) / 3) + (s.fresh ?? 0);
+
+/** Freshness bonus: up to 1.5 for an important story (4+) whose latest report is new, fading to 0 over FRESH_HOURS. */
+export const FRESH_HOURS = 18;
+export function freshness(importance: number | null, latest: number, now: number): number {
+  if ((importance ?? 0) < 4) return 0;
+  const hours = Math.max(0, (now - latest) / 3600_000);
+  return 1.5 * Math.max(0, 1 - hours / FRESH_HOURS);
+}
 export const frontOrder = (a: Weighed, b: Weighed) => frontScore(b) - frontScore(a) || b.coverage.total - a.coverage.total;
 
 /** Section order: the same consequence-first score as the front page, so a wide but minor story can't lead a section. */
