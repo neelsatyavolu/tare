@@ -1,6 +1,6 @@
 # Tare
 
-An independent news edition that shows how outlets across the political spectrum covered each story. Every hour Tare reads the RSS feeds of 117 outlets, groups the last 24 hours of headlines by event, and publishes the stories that matter by fixed, published rules: the front page (most widely covered by both the left and the right), every section (world, U.S., politics, business, tech, science, climate, culture, sports) and blindspots (stories one side covered and the other skipped). Each story gets a neutral, source-cited summary, a coverage scale and "where accounts differ". Readers can get a daily email with the front page plus the topics they follow.
+An independent news edition that shows how outlets across the political spectrum covered each story. Every hour Tare reads the RSS feeds of 117 outlets, groups the last 24 hours of headlines by event, and publishes the stories that matter by fixed, published rules: the front page (most widely covered by both the left and the right), every section (world, U.S., politics, business, tech, science, climate, culture, sports) and blindspots (stories one side covered and the other skipped). Each story gets a neutral, source-cited summary, a coverage scale and "where accounts differ". Readers can get a morning and an evening edition by email (one or both) with the front page plus the topics they follow.
 
 Live at https://tare.news.
 
@@ -15,7 +15,7 @@ Not by Tare. Each outlet's left/center/right label comes from Eady, Bonneau, Tuc
 | Pull every feed: headline, feed description, link and photo (never article text) | hourly at :07 | `src/ingest/` |
 | Embed new headlines once (`@cf/baai/bge-base-en-v1.5`), group by event, sort groups into sections | hourly | `src/build/embed.ts`, `cluster.ts`, `classify.ts` |
 | Pick stories by rule; keep continuing stories (same id and link), write up new ones (`@cf/zai-org/glm-5.3`; sorting uses `@cf/openai/gpt-oss-120b`), check each claim and then the whole story, drop uncited sentences, double-check blindspots | hourly | `src/build/select.ts`, `build.ts`, `summarize.ts`, `match.ts` |
-| Email confirmed subscribers | 11:00, retry 13:00 | `src/mail/` |
+| Email confirmed subscribers: morning edition, evening edition | 11:00 (retry 13:00), 22:00 (retry 23:30) | `src/mail/`, `src/slots.ts` |
 | Detailed briefing on request, written with the reader's own Grok or ChatGPT (shared-ai-auth) from the full articles, then shown to everyone | on demand (queue) | `src/briefing.ts`, `src/ai/` |
 
 ## Stack

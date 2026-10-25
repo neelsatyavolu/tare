@@ -14,7 +14,7 @@ import { requireSecrets } from "./mail/send";
 import { confirmEmail, digestEmail, digestFor, manageEmail, signinEmail } from "./mail/templates";
 import { clearSessionCookie, createSession, endSession, sessionSubscriber, sessionToken, setSessionCookie } from "./sessions";
 import {
-  confirm, deleteAccount, findById, parseEmail, parseTopics, releaseEmailClaim, requestSignin, setDigest, setTopics, signUp, unsubscribe,
+  confirm, deleteAccount, findById, parseEmail, parseTopics, releaseEmailClaim, requestSignin, setDigest, setEditions, setTopics, signUp, unsubscribe,
   verifyEmail, type EmailOutcome, type Subscriber,
 } from "./subscribers";
 import { timingSafeEqual, utcDate } from "./util";
@@ -25,6 +25,7 @@ import {
 } from "./web/pages";
 import { CSS } from "./web/styles";
 import { readFirst } from "./read-first";
+import { isEditionChoice } from "./slots";
 import { rewriteSample } from "./admin-debug";
 import { parseReport, recentReports, REPORT_MAX, REPORT_MIN, saveReport } from "./reports";
 import { displayImage } from "./build/photos";
@@ -272,7 +273,7 @@ app.get("/account", async (c) => {
   const viewer = requireViewer(c);
   if (!viewer) return c.redirect("/signin", 303);
   const saved = {
-    topics: "Topics saved.", on: "Daily email turned on.", off: "Daily email turned off.",
+    topics: "Topics saved.", editions: "Email editions saved.", on: "Email turned on.", off: "Email turned off.",
     ai: "Connected. You can ask for a detailed briefing on any story.", "ai-off": "Disconnected.",
   }[c.req.query("saved") ?? ""];
   return page(c, <AccountPage saved={saved} aiProvider={await connectedProvider(c.env.DB, viewer.id)} />);
@@ -341,6 +342,14 @@ app.post("/account/topics", async (c) => {
   return c.redirect("/account?saved=topics", 303);
 });
 
+app.post("/account/editions", async (c) => {
+  const viewer = requireViewer(c);
+  if (!viewer) return c.redirect("/signin", 303);
+  const choice = (await c.req.parseBody()).editions;
+  if (isEditionChoice(choice)) await setEditions(c.env.DB, viewer.id, choice);
+  return c.redirect("/account?saved=editions", 303);
+});
+
 app.post("/account/email", async (c) => {
   const viewer = requireViewer(c);
   if (!viewer) return c.redirect("/signin", 303);
@@ -374,7 +383,7 @@ app.get("/confirm/:token", async (c) => {
   return page(
     c,
     <ConfirmButton title="Confirm your subscription" action={`/confirm/${c.req.param("token")}`} label="Confirm subscription">
-      <p>Tare will email the daily edition to {sub.email}.</p>
+      <p>Tare will email the morning and evening editions to {sub.email}.</p>
     </ConfirmButton>,
   );
 });
@@ -389,7 +398,7 @@ app.post("/confirm/:token", async (c) => {
   return page(
     c,
     <MessagePage title="You're subscribed">
-      <p>The next edition arrives tomorrow morning, by 7 a.m. Eastern. You're signed in, so you can change your topics any time.</p>
+      <p>You'll get a morning edition by 7 a.m. Eastern and an evening edition by 6 p.m. You're signed in, so you can change your topics, or choose just one edition, any time.</p>
       <div class="actions"><a class="btn primary" href="/">Read today's edition</a><a class="btn" href="/account">Your account</a></div>
     </MessagePage>,
   );
@@ -398,15 +407,18 @@ app.post("/confirm/:token", async (c) => {
 app.get("/manage/:token", async (c) => {
   const sub = await subscriberFor(c);
   if (!sub) return page(c, <BadLink />, 404);
-  return page(c, <ManagePage token={c.req.param("token")} email={sub.email} topics={sub.topics} status={sub.status} />);
+  return page(c, <ManagePage token={c.req.param("token")} email={sub.email} topics={sub.topics} editions={sub.editions} status={sub.status} />);
 });
 
 app.post("/manage/:token", async (c) => {
   const sub = await subscriberFor(c);
   if (!sub) return page(c, <BadLink />, 404);
-  const topics = formTopics((await c.req.parseBody({ all: true })).topics);
+  const form = await c.req.parseBody({ all: true });
+  const topics = formTopics(form.topics);
+  const editions = isEditionChoice(form.editions) ? form.editions : sub.editions;
   await setTopics(c.env.DB, sub.id, topics);
-  return page(c, <ManagePage token={c.req.param("token")} email={sub.email} topics={topics} status={sub.status} saved />);
+  await setEditions(c.env.DB, sub.id, editions);
+  return page(c, <ManagePage token={c.req.param("token")} email={sub.email} topics={topics} editions={editions} status={sub.status} saved />);
 });
 
 // GET only asks, so link scanners in mail clients can't unsubscribe anyone. POST does it (including RFC 8058 one-click).

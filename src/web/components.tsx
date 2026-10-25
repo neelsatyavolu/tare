@@ -4,6 +4,7 @@ import { leanReading, type Coverage } from "../build/select";
 import { cardLine, orderedSources, shownSummary, type Source, type Story } from "../editions";
 import { readFirst, readFirstLabel, WELL_KNOWN } from "../read-first";
 import { displayImage } from "../build/photos";
+import { currentSlot, EDITION_CHOICES, SLOT_NAME, type EditionChoice } from "../slots";
 
 export { orderedSources } from "../editions";
 import { easternStamp, easternTime, longDate } from "../format";
@@ -72,9 +73,11 @@ export const Layout: FC<{ title: string; description?: string; nav?: Nav; editio
   );
 };
 
+/** `updatedAt` is set only for today's live edition, which also names the morning or evening edition. */
 export function editionLine(date: string, _number: number, stories: number, updatedAt?: number | null): string {
   const updated = updatedAt ? ` · Updated ${ago(updatedAt)}` : "";
-  return `${longDate(date)} · ${stories} ${stories === 1 ? "story" : "stories"}${updated}`;
+  const slot = updatedAt ? ` · ${SLOT_NAME[currentSlot(Date.now())]}` : "";
+  return `${longDate(date)}${slot} · ${stories} ${stories === 1 ? "story" : "stories"}${updated}`;
 }
 
 /** "12 minutes ago", "2 hours ago"; past a day, the Eastern time. */
@@ -388,6 +391,22 @@ export const HowToRead: FC = () => (
   </details>
 );
 
+/** Which of the two daily emails a reader gets. */
+export const EditionChoices: FC<{ selected: EditionChoice }> = ({ selected }) => (
+  <fieldset>
+    <legend>Which emails</legend>
+    <div class="chips">
+      {EDITION_CHOICES.map((c) => (
+        <label class="chip">
+          <input type="radio" name="editions" value={c.id} checked={selected === c.id} />
+          <span>{c.label}</span>
+        </label>
+      ))}
+    </div>
+    <p class="hint">Morning by 7 a.m. Eastern, evening by 6 p.m. The site updates every hour either way.</p>
+  </fieldset>
+);
+
 export const TopicChips: FC<{ selected: readonly TopicId[] }> = ({ selected }) => (
   <fieldset>
     <legend>Your topics</legend>
@@ -417,7 +436,7 @@ export const SubscribeForm: FC<{ error?: string }> = ({ error }) => {
   return (
   <section class="panel" id="subscribe" aria-labelledby="subscribe-h">
     <h2 id="subscribe-h">Get the edition by email</h2>
-    <p>One email each morning, by 7 a.m. Eastern. <a href="/sample-email">See today's as a sample.</a></p>
+    <p>A morning and an evening edition by email, at 7 a.m. and 6 p.m. Eastern; pick one or both after you sign up. <a href="/sample-email">See today's as a sample.</a></p>
     <form method="post" action="/subscribe">
       <label class="field" for="email">Email</label>
       <input id="email" type="email" name="email" required autocomplete="email" placeholder="you@example.com" />

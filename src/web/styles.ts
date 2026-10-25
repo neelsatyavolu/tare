@@ -66,6 +66,9 @@ nav.jump a:hover{color:var(--ink);border-bottom-color:var(--ink)}
 
 /* Compact rows */
 .compact-grid{display:grid;grid-template-columns:1fr 1fr;column-gap:32px}
+/* An odd last card takes the whole row instead of leaving a hole beside it; its text keeps a readable measure. */
+.compact-grid>.compact:last-child:nth-child(odd){grid-column:1/-1}
+.compact-grid>.compact:last-child:nth-child(odd) .compact-body{max-width:72ch}
 .compact{display:grid;grid-template-columns:96px 1fr;gap:14px;padding:16px 0;border-bottom:1px solid var(--rule)}
 .compact:not(:has(.thumb)){grid-template-columns:1fr}
 .compact .thumb img{display:block;width:96px;height:96px;object-fit:cover;background:var(--rule)}

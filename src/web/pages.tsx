@@ -1,4 +1,5 @@
 import { utcDate } from "../util";
+import type { EditionChoice } from "../slots";
 import { REPORT_MAX, REPORT_MIN } from "../reports";
 import type { Child, FC } from "hono/jsx";
 import { BALANCE, BLINDSPOT, FRESH_HOURS, FRONT_BY_BREADTH, MIN_OUTLETS, SECTION_MIN_OUTLETS } from "../build/select";
@@ -7,7 +8,7 @@ import type { Edition, Source, Story } from "../editions";
 import { longDate, shortDate } from "../format";
 import { LEAN_LABEL, OUTLETS, SIDE_SIZE } from "../outlets";
 import { TOPICS, topicName, type TopicId } from "../topics";
-import { CompactStory, editionLine, HowToRead, IntroStrip, Layout, orderedSources, SourceList, StoryCard, SubscribeForm, TopicChips, useViewer } from "./components";
+import { CompactStory, editionLine, HowToRead, IntroStrip, Layout, orderedSources, SourceList, StoryCard, SubscribeForm, TopicChips, useViewer, EditionChoices } from "./components";
 import { AiConnection, BriefingBlock } from "./ai";
 import { STALE_MS, type BriefingRow } from "../briefing";
 import type { AiProvider } from "../ai/oauth";
@@ -77,7 +78,7 @@ export const EmptyPage: FC = () => (
   <Layout title="Tare" nav="today">
     <div class="prose">
       <h1>The first edition is on the press.</h1>
-      <p>Tare reads headlines from {OUTLETS.length} outlets across the spectrum and publishes one edition each morning. Check back tomorrow morning, or get it by email.</p>
+      <p>Tare reads headlines from {OUTLETS.length} outlets across the spectrum and updates every hour, with a morning and an evening edition by email. Check back soon, or get it by email.</p>
     </div>
     <SubscribeForm />
   </Layout>
@@ -203,15 +204,16 @@ export const MessagePage: FC<{ title: string; children?: Child }> = ({ title, ch
   </Layout>
 );
 
-export const ManagePage: FC<{ token: string; email: string; topics: TopicId[]; status: string; saved?: boolean }> = ({ token, email, topics, status, saved }) => (
+export const ManagePage: FC<{ token: string; email: string; topics: TopicId[]; editions: EditionChoice; status: string; saved?: boolean }> = ({ token, email, topics, editions, status, saved }) => (
   <Layout title="Your subscription · Tare">
     <div class="prose">
       <h1>Your subscription</h1>
-      <p>{email} · {status === "active" ? "getting the daily edition" : status === "pending" ? "not confirmed yet" : "unsubscribed"}</p>
-      {saved ? <p class="meta" role="status">Saved. Tomorrow's edition will use these topics.</p> : null}
+      <p>{email} · {status === "active" ? "getting Tare by email" : status === "pending" ? "not confirmed yet" : "unsubscribed"}</p>
+      {saved ? <p class="meta" role="status">Saved. Your next email will use these settings.</p> : null}
       <form method="post" action={`/manage/${token}`}>
+        <EditionChoices selected={editions} />
         <TopicChips selected={topics} />
-        <div class="actions"><button class="primary" type="submit">Save topics</button></div>
+        <div class="actions"><button class="primary" type="submit">Save</button></div>
       </form>
       {status !== "unsubscribed" ? (
         <form method="post" action={`/unsubscribe/${token}`} style="margin-top:36px">
@@ -226,7 +228,7 @@ export const ManagePage: FC<{ token: string; email: string; topics: TopicId[]; s
 
 export const UnsubscribeConfirmPage: FC<{ token: string }> = ({ token }) => (
   <MessagePage title="Unsubscribe from Tare?">
-    <p>You'll stop getting the daily edition. You can sign up again any time.</p>
+    <p>You'll stop getting Tare by email. You can sign up again any time.</p>
     <form method="post" action={`/unsubscribe/${token}`}>
       <div class="actions"><button class="primary" type="submit">Unsubscribe</button><a class="btn" href={`/manage/${token}`}>Change topics instead</a></div>
     </form>
@@ -266,11 +268,17 @@ export const AccountPage: FC<{ saved?: string; aiProvider: AiProvider | null }> 
           <div class="actions"><button class="primary" type="submit">Save topics</button></div>
         </form>
 
-        <h2>Daily email</h2>
+        <h2>Email</h2>
+        {emailOn ? (
+          <form method="post" action="/account/editions">
+            <EditionChoices selected={viewer.editions} />
+            <div class="actions"><button class="primary" type="submit">Save</button></div>
+          </form>
+        ) : null}
         <form method="post" action="/account/email">
-          <p>{emailOn ? "On. The edition arrives each morning by 7 a.m. Eastern." : "Off. You can still read every edition here."}</p>
+          <p>{emailOn ? "On. The morning edition arrives by 7 a.m. Eastern, the evening edition by 6 p.m." : "Off. You can still read every edition here."}</p>
           <input type="hidden" name="on" value={emailOn ? "0" : "1"} />
-          <div class="actions"><button type="submit">{emailOn ? "Turn off the daily email" : "Turn on the daily email"}</button></div>
+          <div class="actions"><button type="submit">{emailOn ? "Turn off email" : "Turn on email"}</button></div>
         </form>
 
         <div id="ai"><AiConnection provider={aiProvider} /></div>

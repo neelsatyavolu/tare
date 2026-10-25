@@ -1,9 +1,10 @@
 import { z } from "zod";
+import { choiceFor, type EditionChoice, type Slot } from "./slots";
 import { isTopicId, type TopicId } from "./topics";
 
-export type Subscriber = { id: string; email: string; topics: TopicId[]; status: "pending" | "active" | "unsubscribed"; lastSentDate: string | null };
+export type Subscriber = { id: string; email: string; topics: TopicId[]; status: "pending" | "active" | "unsubscribed"; lastSentDate: string | null; editions: EditionChoice };
 
-type Row = { id: string; email: string; topics: string; status: Subscriber["status"]; last_sent_date: string | null; confirm_sent_at: number | null };
+type Row = { id: string; email: string; topics: string; status: Subscriber["status"]; last_sent_date: string | null; confirm_sent_at: number | null; editions: EditionChoice | null };
 
 /** Minimum gap between two emails a sign-up can trigger for the same address. */
 export const RESEND_COOLDOWN_MS = 10 * 60_000;
@@ -21,10 +22,10 @@ export function parseTopics(raw: readonly unknown[]): TopicId[] {
 
 function toSubscriber(r: Row): Subscriber {
   const topics = (JSON.parse(r.topics) as string[]).filter(isTopicId);
-  return { id: r.id, email: r.email, topics, status: r.status, lastSentDate: r.last_sent_date };
+  return { id: r.id, email: r.email, topics, status: r.status, lastSentDate: r.last_sent_date, editions: r.editions ?? "both" };
 }
 
-const COLUMNS = "id, email, topics, status, last_sent_date, confirm_sent_at";
+const COLUMNS = "id, email, topics, status, last_sent_date, confirm_sent_at, editions";
 
 /**
  * The account for an address, created (pending) if new. Concurrent requests for the same new address
@@ -129,21 +130,31 @@ export async function setTopics(db: D1Database, id: string, topics: TopicId[]): 
   await db.prepare("UPDATE subscribers SET topics = ? WHERE id = ?").bind(JSON.stringify(topics), id).run();
 }
 
+export async function setEditions(db: D1Database, id: string, editions: EditionChoice): Promise<void> {
+  await db.prepare("UPDATE subscribers SET editions = ? WHERE id = ?").bind(editions, id).run();
+}
+
 export async function unsubscribe(db: D1Database, id: string): Promise<void> {
   await db.prepare("UPDATE subscribers SET status = 'unsubscribed' WHERE id = ?").bind(id).run();
 }
 
-/** Active subscribers who haven't been sent `date`'s edition yet. */
-export async function dueSubscribers(db: D1Database, date: string): Promise<Subscriber[]> {
+/**
+ * Active subscribers who take this slot's edition and haven't been sent it. `key` is the edition key
+ * ("2026-10-25-pm"); keys sort in send order, so anyone whose last key is earlier is due.
+ */
+export async function dueSubscribers(db: D1Database, key: string, slot: Slot): Promise<Subscriber[]> {
   const { results } = await db
-    .prepare(`SELECT ${COLUMNS} FROM subscribers WHERE status = 'active' AND (last_sent_date IS NULL OR last_sent_date < ?) ORDER BY created_at`)
-    .bind(date)
+    .prepare(
+      `SELECT ${COLUMNS} FROM subscribers WHERE status = 'active' AND (editions = 'both' OR editions = ?)
+         AND (last_sent_date IS NULL OR last_sent_date < ?) ORDER BY created_at`,
+    )
+    .bind(choiceFor(slot), key)
     .all<Row>();
   return results.map(toSubscriber);
 }
 
-export async function markSent(db: D1Database, ids: readonly string[], date: string): Promise<void> {
+export async function markSent(db: D1Database, ids: readonly string[], key: string): Promise<void> {
   if (ids.length === 0) return;
   const stmt = db.prepare("UPDATE subscribers SET last_sent_date = ? WHERE id = ?");
-  await db.batch(ids.map((id) => stmt.bind(date, id)));
+  await db.batch(ids.map((id) => stmt.bind(key, id)));
 }

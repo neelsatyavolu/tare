@@ -23,7 +23,9 @@
       "7 * * * *",
       // 11:00 UTC: email it (7 a.m. New York in summer, 6 a.m. in winter); 13:00 resumes anyone missed.
       "0 11 * * *",
-      "0 13 * * *"
+      "0 13 * * *",
+      "0 22 * * *",
+      "30 23 * * *"
     ]
   },
   "limits": { "cpu_ms": 120000 },

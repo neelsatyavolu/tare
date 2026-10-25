@@ -2,7 +2,7 @@ import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import { signLink, verifyLink } from "../src/links";
 import {
-  confirm, deleteAccount, dueSubscribers, findById, markSent, parseEmail, parseTopics, releaseEmailClaim, requestSignin, RESEND_COOLDOWN_MS, setDigest,
+  confirm, deleteAccount, dueSubscribers, findById, markSent, setEditions, parseEmail, parseTopics, releaseEmailClaim, requestSignin, RESEND_COOLDOWN_MS, setDigest,
   setTopics, signUp, unsubscribe, verifyEmail,
 } from "../src/subscribers";
 
@@ -104,8 +104,21 @@ describe("subscribers", () => {
     await signUp(env.DB, "pending@ex.com", [], 0);
     await confirm(env.DB, a.id);
     await confirm(env.DB, b.id);
-    await markSent(env.DB, [a.id], "2026-10-24");
-    expect((await dueSubscribers(env.DB, "2026-10-24")).map((s) => s.email)).toEqual(["e@ex.com"]);
-    expect(await dueSubscribers(env.DB, "2026-10-25")).toHaveLength(2);
+    await markSent(env.DB, [a.id], "2026-10-24-am");
+    expect((await dueSubscribers(env.DB, "2026-10-24-am", "am")).map((s) => s.email)).toEqual(["e@ex.com"]);
+    // The evening edition is due for both, and so is the next morning's.
+    expect(await dueSubscribers(env.DB, "2026-10-24-pm", "pm")).toHaveLength(2);
+    expect(await dueSubscribers(env.DB, "2026-10-25-am", "am")).toHaveLength(2);
+  });
+
+  it("sends each reader only the editions they chose", async () => {
+    const a = await signUp(env.DB, "m@ex.com", [], 0);
+    const b = await signUp(env.DB, "n@ex.com", [], 0);
+    await confirm(env.DB, a.id);
+    await confirm(env.DB, b.id);
+    await setEditions(env.DB, a.id, "morning");
+    expect((await dueSubscribers(env.DB, "2026-10-24-pm", "pm")).map((s) => s.email)).toEqual(["n@ex.com"]);
+    expect(await dueSubscribers(env.DB, "2026-10-24-am", "am")).toHaveLength(2);
+    expect((await findById(env.DB, a.id))?.editions).toBe("morning");
   });
 });

@@ -182,7 +182,7 @@ describe("accounts", () => {
     const account = await req("/account", { headers: { cookie } });
     const html = await account.text();
     expect(html).toContain("Signed in as <b>reader@ex.com</b>");
-    expect(html).toContain("Turn on the daily email");
+    expect(html).toContain("Turn on email");
     expect(account.headers.get("cache-control")).toBe("private, no-cache");
     expect(await (await req("/", { headers: { cookie } })).text()).toContain('href="/account"');
   });
@@ -193,8 +193,9 @@ describe("accounts", () => {
     await req("/account/topics", { method: "POST", headers, body: "topics=tech&topics=world" });
     await req("/account/email", { method: "POST", headers, body: "on=1" });
     const html = await (await req("/account?saved=on", { headers: { cookie } })).text();
-    expect(html).toContain("Daily email turned on.");
-    expect(html).toContain("Turn off the daily email");
+    expect(html).toContain("Email turned on.");
+    expect(html).toContain("Turn off email");
+    expect(html).toContain('name="editions" value="both" checked');
 
     await req("/signout", { method: "POST", headers: { cookie } });
     expect((await req("/account", { headers: { cookie } })).headers.get("location")).toBe("/signin");

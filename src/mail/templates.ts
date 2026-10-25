@@ -1,5 +1,6 @@
 import { cardLine, shownSummary, type Edition, type Source, type Story } from "../editions";
 import { readFirstLabel } from "../read-first";
+import { SEND_HOUR_UTC, SLOT_NAME, type Slot } from "../slots";
 import { frontOrder } from "../build/select";
 import { coverageLine, esc, longDate } from "../format";
 import { OUTLETS } from "../outlets";
@@ -30,13 +31,13 @@ const button = (href: string, label: string) =>
 
 export function confirmEmail(confirmUrl: string): { subject: string; html: string; text: string } {
   const body = `<tr><td style="padding:28px 0">
-<p style="margin:0 0 16px;font:18px/1.55 ${SERIF}">Confirm your email to start getting Tare's daily edition. One email a morning, covering the stories outlets across the spectrum reported, and how their accounts differ.</p>
+<p style="margin:0 0 16px;font:18px/1.55 ${SERIF}">Confirm your email to start getting Tare: a morning and an evening edition, covering the stories outlets across the spectrum reported, and how their accounts differ.</p>
 <p style="margin:0 0 20px">${button(confirmUrl, "Confirm subscription")}</p>
 <p style="margin:0;font:14px/1.55 ${SERIF};color:${C.ink2}">If you didn't sign up, ignore this email. Nothing happens unless you confirm.</p></td></tr>`;
   return {
     subject: "Confirm your Tare subscription",
     html: shell("Confirm your Tare subscription", body, `Tare · headlines from ${OUTLETS.length} outlets, weighed daily.`),
-    text: `Confirm your email to start getting Tare's daily edition:\n${confirmUrl}\n\nIf you didn't sign up, ignore this email.`,
+    text: `Confirm your email to start getting Tare's morning and evening editions:\n${confirmUrl}\n\nIf you didn't sign up, ignore this email.`,
   };
 }
 
@@ -98,9 +99,9 @@ const lineOf = (s: Story, lead = false) => (lead ? shownSummary(s).map((x) => x.
 const firstReadHtml = (src: Source) =>
   `<p style="margin:0 0 10px;font:15px/1.5 ${SERIF};color:${C.ink2}"><span style="font:500 11px ${MONO};letter-spacing:.08em;text-transform:uppercase;color:${C.ink3}">${esc(readFirstLabel(src))}</span> <a href="${esc(src.url)}" style="color:${C.brass}">${esc(src.title)}</a> · ${esc(src.outlet.name)}</p>`;
 
-function storyHtml(s: Story, appUrl: string, photo?: EmailPhoto, lead = false, firstRead?: Source): string {
+function storyHtml(s: Story, appUrl: string, photo?: EmailPhoto, lead = false, firstRead?: Source, sinceMorning = false): string {
   const url = `${appUrl}/s/${s.id}`;
-  const label = s.blindspot ? `Possible blindspot · ${topicName(s.topic)}` : topicName(s.topic);
+  const label = `${sinceMorning ? "New since this morning · " : ""}${s.blindspot ? "Possible blindspot · " : ""}${topicName(s.topic)}`;
   return `<tr><td style="padding:20px 0;border-bottom:1px solid ${C.rule}">
 ${photo ? photoHtml(photo, url) : ""}${kicker(label)}
 <a href="${esc(url)}" style="font:400 24px/1.2 ${SERIF};color:${C.ink};text-decoration:none">${esc(s.headline)}</a>
@@ -128,24 +129,29 @@ export function digestEmail(
   manageUrl: string,
   photos: ReadonlyMap<string, EmailPhoto> = new Map(),
   firstReads: ReadonlyMap<string, Source> = new Map(),
+  slot: Slot = "am",
 ): { subject: string; html: string; text: string } {
   const lead = d.front[0] ?? d.yours[0] ?? d.blindspots[0];
-  const subject = `Tare · ${longDate(edition.date).replace(/, \d{4}$/, "")}${lead ? `: ${lead.headline}` : ""}`;
+  const subject = `Tare${slot === "pm" ? " evening" : ""} · ${longDate(edition.date).replace(/, \d{4}$/, "")}${lead ? `: ${lead.headline}` : ""}`;
+  // In the evening edition, stories that arrived after the morning email say so.
+  const morningSent = Date.parse(`${edition.date}T${String(SEND_HOUR_UTC.am).padStart(2, "0")}:00:00Z`);
+  const sinceMorning = (s: Story) => slot === "pm" && (s.firstSeenAt ?? 0) > morningSent;
+  const dateline = `${longDate(edition.date)} · ${SLOT_NAME[slot]}`;
   const parts: [string, Story[]][] = [["Front page", d.front], ["Your topics", d.yours], ["Blindspots", d.blindspots]];
   const shown = parts.filter(([, list]) => list.length > 0);
 
-  const body = `<tr><td style="padding:10px 0 0;text-align:center;font:12px/1.4 ${MONO};letter-spacing:.08em;text-transform:uppercase;color:${C.ink3}">${esc(longDate(edition.date))}</td></tr>
-${shown.map(([title, list]) => section(title) + list.map((s) => storyHtml(s, appUrl, s.front ? photos.get(s.id) : undefined, s === lead, s === lead ? firstReads.get(s.id) : undefined)).join("")).join("")}
+  const body = `<tr><td style="padding:10px 0 0;text-align:center;font:12px/1.4 ${MONO};letter-spacing:.08em;text-transform:uppercase;color:${C.ink3}">${esc(dateline)}</td></tr>
+${shown.map(([title, list]) => section(title) + list.map((s) => storyHtml(s, appUrl, s.front ? photos.get(s.id) : undefined, s === lead, s === lead ? firstReads.get(s.id) : undefined, sinceMorning(s))).join("")).join("")}
 ${d.also.length ? section("Also today") + d.also.map((s) => alsoHtml(s, appUrl)).join("") : ""}
 <tr><td style="padding:24px 0;font:17px/1.55 ${SERIF};color:${C.ink2}">That's the edition. <a href="${esc(`${appUrl}/e/${edition.date}`)}" style="color:${C.brass}">Read it on the web</a> with every source.</td></tr>`;
-  const footer = `You get this because you subscribed to Tare. <a href="${esc(manageUrl)}" style="color:${C.ink3}">Change topics or unsubscribe</a>. Summaries are written by AI from headlines and descriptions only; <a href="${esc(`${appUrl}/method`)}" style="color:${C.ink3}">how it works</a>.`;
+  const footer = `You get this because you subscribed to Tare. <a href="${esc(manageUrl)}" style="color:${C.ink3}">Change topics, editions or unsubscribe</a>. Summaries are written by AI from headlines and descriptions only; <a href="${esc(`${appUrl}/method`)}" style="color:${C.ink3}">how it works</a>.`;
 
   const text = [
-    `TARE · ${longDate(edition.date)}`,
+    `TARE · ${dateline}`,
     ...shown.map(([title, list]) => `\n${title.toUpperCase()}\n\n${list.map((s) => storyText(s, appUrl)).join("\n\n")}`),
     ...(d.also.length ? [`\nALSO TODAY\n\n${d.also.map((s) => `${s.headline} (${s.coverage.total} outlets)\n${lineOf(s)}\n${appUrl}/s/${s.id}`).join("\n\n")}`] : []),
     `\nThat's the edition. Read it with every source: ${appUrl}/e/${edition.date}`,
-    `\nChange topics or unsubscribe: ${manageUrl}`,
+    `\nChange topics, editions or unsubscribe: ${manageUrl}`,
   ].join("\n");
 
   return { subject, html: shell(subject, body, footer), text };

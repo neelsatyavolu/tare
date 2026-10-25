@@ -112,7 +112,7 @@ export function rankGroups<T extends { outletId: string; publishedAt: number }>(
 }
 
 export type BalanceOptions = { front: number; perSection: number; blindspots: number; max: number };
-export const BALANCE: BalanceOptions = { front: 6, perSection: 3, blindspots: 3, max: 30 };
+export const BALANCE: BalanceOptions = { front: 6, perSection: 4, blindspots: 3, max: 40 };
 
 /**
  * Which groups get written up. Fixed rules, no personalization and no engagement signals:

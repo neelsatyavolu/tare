@@ -4,7 +4,7 @@ import type { Story } from "../src/editions";
 import { sendEdition } from "../src/mail/send";
 import { digestEmail, digestFor } from "../src/mail/templates";
 import { outletById } from "../src/outlets";
-import { confirm, findById, signUp } from "../src/subscribers";
+import { confirm, findById, setEditions, signUp } from "../src/subscribers";
 
 const NOW = Date.parse("2026-10-24T11:00:00Z");
 const DATE = "2026-10-24";
@@ -85,7 +85,7 @@ describe("sendEdition", () => {
     expect(mail.headers["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");
     expect(mail.headers["List-Unsubscribe"]).toMatch(new RegExp(`^<http://localhost:8787/unsubscribe/${a.id}\\.`));
 
-    expect((await findById(env.DB, a.id))?.lastSentDate).toBe(DATE);
+    expect((await findById(env.DB, a.id))?.lastSentDate).toBe(`${DATE}-am`);
     expect((await sendEdition(env, recorder().fetcher, NOW)).sent).toBe(0);
   });
 
@@ -103,6 +103,27 @@ describe("sendEdition", () => {
   it("does nothing without a ready edition", async () => {
     await env.DB.exec("DELETE FROM editions");
     expect((await sendEdition(env, recorder().fetcher, NOW)).status).toBe("no-edition");
+  });
+});
+
+describe("evening edition", () => {
+  beforeEach(seed);
+
+  it("goes to readers who take it, labeled evening, after the morning one", async () => {
+    const a = await signUp(env.DB, "both@ex.com", [], 0);
+    const m = await signUp(env.DB, "morning@ex.com", [], 0);
+    await confirm(env.DB, a.id);
+    await confirm(env.DB, m.id);
+    await setEditions(env.DB, m.id, "morning");
+    const { calls, fetcher } = recorder();
+    await sendEdition(env, fetcher, NOW, async () => {}, "am");
+    const evening = await sendEdition(env, fetcher, NOW, async () => {}, "pm");
+    expect(evening).toMatchObject({ status: "sent", sent: 1 });
+    const mail = calls.at(-1)!.body[0]!;
+    expect(mail.to).toEqual(["both@ex.com"]);
+    expect(mail.subject).toMatch(/^Tare evening · /);
+    expect(mail.html).toContain("Evening edition");
+    expect((await findById(env.DB, a.id))?.lastSentDate).toBe(`${DATE}-pm`);
   });
 });
 
