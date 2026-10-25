@@ -237,6 +237,14 @@ describe("summarize", () => {
     expect(w?.summary.map((x) => x.text)).toEqual(["Senate passes funding bill 52-48.", "Fox News reported Republicans also split."]);
   });
 
+  it("opens with the headline when the checker says the first sentence isn't the event", async () => {
+    // Every claim checks out except the final event check on the opening sentence.
+    const { ai } = fakeModel(good, (n) => Array.from({ length: n }, (_, i) => i !== n - 1));
+    const w = await summarize(ai, items);
+    expect(w?.summary[0]?.text).toBe("Senate passes funding bill 52-48.");
+    expect(w?.dek?.text).toBe("Senate passes funding bill 52-48.");
+  });
+
   it("holds the story back when the check pass fails or nothing survives", async () => {
     expect(await summarize(fakeModel(good, (n) => Array(n).fill(false)).ai, items)).toBeNull();
     expect(await summarize(fakeModel(good, () => [true]).ai, items)).toBeNull();
