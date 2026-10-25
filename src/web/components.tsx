@@ -251,8 +251,8 @@ export const StoryCard: FC<{ story: Story; sources: Map<string, Source>; lead?: 
   const differences = story.differences.length === 0 ? (
     null
   ) : (
-    // Collapsed everywhere: the article comes first, and the comparison is one tap away.
-    <details class="differ">
+    // Open on the front page's lead, so the day's top story shows the comparison; collapsed elsewhere, where the article comes first.
+    <details class="differ" open={lead}>
       <summary>Where accounts differ ({story.differences.length})</summary>
       <ul>
         {story.differences.map((d) => (

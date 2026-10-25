@@ -180,4 +180,10 @@ describe("where accounts differ", () => {
     expect(html).toContain('<details class="differ">');
     expect(html).not.toContain('class="differ" open');
   });
+
+  it("starts open on the front page's lead", async () => {
+    const differing: Story = { ...story, differences: [{ kind: "fact", text: "Tolls differ.", cites: ["i0", "i1"] }] };
+    const html = await render(<StoryCard story={differing} sources={sources} lead />);
+    expect(html).toMatch(/<details class="differ" open/);
+  });
 });
