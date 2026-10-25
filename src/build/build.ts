@@ -1,6 +1,6 @@
 import type { TopicId } from "../topics";
 import { mapLimit, sha256Hex, utcDate } from "../util";
-import { classifyGroups, type Classification } from "./classify";
+import { classifyGroups, CLASSIFY_VERSION, type Classification } from "./classify";
 import { clusterItems, dot, normalize, type Embedded } from "./cluster";
 import { outletById, sideOf } from "../outlets";
 import { decodeVector, embedPending } from "./embed";
@@ -27,7 +27,7 @@ const CONCURRENCY = 4;
 const WRITE_BUDGET = 32;
 const LOCK_MS = 14 * 60_000;
 
-type ItemRow = { id: string; outlet_id: string; title: string; snippet: string; published_at: number; image_url: string | null; embedding: unknown; topic: string | null; importance: number | null };
+type ItemRow = { id: string; outlet_id: string; title: string; snippet: string; published_at: number; image_url: string | null; embedding: unknown; topic: string | null; importance: number | null; classify_version: number };
 type Member = Embedded & SourceItem & { imageUrl: string | null; topic: string | null; importance: number | null };
 type Picked = Candidate<Member> & { topic: TopicId | null; importance: number | null };
 
@@ -93,12 +93,12 @@ async function sections(db: D1Database, ai: AiRunner, groups: readonly Candidate
   const unknown = groups.map((g, i) => ({ g, i })).filter(({ i }) => known[i]!.topic === null || known[i]!.importance === null);
   const fresh = unknown.length ? await classifyGroups(ai, unknown.map(({ g }) => g.members)) : [];
 
-  const stmt = db.prepare("UPDATE items SET topic = COALESCE(?, topic), importance = COALESCE(?, importance) WHERE id = ?");
+  const stmt = db.prepare("UPDATE items SET topic = COALESCE(?, topic), importance = COALESCE(?, importance), classify_version = ? WHERE id = ?");
   const writes: D1PreparedStatement[] = [];
   unknown.forEach(({ g, i }, k) => {
     const c = fresh[k] ?? { topic: null, importance: null };
     known[i] = { topic: c.topic ?? known[i]!.topic, importance: c.importance ?? known[i]!.importance };
-    if (c.topic || c.importance) for (const m of g.members) writes.push(stmt.bind(c.topic, c.importance, m.id));
+    if (c.topic || c.importance) for (const m of g.members) writes.push(stmt.bind(c.topic, c.importance, CLASSIFY_VERSION, m.id));
   });
   for (let i = 0; i < writes.length; i += 100) await db.batch(writes.slice(i, i + 100));
   return known;
@@ -221,7 +221,7 @@ export async function buildEdition(db: D1Database, ai: AiRunner, now = Date.now(
     await embedPending(db, ai, now - WINDOW_MS);
     const { results } = await db
       .prepare(
-        `SELECT id, outlet_id, title, snippet, published_at, image_url, embedding, topic, importance FROM items
+        `SELECT id, outlet_id, title, snippet, published_at, image_url, embedding, topic, importance, classify_version FROM items
          WHERE published_at > ? AND published_at <= ? AND embedding IS NOT NULL`,
       )
       .bind(now - WINDOW_MS, now)
@@ -231,7 +231,9 @@ export async function buildEdition(db: D1Database, ai: AiRunner, now = Date.now(
 
     const members: Member[] = results.flatMap((r) => {
       const vec = decodeVector(r.embedding);
-      return vec ? [{ id: r.id, outletId: r.outlet_id, publishedAt: r.published_at, title: r.title, snippet: r.snippet, imageUrl: r.image_url, topic: r.topic, importance: r.importance, vec }] : [];
+      // Ratings made under older rules are forgotten, so the group is classified again.
+      const current = r.classify_version >= CLASSIFY_VERSION;
+      return vec ? [{ id: r.id, outletId: r.outlet_id, publishedAt: r.published_at, title: r.title, snippet: r.snippet, imageUrl: r.image_url, topic: current ? r.topic : null, importance: current ? r.importance : null, vec }] : [];
     });
     const ranked = rankGroups(clusterItems(members, SAME_EVENT)).slice(0, CLASSIFY_LIMIT);
     const topics = await sections(db, ai, ranked);

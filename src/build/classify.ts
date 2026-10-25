@@ -2,6 +2,9 @@ import { TOPIC_IDS, TOPICS, type TopicId } from "../topics";
 import { extractJson, replyText, SUMMARY_MODEL, type AiRunner } from "./summarize";
 
 const PER_CALL = 40;
+
+/** Bump when the sections or IMPORTANCE_RUBRIC change, so remembered ratings are redone. 2: royals and celebrities at 1, attacks at 5. */
+export const CLASSIFY_VERSION = 2;
 const HEADLINES_PER_GROUP = 3;
 
 /**
