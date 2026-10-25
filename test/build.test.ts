@@ -72,7 +72,7 @@ function fakeAi(opts: { failSummaries?: boolean } = {}): AiRunner {
           topic: EVENTS[key]!.topic,
           headline: `${key} headline`,
           summary: [
-            { text: `What happened with ${key}.`, sources: ["s1", "s2"] },
+            { text: `What happened in the ${key} headline story.`, sources: ["s1", "s2"] },
             { text: `Officials responded to the ${key} news.`, sources: ["s1"] },
           ],
           differences: [],

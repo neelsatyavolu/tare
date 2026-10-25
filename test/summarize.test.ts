@@ -222,6 +222,14 @@ describe("summarize", () => {
     expect(w?.summary.map((s) => s.text)).toEqual(["The Senate passed a funding bill 52-48.", "Samsung shipped the Galaxy S24."]);
   });
 
+  it("opens with the checked dek when the checker cuts the sentence stating the event", async () => {
+    const withDek = { ...good, dek: { text: "The Senate passed a funding bill 52-48.", sources: ["s1"] } };
+    // Claim 0 is the first summary sentence; everything else checks out.
+    const { ai } = fakeModel(withDek, (n) => Array.from({ length: n }, (_, i) => i !== 0));
+    const w = await summarize(ai, items);
+    expect(w?.summary[0]?.text).toBe("The Senate passed a funding bill 52-48.");
+  });
+
   it("holds the story back when the check pass fails or nothing survives", async () => {
     expect(await summarize(fakeModel(good, (n) => Array(n).fill(false)).ai, items)).toBeNull();
     expect(await summarize(fakeModel(good, () => [true]).ai, items)).toBeNull();
