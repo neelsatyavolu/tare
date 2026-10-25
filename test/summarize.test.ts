@@ -230,6 +230,13 @@ describe("summarize", () => {
     expect(w?.summary[0]?.text).toBe("The Senate passed a funding bill 52-48.");
   });
 
+  it("opens a headless summary with the checked headline", async () => {
+    const followOn = { ...good, summary: [{ text: "Fox News reported Republicans also split.", sources: ["s2"] }] };
+    const { ai } = fakeModel(followOn);
+    const w = await summarize(ai, items);
+    expect(w?.summary.map((x) => x.text)).toEqual(["Senate passes funding bill 52-48.", "Fox News reported Republicans also split."]);
+  });
+
   it("holds the story back when the check pass fails or nothing survives", async () => {
     expect(await summarize(fakeModel(good, (n) => Array(n).fill(false)).ai, items)).toBeNull();
     expect(await summarize(fakeModel(good, () => [true]).ai, items)).toBeNull();
