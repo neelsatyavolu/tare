@@ -20,7 +20,7 @@ export const SUMMARY_MODEL = "@cf/zai-org/glm-5.3";
  * 8: no hedged ("could", "may", "likely") why-lines at all.
  * 9: current officeholders in the prompt, so titles stay consistent across stories.
  */
-export const WRITEUP_VERSION = 29;
+export const WRITEUP_VERSION = 30;
 
 /**
  * Facts that change rarely but that the model, trained earlier, tends to get wrong. Keep current: they go
@@ -93,6 +93,7 @@ Rules:
 - When sources give different numbers or facts, don't pick one anywhere, including the headline and dek: give the range or attribute each ("11 or 12 people, depending on the outlet", lower number first, never "at least 11 to 12"), and add a "fact" difference. But when a later report updates an earlier one (a death toll that "rises to 9"), that is an update, not a disagreement: the headline and dek give the latest figure, the summary says what earlier reports said ("Earlier reports said seven; later reports said nine"), and you add no difference. Sources are listed oldest first, with their Published times.
 - Name who did something only when a cited source names them. If the sources say service "was restored" without saying by whom, write it that way; don't make a person, company or country the actor.
 - Connecting words state a relationship, so they need a source too: use "despite", "because", "after", "in response to", "amid" or "as a result" only when a cited source states that link; otherwise write two plain facts.
+- When the sources give different counts, the sentence that states a count names who reported it ("Nine people were killed, according to The Guardian and Fox News; The Right Scoop reported seven").
 - Never say figures are "disputed" or that outlets "dispute" them unless a source reports a dispute; attribute each figure to the outlets that reported it ("The Guardian and Fox News reported nine deaths; The Right Scoop reported seven").
 - Stop at the event: no motive or purpose tails ("aimed at deepening ties", "using the jab to attack", "ahead of the midterms") unless a source states that purpose.
 - Lead with the newest development the sources report. When you include an older fact (a poll, an earlier statement), say when it is from ("a poll released Saturday").
@@ -384,7 +385,9 @@ export async function verifyWriteup(ai: AiRunner, w: Writeup, items: readonly So
   const headline: Cited = { text: w.headline, cites: [...new Set(w.summary.flatMap((c) => c.cites))] };
   // Whether the opening sentence and the dek report the headline's event, not a reaction to it.
   const eventCheck = (c: Cited): Cited => ({ text: `EVENT CHECK: sentence "${c.text}" / headline "${w.headline}"`, cites: c.cites });
-  const opening = [w.summary[0]!, ...(w.dek ? [w.dek] : [])].map(eventCheck);
+  // The first two sentences and the dek are candidates to open the story and to be its card line.
+  const candidates = [w.summary[0]!, w.summary[1] ?? null, w.dek].map((c) => c ?? null);
+  const opening = candidates.filter((c): c is Cited => c !== null).map(eventCheck);
   const claims = [...w.summary, ...w.differences, ...extras, headline, ...opening];
   const listing = claims
     .map((c, i) => {
@@ -414,18 +417,30 @@ export async function verifyWriteup(ai: AiRunner, w: Writeup, items: readonly So
   const offset = w.summary.length + w.differences.length;
   const extraOk = new Map(extras.map((c, k) => [c, ok(offset + k)]));
   const dekOk = w.dek && extraOk.get(w.dek) ? w.dek : null;
-  const firstIsEvent = ok(0) && ok(headlineAt + 1);
-  const dekIsEvent = !!dekOk && ok(headlineAt + 2);
-  // If the sentence stating the event was cut but the checked dek states it, the dek opens the summary instead.
-  const summary = !firstIsEvent && dekIsEvent ? [dekOk!, ...checked] : checked;
+  // Verdict index of each candidate's event check (they follow the headline, in candidate order, skipping nulls).
+  const eventAt = new Map<number, number>();
+  candidates.forEach((c, k) => c && eventAt.set(k, headlineAt + 1 + eventAt.size));
+  const isEvent = (k: number, passedCheck: boolean) => passedCheck && eventAt.has(k) && ok(eventAt.get(k)!);
+  const firstIsEvent = isEvent(0, ok(0));
+  const secondIsEvent = w.summary.length > 1 && isEvent(1, ok(1));
+  const dekIsEvent = isEvent(2, !!dekOk);
+  // The story opens with a sentence that reports the event: the first, else the second moved up, else the checked dek.
+  const second = w.summary[1];
+  const summary = firstIsEvent
+    ? checked
+    : secondIsEvent && second
+      ? [second, ...checked.filter((s) => s !== second)]
+      : dekIsEvent
+        ? [dekOk!, ...checked]
+        : checked;
   return {
     ...w,
     summary,
     differences: w.differences.filter((_, i) => ok(w.summary.length + i)),
-    // The card line must report the event: the dek if it does, else the opening sentence.
+    // The card line must report the event: the dek if it does, else the sentence that opens the summary.
     dek: dekIsEvent ? dekOk : summary[0]!,
     why: w.why && extraOk.get(w.why) ? w.why : null,
     trimmed: checked.length < w.summary.length,
-    opensWithEvent: firstIsEvent || dekIsEvent,
+    opensWithEvent: firstIsEvent || secondIsEvent || dekIsEvent,
   };
 }

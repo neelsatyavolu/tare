@@ -61,6 +61,20 @@ describe("pages", () => {
     expect(html).toContain("Where accounts differ (1)");
   });
 
+  it("takes an error report on a story, ignores bots and rejects empty notes", async () => {
+    await env.DB.exec("DELETE FROM error_reports");
+    const page = await (await req(`/s/${STORY_ID}`)).text();
+    expect(page).toContain(`action="/s/${STORY_ID}/report"`);
+    const ok = await req(`/s/${STORY_ID}/report`, form({ body: "The second sentence says 52-48 but the Vox headline says 51-49." }));
+    expect(ok.status).toBe(303);
+    expect(ok.headers.get("location")).toBe(`/s/${STORY_ID}?reported=1#report`);
+    expect(await (await req(`/s/${STORY_ID}?reported=1`)).text()).toContain("The editor will read it.");
+    await req(`/s/${STORY_ID}/report`, form({ body: "Spam spam spam spam", website: "x" }));
+    expect((await req(`/s/${STORY_ID}/report`, form({ body: "bad" }))).status).toBe(400);
+    const rows = (await env.DB.prepare("SELECT story_id, body FROM error_reports").all()).results;
+    expect(rows).toEqual([{ story_id: STORY_ID, body: "The second sentence says 52-48 but the Vox headline says 51-49." }]);
+  });
+
   it("404s unknown stories, bad dates and missing editions", async () => {
     expect((await req("/s/nope")).status).toBe(404);
     expect((await req("/e/2020-01-01")).status).toBe(404);

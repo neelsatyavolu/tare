@@ -6,6 +6,7 @@ Flag only serious problems a careful reader would notice:
 - a claim that is impossible or self-contradictory (a solo home run erasing a four-run deficit; "tied, each ahead");
 - the headline, card line and summary disagreeing on a fact (a number, who announced or did something);
 - a summary that never says what the headline says happened;
+- a sentence a reader would have to reread to understand (an ambiguous "which" or "who", clauses piled on clauses);
 - a difference whose quoted source texts don't show the difference it describes, or that calls two compatible things a conflict.
 
 Reply with JSON only: {"story_ok":true,"bad_differences":[]} or {"story_ok":false,"problems":["..."],"bad_differences":[1]}. bad_differences lists the numbers of differences to drop; a bad difference alone doesn't make story_ok false.`;

@@ -234,8 +234,8 @@ describe("summarize", () => {
 
   it("opens with the checked dek when the checker cuts the sentence stating the event", async () => {
     const withDek = { ...good, dek: { text: "The Senate passed a funding bill 52-48.", sources: ["s1"] } };
-    // Claim 0 is the first summary sentence; everything else checks out.
-    const { ai } = fakeModel(withDek, (n) => Array.from({ length: n }, (_, i) => i !== 0));
+    // Claim 0 (the first sentence) fails, and so does the event check on the second (second to last); the rest pass.
+    const { ai } = fakeModel(withDek, (n) => Array.from({ length: n }, (_, i) => i !== 0 && i !== n - 2));
     const w = await summarize(ai, items);
     expect(w?.summary[0]?.text).toBe("The Senate passed a funding bill 52-48.");
   });
@@ -247,9 +247,16 @@ describe("summarize", () => {
     expect(w?.summary.map((x) => x.text)).toEqual(["Senate passes funding bill 52-48.", "Fox News reported Republicans also split."]);
   });
 
-  it("opens with the headline when the checker says the first sentence isn't the event", async () => {
-    // Every claim checks out except the final event check on the opening sentence.
-    const { ai } = fakeModel(good, (n) => Array.from({ length: n }, (_, i) => i !== n - 1));
+  it("opens with the second sentence when only it reports the event", async () => {
+    const reaction = { ...good, summary: [good.summary[1], good.summary[0]] };
+    // No dek, so the last two claims are the event checks on the first and second sentences; the first fails.
+    const { ai } = fakeModel(reaction, (n) => Array.from({ length: n }, (_, i) => i !== n - 2));
+    const w = await summarize(ai, items);
+    expect(w?.summary.map((x) => x.text)).toEqual(["The Senate passed a funding bill 52-48.", "Fox News reported Republicans split."]);
+  });
+
+  it("opens with the headline when the checker says neither opening sentence is the event", async () => {
+    const { ai } = fakeModel(good, (n) => Array.from({ length: n }, (_, i) => i < n - 2));
     const w = await summarize(ai, items);
     expect(w?.summary[0]?.text).toBe("Senate passes funding bill 52-48.");
     expect(w?.dek?.text).toBe("Senate passes funding bill 52-48.");

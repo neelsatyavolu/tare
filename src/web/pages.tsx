@@ -1,3 +1,4 @@
+import { REPORT_MAX, REPORT_MIN } from "../reports";
 import type { Child, FC } from "hono/jsx";
 import { BALANCE, BLINDSPOT, FRONT_BY_BREADTH, MIN_OUTLETS, SECTION_MIN_OUTLETS } from "../build/select";
 import { IMPORTANCE_RUBRIC } from "../build/classify";
@@ -81,7 +82,7 @@ export const EmptyPage: FC = () => (
   </Layout>
 );
 
-export const StoryPage: FC<{ story: Story; sources: Sources; edition: Edition; briefing: BriefingRow | null; connected: AiProvider | null }> = ({ story, sources, edition, briefing, connected }) => {
+export const StoryPage: FC<{ story: Story; sources: Sources; edition: Edition; briefing: BriefingRow | null; connected: AiProvider | null; reported?: boolean }> = ({ story, sources, edition, briefing, connected, reported = false }) => {
   const writing = briefing?.status === "writing" && Date.now() - briefing.requestedAt < STALE_MS;
   return (
     <Layout
@@ -95,6 +96,7 @@ export const StoryPage: FC<{ story: Story; sources: Sources; edition: Edition; b
         <StoryCard story={story} sources={sources} page />
         <BriefingBlock storyId={story.id} briefing={briefing} connected={connected} numbers={orderedSources(story, sources).length} />
         <SourceList story={story} sources={sources} />
+        <ReportError storyId={story.id} reported={reported} />
       </div>
     </Layout>
   );
@@ -135,6 +137,8 @@ export const MethodPage: FC = () => (
       </ol>
       <p>Picking topics in your account only changes the order: your sections come first. You still see everything else.</p>
 
+      <h2>Corrections</h2>
+      <p>Every story page has a "Report an error" form. Reports go to the editor, not to the public page. A story found to be wrong is rewritten from its sources or taken off the edition.</p>
       <h2>How importance is judged</h2>
       <p>Counting outlets measures attention, not consequence: a widely shared joke shouldn't outrank a fight over an election. So each story is also rated on this scale, by the same AI model, with the same instructions every time. Front-page stories and blindspots must be a 3 or higher.</p>
       <table>
@@ -283,3 +287,20 @@ export const AccountPage: FC<{ saved?: string; aiProvider: AiProvider | null }> 
     </Layout>
   );
 };
+
+/** A plain form, no JavaScript: a note that this story got something wrong, kept for the editor. */
+const ReportError: FC<{ storyId: string; reported: boolean }> = ({ storyId, reported }) => (
+  <details class="report" id="report" open={reported}>
+    <summary>Report an error</summary>
+    {reported ? (
+      <p>Thanks. The editor will read it.</p>
+    ) : (
+      <form method="post" action={`/s/${storyId}/report`}>
+        <label for="report-body">What's wrong? Quote the sentence and say what the sources show.</label>
+        <textarea id="report-body" name="body" required minlength={REPORT_MIN} maxlength={REPORT_MAX} rows={4} />
+        <div class="hp" aria-hidden="true"><label>Leave this empty <input type="text" name="website" tabindex={-1} autocomplete="off" /></label></div>
+        <button type="submit">Send report</button>
+      </form>
+    )}
+  </details>
+);

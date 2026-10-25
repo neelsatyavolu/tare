@@ -79,6 +79,11 @@ nav.jump a:hover{color:var(--ink);border-bottom-color:var(--ink)}
 .why-matters{max-width:66ch;border-left:2px solid var(--brass);padding-left:12px;color:var(--ink)}
 .quoted .snippet{display:block;margin:2px 0 0;font-style:italic;color:var(--ink-2)}
 .scale.thin .reading-thin{margin:0;font:13px/1.5 var(--font-mono);color:var(--ink-3)}
+.report{margin:28px 0 0;border-top:1px solid var(--rule);padding-top:12px}
+.report summary{cursor:pointer;font:500 12px/1.6 var(--font-mono);letter-spacing:.08em;text-transform:uppercase;color:var(--ink-3)}
+.report form{display:grid;gap:8px;margin-top:10px;max-width:60ch}
+.report textarea{font:16px/1.5 var(--font-serif);color:var(--ink);background:var(--sheet);border:1px solid var(--rule);padding:8px}
+.report button{justify-self:start}
 .read-first{margin:6px 0 0}
 .named{font:400 15px/1.5 var(--font-serif);color:var(--ink-2);margin:6px 0 0}
 .no-center{margin:6px 0 0;font:400 12px/1.4 var(--font-mono);color:var(--ink-3)}

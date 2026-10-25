@@ -26,6 +26,7 @@ import {
 import { CSS } from "./web/styles";
 import { readFirst } from "./read-first";
 import { rewriteSample } from "./admin-debug";
+import { parseReport, recentReports, REPORT_MAX, REPORT_MIN, saveReport } from "./reports";
 
 type App = { Bindings: Env; Variables: { viewer: Subscriber | null } };
 const app = new Hono<App>();
@@ -109,7 +110,21 @@ app.get("/s/:id", async (c) => {
   const sources = await sourcesFor(c.env.DB, [story]);
   const viewer = c.get("viewer");
   const [briefing, connected] = await Promise.all([loadBriefing(c.env.DB, story.id), viewer ? connectedProvider(c.env.DB, viewer.id) : null]);
-  return page(c, <StoryPage story={story} sources={sources} edition={edition} briefing={briefing} connected={connected} />);
+  return page(c, <StoryPage story={story} sources={sources} edition={edition} briefing={briefing} connected={connected} reported={c.req.query("reported") === "1"} />);
+});
+
+app.post("/s/:id/report", async (c) => {
+  const story = await storyById(c.env.DB, c.req.param("id"));
+  if (!story) return c.notFound();
+  const form = await c.req.parseBody();
+  // Bots fill every field; people never see this one.
+  if (form.website) return c.redirect(`/s/${story.id}?reported=1#report`, 303);
+  const body = parseReport(form.body);
+  if (!body) return page(c, <MessagePage title="Report not sent"><p>Write between {REPORT_MIN} and {REPORT_MAX} characters. <a href={`/s/${story.id}#report`}>Back to the story</a>.</p></MessagePage>, 400);
+  const { success } = await c.env.SIGNUP_LIMIT.limit({ key: c.req.header("cf-connecting-ip") ?? "unknown" });
+  if (!success) return page(c, <MessagePage title="Slow down"><p>Too many requests from here. Try again in a minute.</p></MessagePage>, 429);
+  await saveReport(c.env.DB, story.id, body, Date.now());
+  return c.redirect(`/s/${story.id}?reported=1#report`, 303);
 });
 
 app.post("/s/:id/briefing", async (c) => {
@@ -413,6 +428,15 @@ app.post("/unsubscribe/:token", async (c) => {
 });
 
 // ── Operations ──────────────────────────────────────────────────────────
+
+// Readers' error reports, newest first: GET /admin/reports with the admin token.
+app.get("/admin/reports", async (c) => {
+  c.header("cache-control", "no-store");
+  const token = c.env.ADMIN_TOKEN;
+  const given = (c.req.header("authorization") ?? "").replace(/^Bearer /, "");
+  if (!token || !timingSafeEqual(given, token)) return c.json({ error: "unauthorized" }, 401);
+  return c.json(await recentReports(c.env.DB));
+});
 
 // Model comparison: POST /admin/debug/rewrite?story=<id>&model=<workers ai model> with the admin token. Nothing is saved.
 app.post("/admin/debug/rewrite", async (c) => {
