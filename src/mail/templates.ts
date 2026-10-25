@@ -1,6 +1,6 @@
 import { cardLine, shownSummary, type Edition, type Source, type Story } from "../editions";
 import { readFirstLabel } from "../read-first";
-import { SEND_HOUR_UTC, SLOT_NAME, type Slot } from "../slots";
+import { SLOT_NAME, type Slot } from "../slots";
 import { frontOrder } from "../build/select";
 import { coverageLine, esc, longDate } from "../format";
 import { OUTLETS } from "../outlets";
@@ -130,12 +130,13 @@ export function digestEmail(
   photos: ReadonlyMap<string, EmailPhoto> = new Map(),
   firstReads: ReadonlyMap<string, Source> = new Map(),
   slot: Slot = "am",
+  /** When this reader's morning edition went out; the evening edition marks stories that arrived since. */
+  morningAt: number = Date.parse(`${edition.date}T11:00:00Z`),
 ): { subject: string; html: string; text: string } {
   const lead = d.front[0] ?? d.yours[0] ?? d.blindspots[0];
   const subject = `Tare${slot === "pm" ? " evening" : ""} · ${longDate(edition.date).replace(/, \d{4}$/, "")}${lead ? `: ${lead.headline}` : ""}`;
   // In the evening edition, stories that arrived after the morning email say so.
-  const morningSent = Date.parse(`${edition.date}T${String(SEND_HOUR_UTC.am).padStart(2, "0")}:00:00Z`);
-  const sinceMorning = (s: Story) => slot === "pm" && (s.firstSeenAt ?? 0) > morningSent;
+  const sinceMorning = (s: Story) => slot === "pm" && (s.firstSeenAt ?? 0) > morningAt;
   const dateline = `${longDate(edition.date)} · ${SLOT_NAME[slot]}`;
   const parts: [string, Story[]][] = [["Front page", d.front], ["Your topics", d.yours], ["Blindspots", d.blindspots]];
   const shown = parts.filter(([, list]) => list.length > 0);

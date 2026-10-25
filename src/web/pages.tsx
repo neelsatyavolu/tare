@@ -1,15 +1,15 @@
 import { utcDate } from "../util";
 import { editionLayout } from "../layout";
-import type { EditionChoice } from "../slots";
+import { zoneName, type EditionChoice } from "../slots";
 import { REPORT_MAX, REPORT_MIN } from "../reports";
-import type { Child, FC } from "hono/jsx";
+import { useContext, type Child, type FC } from "hono/jsx";
 import { BALANCE, BLINDSPOT, FRESH_HOURS, SECTION_CAPS, FRONT_BY_BREADTH, MIN_OUTLETS, SECTION_MIN_OUTLETS } from "../build/select";
 import { IMPORTANCE_RUBRIC } from "../build/classify";
 import type { Edition, Source, Story } from "../editions";
 import { longDate, shortDate } from "../format";
 import { LEAN_LABEL, OUTLETS, SIDE_SIZE } from "../outlets";
 import { TOPICS, topicName, type TopicId } from "../topics";
-import { CompactStory, editionLine, HowToRead, IntroStrip, Layout, orderedSources, SourceList, StoryCard, SubscribeForm, TopicChips, useViewer, EditionChoices } from "./components";
+import { CompactStory, editionLine, HowToRead, IntroStrip, Layout, orderedSources, SourceList, StoryCard, SubscribeForm, TimeZoneContext, TopicChips, useViewer, EditionChoices } from "./components";
 import { AiConnection, BriefingBlock } from "./ai";
 import { STALE_MS, type BriefingRow } from "../briefing";
 import type { AiProvider } from "../ai/oauth";
@@ -35,7 +35,7 @@ export const EditionPage: FC<{ edition: Edition; stories: Story[]; sources: Sour
     <Layout
       title={isToday ? "Tare · Today's edition" : `Tare · ${longDate(edition.date)}`}
       nav={isToday ? "today" : "archive"}
-      editionLine={editionLine(edition.date, edition.number, stories.length, isToday ? edition.builtAt : null)}
+      editionLine={editionLine(edition.date, edition.number, stories.length, isToday ? edition.builtAt : null, useContext(TimeZoneContext))}
     >
       <IntroStrip />
       <nav class="jump" aria-label="Sections">
@@ -269,7 +269,7 @@ export const AccountPage: FC<{ saved?: string; aiProvider: AiProvider | null }> 
           </form>
         ) : null}
         <form method="post" action="/account/email">
-          <p>{emailOn ? "On. The morning edition arrives by 7 a.m. Eastern, the evening edition by 6 p.m." : "Off. You can still read every edition here."}</p>
+          <p>{emailOn ? `On. The morning edition arrives by 7 a.m., the evening edition by 6 p.m., ${zoneName(useContext(TimeZoneContext))} time.` : "Off. You can still read every edition here."}</p>
           <input type="hidden" name="on" value={emailOn ? "0" : "1"} />
           <div class="actions"><button type="submit">{emailOn ? "Turn off email" : "Turn on email"}</button></div>
         </form>

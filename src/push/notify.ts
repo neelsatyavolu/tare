@@ -1,28 +1,38 @@
 import { latestEdition, storiesFor, type Story } from "../editions";
 import type { Env } from "../env";
-import { SLOT_NAME, type Slot } from "../slots";
+import { SLOT_NAME } from "../slots";
 import { apnsConfig, pushAll, type PushReport } from "./apns";
-import { devicesForBreaking, devicesForEdition } from "./devices";
+import { devicesDue, devicesForBreaking, markPushed } from "./devices";
 
 /** A story counts as breaking only this soon after Tare first saw it, so a rebuild can't push old news. */
 const BREAKING_WINDOW_MS = 2 * 3600_000;
 /** Enough outlets that the story is established, not a single early report. */
 const BREAKING_MIN_OUTLETS = 5;
 
-/** Morning or evening: tells devices that take this edition what leads it. */
-export async function notifyEdition(env: Env, slot: Slot, fetcher: typeof fetch = fetch, now = Date.now()): Promise<PushReport | null> {
+/** The hourly edition push: each phone whose local clock is at 7 a.m. or 6 p.m. hears what leads the edition. */
+export async function notifyDue(env: Env, fetcher: typeof fetch = fetch, now = Date.now()): Promise<PushReport | null> {
+  const groups = await devicesDue(env.DB, now);
+  if (groups.length === 0) return null;
   const edition = await latestEdition(env.DB);
   if (!edition) return null;
   const stories = await storiesFor(env.DB, edition.date);
   const lead = stories.find((s) => s.front) ?? stories[0];
   if (!lead) return null;
   const more = stories.length - 1;
-  return pushAll(env.DB, apnsConfig(env), await devicesForEdition(env.DB, slot), {
-    title: `Tare · ${SLOT_NAME[slot]}`,
-    body: `${lead.headline}${more > 0 ? `, and ${more} more ${more === 1 ? "story" : "stories"}` : ""}`,
-    thread: "edition",
-    ttl: 6 * 3600,
-  }, fetcher, now);
+  const total: PushReport = { sent: 0, failed: 0, removed: 0 };
+  for (const { slot, key, devices } of groups) {
+    const report = await pushAll(env.DB, apnsConfig(env), devices, {
+      title: `Tare · ${SLOT_NAME[slot]}`,
+      body: `${lead.headline}${more > 0 ? `, and ${more} more ${more === 1 ? "story" : "stories"}` : ""}`,
+      thread: "edition",
+      ttl: 6 * 3600,
+    }, fetcher, now);
+    await markPushed(env.DB, devices.map((d) => d.token), key);
+    total.sent += report.sent;
+    total.failed += report.failed;
+    total.removed += report.removed;
+  }
+  return total;
 }
 
 /** The story to push as breaking news this hour, if any: new, most important, on the front page, widely covered. */

@@ -1,10 +1,10 @@
 import { z } from "zod";
-import { choiceFor, type EditionChoice, type Slot } from "./slots";
+import { choiceFor, DEFAULT_TIME_ZONE, isTimeZone, type EditionChoice, type Slot } from "./slots";
 import { isTopicId, type TopicId } from "./topics";
 
-export type Subscriber = { id: string; email: string; topics: TopicId[]; status: "pending" | "active" | "unsubscribed"; lastSentDate: string | null; editions: EditionChoice };
+export type Subscriber = { id: string; email: string; topics: TopicId[]; status: "pending" | "active" | "unsubscribed"; lastSentDate: string | null; editions: EditionChoice; timezone: string };
 
-type Row = { id: string; email: string; topics: string; status: Subscriber["status"]; last_sent_date: string | null; confirm_sent_at: number | null; editions: EditionChoice | null };
+type Row = { id: string; email: string; topics: string; status: Subscriber["status"]; last_sent_date: string | null; confirm_sent_at: number | null; editions: EditionChoice | null; timezone: string | null };
 
 /** Minimum gap between two emails a sign-up can trigger for the same address. */
 export const RESEND_COOLDOWN_MS = 10 * 60_000;
@@ -22,19 +22,19 @@ export function parseTopics(raw: readonly unknown[]): TopicId[] {
 
 function toSubscriber(r: Row): Subscriber {
   const topics = (JSON.parse(r.topics) as string[]).filter(isTopicId);
-  return { id: r.id, email: r.email, topics, status: r.status, lastSentDate: r.last_sent_date, editions: r.editions ?? "both" };
+  return { id: r.id, email: r.email, topics, status: r.status, lastSentDate: r.last_sent_date, editions: r.editions ?? "both", timezone: isTimeZone(r.timezone) ? r.timezone : DEFAULT_TIME_ZONE };
 }
 
-const COLUMNS = "id, email, topics, status, last_sent_date, confirm_sent_at, editions";
+const COLUMNS = "id, email, topics, status, last_sent_date, confirm_sent_at, editions, timezone";
 
 /**
  * The account for an address, created (pending) if new. Concurrent requests for the same new address
  * can't both insert: the second hits ON CONFLICT and reads the first one's row.
  */
-async function findOrCreate(db: D1Database, email: string, topics: TopicId[], now: number): Promise<Row> {
+async function findOrCreate(db: D1Database, email: string, topics: TopicId[], now: number, timezone: string | null = null): Promise<Row> {
   await db
-    .prepare("INSERT INTO subscribers (id, email, topics, status, created_at) VALUES (?, ?, ?, 'pending', ?) ON CONFLICT(email) DO NOTHING")
-    .bind(crypto.randomUUID(), email, JSON.stringify(topics), now)
+    .prepare("INSERT INTO subscribers (id, email, topics, status, created_at, timezone) VALUES (?, ?, ?, 'pending', ?, ?) ON CONFLICT(email) DO NOTHING")
+    .bind(crypto.randomUUID(), email, JSON.stringify(topics), now, isTimeZone(timezone) ? timezone : null)
     .run();
   return (await db.prepare(`SELECT ${COLUMNS} FROM subscribers WHERE email = ?`).bind(email).first<Row>())!;
 }
@@ -66,8 +66,9 @@ export type EmailOutcome = { id: string; email: string; send: "confirm" | "manag
  * whether an address is subscribed. Topics from the form only apply to an unconfirmed sign-up; a confirmed
  * account's topics change from the account page.
  */
-export async function signUp(db: D1Database, email: string, topics: TopicId[], now = Date.now()): Promise<EmailOutcome> {
-  const row = await findOrCreate(db, email, topics, now);
+/** `timezone` is the reader's detected IANA zone, used to send at their 7 a.m. and 6 p.m. */
+export async function signUp(db: D1Database, email: string, topics: TopicId[], now = Date.now(), timezone: string | null = null): Promise<EmailOutcome> {
+  const row = await findOrCreate(db, email, topics, now, timezone);
   const { claimed, previous } = await claimEmail(db, row, now);
   if (!claimed) return { id: row.id, email, send: null, previous, claimedAt: now };
   if (row.status === "pending") {
@@ -128,6 +129,18 @@ export async function confirm(db: D1Database, id: string, now = Date.now()): Pro
 
 export async function setTopics(db: D1Database, id: string, topics: TopicId[]): Promise<void> {
   await db.prepare("UPDATE subscribers SET topics = ? WHERE id = ?").bind(JSON.stringify(topics), id).run();
+}
+
+/** Remembers a reader's time zone (they moved, or it wasn't known at sign-up); ignored if it isn't a real zone. */
+export async function setTimezone(db: D1Database, id: string, timezone: unknown): Promise<void> {
+  if (!isTimeZone(timezone)) return;
+  await db.prepare("UPDATE subscribers SET timezone = ? WHERE id = ? AND (timezone IS NULL OR timezone != ?)").bind(timezone, id, timezone).run();
+}
+
+/** Every active subscriber; the hourly send picks those whose local clock says an edition is due. */
+export async function activeSubscribers(db: D1Database): Promise<Subscriber[]> {
+  const { results } = await db.prepare(`SELECT ${COLUMNS} FROM subscribers WHERE status = 'active' ORDER BY created_at`).all<Row>();
+  return results.map(toSubscriber);
 }
 
 export async function setEditions(db: D1Database, id: string, editions: EditionChoice): Promise<void> {

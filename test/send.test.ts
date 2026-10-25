@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { Story } from "../src/editions";
-import { sendEdition } from "../src/mail/send";
+import { sendDue, sendEdition } from "../src/mail/send";
 import { digestEmail, digestFor } from "../src/mail/templates";
 import { outletById } from "../src/outlets";
 import { confirm, findById, setEditions, signUp } from "../src/subscribers";
@@ -124,6 +124,27 @@ describe("evening edition", () => {
     expect(mail.subject).toMatch(/^Tare evening · /);
     expect(mail.html).toContain("Evening edition");
     expect((await findById(env.DB, a.id))?.lastSentDate).toBe(`${DATE}-pm`);
+  });
+});
+
+describe("sendDue", () => {
+  beforeEach(seed);
+
+  it("sends each reader's edition at 7 a.m. their time, once", async () => {
+    const west = await signUp(env.DB, "west@ex.com", ["sports"], 0, "America/Los_Angeles");
+    await confirm(env.DB, west.id);
+    const east = await signUp(env.DB, "east@ex.com", ["sports"], 0, "America/New_York");
+    await confirm(env.DB, east.id);
+
+    // 14:00 UTC: 7 a.m. Pacific, 10 a.m. Eastern.
+    const at = Date.parse("2026-10-24T14:00:00Z");
+    const { calls, fetcher } = recorder();
+    expect(await sendDue(env, fetcher, at)).toMatchObject({ sent: 1, due: 1 });
+    expect(calls[0]!.body.map((m) => m.to[0])).toEqual(["west@ex.com"]);
+    expect((await findById(env.DB, west.id))?.lastSentDate).toBe("2026-10-24-am");
+
+    // The next hour's run retries only readers it missed.
+    expect(await sendDue(env, fetcher, at + 3600_000)).toMatchObject({ sent: 0, due: 0 });
   });
 });
 

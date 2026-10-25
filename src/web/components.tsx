@@ -4,7 +4,7 @@ import { leanReading, type Coverage } from "../build/select";
 import { cardLine, orderedSources, shownSummary, type Source, type Story } from "../editions";
 import { readFirst, readFirstLabel, WELL_KNOWN } from "../read-first";
 import { displayImage } from "../build/photos";
-import { currentSlot, EDITION_CHOICES, SLOT_NAME, type EditionChoice } from "../slots";
+import { currentSlot, DEFAULT_TIME_ZONE, EDITION_CHOICES, SLOT_NAME, zoneName, type EditionChoice } from "../slots";
 
 export { orderedSources } from "../editions";
 import { easternStamp, easternTime, longDate } from "../format";
@@ -19,6 +19,9 @@ type Nav = "today" | "archive" | "method" | "subscribe" | "account" | null;
 
 /** The signed-in reader, if any. Set once per request in index.tsx, read by the layout and pages. */
 export const ViewerContext = createContext<Subscriber | null>(null);
+/** The reader's IANA time zone for this request (detected from their connection), for local send times and labels. */
+export const TimeZoneContext = createContext<string>(DEFAULT_TIME_ZONE);
+const useTimeZone = () => useContext(TimeZoneContext);
 export const useViewer = () => useContext(ViewerContext);
 
 export const Layout: FC<{ title: string; description?: string; nav?: Nav; editionLine?: Child; refreshSeconds?: number; children?: Child }> = ({ title, description, nav = null, editionLine, refreshSeconds, children }) => {
@@ -74,9 +77,9 @@ export const Layout: FC<{ title: string; description?: string; nav?: Nav; editio
 };
 
 /** `updatedAt` is set only for today's live edition, which also names the morning or evening edition. */
-export function editionLine(date: string, _number: number, stories: number, updatedAt?: number | null): string {
+export function editionLine(date: string, _number: number, stories: number, updatedAt?: number | null, tz: string = DEFAULT_TIME_ZONE): string {
   const updated = updatedAt ? ` · Updated ${ago(updatedAt)}` : "";
-  const slot = updatedAt ? ` · ${SLOT_NAME[currentSlot(Date.now())]}` : "";
+  const slot = updatedAt ? ` · ${SLOT_NAME[currentSlot(Date.now(), tz)]}` : "";
   return `${longDate(date)}${slot} · ${stories} ${stories === 1 ? "story" : "stories"}${updated}`;
 }
 
@@ -431,7 +434,7 @@ export const EditionChoices: FC<{ selected: EditionChoice }> = ({ selected }) =>
         </label>
       ))}
     </div>
-    <p class="hint">Morning by 7 a.m. Eastern, evening by 6 p.m. The site updates every hour either way.</p>
+    <p class="hint">Morning by 7 a.m., evening by 6 p.m., {zoneName(useTimeZone())} time. The site updates every hour either way.</p>
   </fieldset>
 );
 
@@ -464,7 +467,7 @@ export const SubscribeForm: FC<{ error?: string }> = ({ error }) => {
   return (
   <section class="panel" id="subscribe" aria-labelledby="subscribe-h">
     <h2 id="subscribe-h">Get the edition by email</h2>
-    <p>A morning and an evening edition by email, at 7 a.m. and 6 p.m. Eastern; pick one or both after you sign up. <a href="/sample-email">See today's as a sample.</a></p>
+    <p>A morning and an evening edition by email, at 7 a.m. and 6 p.m. {zoneName(useTimeZone())} time; pick one or both after you sign up. <a href="/sample-email">See today's as a sample.</a></p>
     <form method="post" action="/subscribe">
       <label class="field" for="email">Email</label>
       <input id="email" type="email" name="email" required autocomplete="email" placeholder="you@example.com" />

@@ -21,11 +21,8 @@
     "crons": [
       // Hourly: pull every feed (most only hold their latest 20-50 items), then refresh today's edition.
       "7 * * * *",
-      // 11:00 UTC: email it (7 a.m. New York in summer, 6 a.m. in winter); 13:00 resumes anyone missed.
-      "0 11 * * *",
-      "0 13 * * *",
-      "0 22 * * *",
-      "30 23 * * *"
+      // Every hour: email and push the edition to readers whose local time is 7 a.m. or 6 p.m.
+      "0 * * * *"
     ]
   },
   "limits": { "cpu_ms": 120000 },

@@ -6,7 +6,7 @@ import type { Env } from "../env";
 import { editionLayout } from "../layout";
 import { LEAN_LABEL, sideOf, SIDE_SIZE } from "../outlets";
 import { readFirst, readFirstLabel } from "../read-first";
-import { currentSlot, SLOT_NAME } from "../slots";
+import { currentSlot, DEFAULT_TIME_ZONE, isTimeZone, SLOT_NAME } from "../slots";
 import { topicName } from "../topics";
 import { DATE_RE } from "../editions";
 import { kindLabel, namedOutlets } from "../web/components";
@@ -82,14 +82,14 @@ function storyJson(story: Story, sources: Map<string, Source>, full: boolean) {
   };
 }
 
-function editionJson(edition: Edition, stories: Story[], sources: Map<string, Source>, isToday: boolean) {
+function editionJson(edition: Edition, stories: Story[], sources: Map<string, Source>, isToday: boolean, tz: string) {
   const layout = editionLayout(stories);
   const ids = (list: readonly Story[]) => list.map((s) => s.id);
   return {
     date: edition.date,
     number: edition.number,
     isToday,
-    slot: isToday ? SLOT_NAME[currentSlot(Date.now())] : null,
+    slot: isToday ? SLOT_NAME[currentSlot(Date.now(), tz)] : null,
     updatedAt: edition.builtAt,
     sections: [
       { id: "front", name: "Front page", storyIds: ids(layout.front) },
@@ -112,7 +112,11 @@ api.get("/edition", async (c) => {
   // Only the lead's sources are needed: its photo, read-first link and named outlets; card photos need theirs too.
   const sources = await sourcesFor(c.env.DB, stories);
   c.header("cache-control", `public, max-age=${EDITION_MAX_AGE}`);
-  return c.json(editionJson(edition, stories, sources, edition.date === latest?.date));
+  // The app sends the phone's zone (?tz=); otherwise Cloudflare's guess from the connection.
+  const asked = c.req.query("tz");
+  const detected = (c.req.raw as { cf?: { timezone?: unknown } }).cf?.timezone;
+  const tz = isTimeZone(asked) ? asked : isTimeZone(detected) ? detected : DEFAULT_TIME_ZONE;
+  return c.json(editionJson(edition, stories, sources, edition.date === latest?.date, tz));
 });
 
 api.get("/stories/:id", async (c) => {

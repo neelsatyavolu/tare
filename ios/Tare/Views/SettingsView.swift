@@ -26,7 +26,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Notifications")
                 } footer: {
-                    Text("The morning edition arrives by 7 a.m. Eastern and the evening edition by 6 p.m. Breaking news is only the most consequential stories, at most one an hour. Tare keeps your device's notification token and these choices, nothing else.")
+                    Text("The morning edition arrives at 7 a.m. and the evening edition at 6 p.m., your time. Breaking news is only the most consequential stories, at most one an hour. Tare keeps your device's notification token and these choices, nothing else.")
                 }
                 Section("About") {
                     Link("How Tare works", destination: URL(string: "https://tare.news/method")!)

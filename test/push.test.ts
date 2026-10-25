@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { coverageOf } from "../src/build/select";
 import type { Story } from "../src/editions";
 import { payload, providerToken, pushAll, type ApnsConfig } from "../src/push/apns";
-import { registerDevice, type Device } from "../src/push/devices";
+import { devicesDue, markPushed, registerDevice, type Device } from "../src/push/devices";
 import { breakingStory } from "../src/push/notify";
 
 async function p8(): Promise<{ pem: string; publicKey: CryptoKey }> {
@@ -51,6 +51,27 @@ describe("APNs", () => {
     expect(calls[0]!.body).toEqual(payload(alert));
     expect(await env.DB.prepare("SELECT token FROM devices").all()).toMatchObject({ results: [{ token: good.token }] });
     expect(await pushAll(env.DB, null, [good], alert, fetcher)).toEqual({ sent: 0, failed: 0, removed: 0 });
+  });
+});
+
+describe("devicesDue", () => {
+  it("picks phones whose own clock reads 7 a.m., once per edition", async () => {
+    await env.DB.prepare("DELETE FROM devices").run();
+    const west: Device = { token: "cc".repeat(32), environment: "production", editions: "both", breaking: true, timezone: "America/Los_Angeles" };
+    const east: Device = { token: "dd".repeat(32), environment: "production", editions: "both", breaking: true, timezone: "America/New_York" };
+    const quiet: Device = { token: "ee".repeat(32), environment: "production", editions: "evening", breaking: true, timezone: "America/Los_Angeles" };
+    for (const d of [west, east, quiet]) await registerDevice(env.DB, d, 0);
+    // An older app build re-registering without a zone keeps the saved one.
+    await registerDevice(env.DB, { ...west, timezone: undefined }, 1);
+
+    const at = Date.parse("2026-10-25T14:00:00Z"); // 7 a.m. Pacific, 10 a.m. Eastern
+    const due = await devicesDue(env.DB, at);
+    expect(due).toHaveLength(1);
+    expect(due[0]).toMatchObject({ slot: "am", key: "2026-10-25-am" });
+    expect(due[0]!.devices.map((d) => d.token)).toEqual([west.token]);
+
+    await markPushed(env.DB, [west.token], "2026-10-25-am");
+    expect(await devicesDue(env.DB, at + 3600_000)).toEqual([]);
   });
 });
 

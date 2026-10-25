@@ -25,7 +25,7 @@ In debug builds, launching with `-openStory <id>` opens a story directly. `tare:
 
 Devices register their APNs token and choices with `POST /api/v1/devices` (no account; the server keeps the token, the edition choice and whether to send breaking news). The Worker sends to APNs directly:
 
-- **Morning edition** with the 11:00 UTC email run, **evening edition** with the 22:00 run.
+- **Morning edition** at 7 a.m. and **evening edition** at 6 p.m. in the phone's time zone, which the app sends when it registers (the hourly :00 run).
 - **Breaking news** after an hourly build: at most one per build, a new importance-5 front-page story covered by 5+ outlets.
 
 The Worker needs these secrets (`wrangler secret put`), plus `APNS_TOPIC` and `APPLE_TEAM_ID`, which are already in `wrangler.jsonc`:

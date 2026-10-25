@@ -14,18 +14,18 @@ import { requireSecrets } from "./mail/send";
 import { confirmEmail, digestEmail, digestFor, manageEmail, signinEmail } from "./mail/templates";
 import { clearSessionCookie, createSession, endSession, sessionSubscriber, sessionToken, setSessionCookie } from "./sessions";
 import {
-  confirm, deleteAccount, findById, parseEmail, parseTopics, releaseEmailClaim, requestSignin, setDigest, setEditions, setTopics, signUp, unsubscribe,
+  confirm, deleteAccount, findById, parseEmail, parseTopics, releaseEmailClaim, requestSignin, setDigest, setEditions, setTimezone, setTopics, signUp, unsubscribe,
   verifyEmail, type EmailOutcome, type Subscriber,
 } from "./subscribers";
 import { timingSafeEqual, utcDate } from "./util";
-import { Layout, SubscribeForm, ViewerContext } from "./web/components";
+import { Layout, SubscribeForm, TimeZoneContext, ViewerContext } from "./web/components";
 import { ICON } from "./web/icon";
 import {
   AccountPage, ArchivePage, EditionPage, EmptyPage, ManagePage, MessagePage, MethodPage, SignInPage, StoryPage, UnsubscribeConfirmPage,
 } from "./web/pages";
 import { CSS } from "./web/styles";
 import { readFirst } from "./read-first";
-import { isEditionChoice } from "./slots";
+import { DEFAULT_TIME_ZONE, isEditionChoice, isTimeZone, zoneName } from "./slots";
 import { clusterSample, rewriteSample } from "./admin-debug";
 import { api } from "./api/v1";
 import { apnsConfig, pushAll } from "./push/apns";
@@ -33,7 +33,7 @@ import { devicesForBreaking, parseDevice } from "./push/devices";
 import { parseReport, recentReports, REPORT_MAX, REPORT_MIN, saveReport } from "./reports";
 import { displayImage } from "./build/photos";
 
-type App = { Bindings: Env; Variables: { viewer: Subscriber | null } };
+type App = { Bindings: Env; Variables: { viewer: Subscriber | null; tz: string } };
 const app = new Hono<App>();
 
 const CSP = [
@@ -71,14 +71,25 @@ app.use(async (c, next) => {
 // Loads the signed-in reader, if there's a session cookie. Static files skip the lookup.
 app.use(async (c, next) => {
   const token = sessionToken(c);
-  c.set("viewer", token ? await sessionSubscriber(c.env.DB, token) : null);
+  const viewer = token ? await sessionSubscriber(c.env.DB, token) : null;
+  c.set("viewer", viewer);
+  // The reader's time zone, from Cloudflare's view of their connection; else their saved one; else Eastern.
+  const detected = (c.req.raw as { cf?: { timezone?: unknown } }).cf?.timezone;
+  c.set("tz", isTimeZone(detected) ? detected : (viewer?.timezone ?? DEFAULT_TIME_ZONE));
+  // A signed-in reader who has moved gets their emails at their new local times.
+  if (viewer && isTimeZone(detected) && detected !== viewer.timezone && c.req.method === "GET") await setTimezone(c.env.DB, viewer.id, detected);
   await next();
 });
 
 /** Renders a page for this request's reader. Pages vary by sign-in, so browsers must revalidate them. */
 function page(c: Context<App>, node: Child, status: 200 | 400 | 404 | 429 | 500 | 502 = 200) {
   c.header("cache-control", "private, no-cache");
-  return c.html(<ViewerContext.Provider value={c.get("viewer")}>{node}</ViewerContext.Provider>, status);
+  return c.html(
+    <ViewerContext.Provider value={c.get("viewer")}>
+      <TimeZoneContext.Provider value={c.get("tz") ?? DEFAULT_TIME_ZONE}>{node}</TimeZoneContext.Provider>
+    </ViewerContext.Provider>,
+    status,
+  );
 }
 
 const formTopics = (raw: unknown) => parseTopics(Array.isArray(raw) ? raw : raw ? [raw] : []);
@@ -223,7 +234,7 @@ app.post("/subscribe", async (c) => {
   );
   if (gate.stop) return gate.stop;
 
-  const failed = await sendFor(c, await signUp(c.env.DB, gate.email, formTopics(form.topics)));
+  const failed = await sendFor(c, await signUp(c.env.DB, gate.email, formTopics(form.topics), Date.now(), c.get("tz")));
   return failed ?? page(c, <CheckInbox />);
 });
 
@@ -404,7 +415,7 @@ app.post("/confirm/:token", async (c) => {
   return page(
     c,
     <MessagePage title="You're subscribed">
-      <p>You'll get a morning edition by 7 a.m. Eastern and an evening edition by 6 p.m. You're signed in, so you can change your topics, or choose just one edition, any time.</p>
+      <p>You'll get a morning edition by 7 a.m. and an evening edition by 6 p.m., {zoneName(c.get("tz"))} time. You're signed in, so you can change your topics, or choose just one edition, any time.</p>
       <div class="actions"><a class="btn primary" href="/">Read today's edition</a><a class="btn" href="/account">Your account</a></div>
     </MessagePage>,
   );
@@ -413,6 +424,8 @@ app.post("/confirm/:token", async (c) => {
 app.get("/manage/:token", async (c) => {
   const sub = await subscriberFor(c);
   if (!sub) return page(c, <BadLink />, 404);
+  // Readers who only ever come through email links get their time zone from this visit.
+  await setTimezone(c.env.DB, sub.id, (c.req.raw as { cf?: { timezone?: unknown } }).cf?.timezone);
   return page(c, <ManagePage token={c.req.param("token")} email={sub.email} topics={sub.topics} editions={sub.editions} status={sub.status} />);
 });
 

@@ -18,7 +18,8 @@ struct TareAPI: Sendable {
     }
 
     func edition() async throws -> Edition {
-        try await get("edition")
+        // The phone's zone, so the edition is labeled morning or evening by the reader's clock.
+        try await get("edition", query: [URLQueryItem(name: "tz", value: TimeZone.current.identifier)])
     }
 
     func story(_ id: String) async throws -> Story {
@@ -35,8 +36,9 @@ struct TareAPI: Sendable {
         try check(response)
     }
 
-    private func get<T: Decodable>(_ path: String) async throws -> T {
-        var request = URLRequest(url: base.appending(path: path))
+    private func get<T: Decodable>(_ path: String, query: [URLQueryItem] = []) async throws -> T {
+        let url = base.appending(path: path)
+        var request = URLRequest(url: query.isEmpty ? url : url.appending(queryItems: query))
         request.cachePolicy = .reloadRevalidatingCacheData
         let (data, response) = try await session.data(for: request)
         try check(response)
@@ -57,4 +59,6 @@ struct DeviceRegistration: Codable, Sendable, Equatable {
     /// "both", "morning", "evening" or "none".
     let editions: String
     let breaking: Bool
+    /// The phone's IANA time zone: editions arrive at 7 a.m. and 6 p.m. here.
+    var timezone: String = TimeZone.current.identifier
 }

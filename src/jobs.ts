@@ -1,27 +1,25 @@
 import { buildEdition, RUN_BUDGET_MS } from "./build/build";
-import { notifyBreaking, notifyEdition } from "./push/notify";
-import { SEND_HOUR_UTC, type Slot } from "./slots";
+import { notifyBreaking, notifyDue } from "./push/notify";
 import type { Env } from "./env";
 import { ingest } from "./ingest/ingest";
-import { sendEdition } from "./mail/send";
+import { sendDue, sendEdition } from "./mail/send";
 
 export const JOBS = {
   ingest: (env: Env) => ingest(env.DB),
   build: (env: Env, force = false, deadlineAt?: number) => buildEdition(env.DB, env.AI, Date.now(), { force, deadlineAt }),
-  send: async (env: Env) => ({ email: await sendEdition(env, fetch, Date.now(), undefined, "am"), push: await pushOnce(env, "am") }),
-  "send-evening": async (env: Env) => ({ email: await sendEdition(env, fetch, Date.now(), undefined, "pm"), push: await pushOnce(env, "pm") }),
+  // Manual runs: one slot's email to every reader who hasn't had it, whatever their local time.
+  send: async (env: Env) => ({ email: await sendEdition(env, fetch, Date.now(), undefined, "am") }),
+  "send-evening": async (env: Env) => ({ email: await sendEdition(env, fetch, Date.now(), undefined, "pm") }),
+  // Hourly: email and push each reader whose local clock is at 7 a.m. or 6 p.m.
+  "send-due": async (env: Env) => ({ email: await sendDue(env), push: await pushDue(env) }),
 } as const;
 
 export type JobName = keyof typeof JOBS;
 
-/**
- * The edition push goes out with the first send run of a slot only (the retry run resends email to those it
- * missed; pushing again would buzz phones twice). The first runs are at SEND_HOUR_UTC.
- */
-async function pushOnce(env: Env, slot: Slot) {
-  if (new Date().getUTCHours() !== SEND_HOUR_UTC[slot]) return null;
+/** The edition push for phones due now; a failure is logged so it can't stop the email run. */
+async function pushDue(env: Env) {
   try {
-    return await notifyEdition(env, slot);
+    return await notifyDue(env);
   } catch (err) {
     console.error(`edition push failed: ${err instanceof Error ? err.message : String(err)}`);
     return null;
@@ -32,12 +30,9 @@ async function pushOnce(env: Env, slot: Slot) {
 export const CRON_JOBS: Record<string, JobName> = {
   // Hourly: pull every feed, then refresh today's edition so breaking stories appear within the hour.
   "7 * * * *": "build",
-  // Morning edition (7 a.m. Eastern in daylight time), then the evening edition (6 p.m.). Each has a second run that
-  // resumes the send for anyone the first missed (Resend errors, daily quota). Hours match SEND_HOUR_UTC.
-  "0 11 * * *": "send",
-  "0 13 * * *": "send",
-  "0 22 * * *": "send-evening",
-  "30 23 * * *": "send-evening",
+  // Every hour on the hour: the morning and evening editions for readers whose local time is 7 a.m. or 6 p.m.
+  // (or the hour after, which retries anyone a failed run missed).
+  "0 * * * *": "send-due",
 };
 
 export async function runCron(cron: string, env: Env): Promise<void> {
