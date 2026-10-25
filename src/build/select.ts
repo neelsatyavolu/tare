@@ -131,7 +131,8 @@ export function pickBalanced<C extends Candidate<unknown> & { topic: TopicId | n
   frontPage(wide, opts.front).forEach((c) => chosen.add(c));
 
   for (const topic of TOPIC_IDS) {
-    const inSection = ranked.filter((c) => c.topic === topic && !chosen.has(c)).sort(sectionOrder);
+    // Chosen by breadth, so a section's picks are what the press broadly covered; shown in consequence order.
+    const inSection = ranked.filter((c) => c.topic === topic && !chosen.has(c)).sort(byBreadth);
     // Only stories with enough coverage; a section with nothing that clears the bar is left out.
     inSection.filter((c) => c.coverage.total >= MIN_OUTLETS).slice(0, opts.perSection).forEach((c) => chosen.add(c));
   }
@@ -196,3 +197,6 @@ export const frontOrder = (a: Weighed, b: Weighed) => frontScore(b) - frontScore
 
 /** Section order: the same consequence-first score as the front page, so a wide but minor story can't lead a section. */
 export const sectionOrder = frontOrder;
+
+/** Which stories a section picks: what the most outlets covered first, then importance on ties. */
+const byBreadth = (a: Weighed, b: Weighed) => b.coverage.total - a.coverage.total || (b.importance ?? 2) - (a.importance ?? 2);
