@@ -21,7 +21,7 @@ export const SUMMARY_MODEL = "@cf/zai-org/glm-5.3";
  * 8: no hedged ("could", "may", "likely") why-lines at all.
  * 9: current officeholders in the prompt, so titles stay consistent across stories.
  */
-export const WRITEUP_VERSION = 31;
+export const WRITEUP_VERSION = 32;
 
 /**
  * Facts that change rarely but that the model, trained earlier, tends to get wrong. Keep current: they go
@@ -103,7 +103,7 @@ Rules:
 - Use the tense the sources use. For something still underway (voting, a trial, a rescue), say it is underway; never state a result or outcome the sources don't report. If an allegation or document is old, say when it dates from.
 - In any text you write, name outlets ("The Guardian"), never source numbers.
 - Neutral wording. No loaded, emotive or judging words, no speculation, no predictions, no "critics say" unless a source says it. Attribute claims and quotes to whoever made them.
-- headline: what happened, in plain words, under 80 characters, simple subject-verb-object; for an event in which people died, say how many, sentence case, no colon subtitle, no clickbait, no quote marks unless quoting.
+- headline: what happened, in plain words, under 80 characters, simple subject-verb-object; never merge two different counts into one ("12 injured, 11 of them shot", not "12 shot"); for an event in which people died, say how many, sentence case, no colon subtitle, no clickbait, no quote marks unless quoting.
 - dek: one sentence for the home page, under 30 words, that never restates the headline, stands alone and covers what the headline says (including any claim it names), in this order: what happened, why (the reason or trigger, if a source gives it), and the concrete consequence or the central dispute. No commentary, political messaging or description of coverage. With its sources.
 - why: one sentence on a specific consequence the sources state as fact (a policy that changes, a number of people affected, a decision now due), not general significance, not a forecast, not a repeat of the summary and not a detail of the event itself (a casualty count belongs in the summary). Never use "could", "may", "might" or "likely". If the sources don't give one, give an empty text and no sources.
 - summary: 2 to 4 sentences, under 90 words in total, about the event itself. One idea per sentence, each under 25 words: put background, a result and an outlet's assessment in separate sentences. Every sentence must make sense on its own and not contradict itself or another sentence ("tied, each trailing the other" is wrong; "polls showed a tie" is right). Each sentence must make sense on its own: name the person or body ("Ukraine's defense ministry"), never refer back with "the ministry" or "he". Every fact the headline states (an arrest, a death toll, a dollar amount) must also be in the summary. The first sentence states what the headline says happened and adds a detail the headline doesn't have (where, who, how many, or what triggered it); the rest give the most important context: the stakes, what each side says, or what is still unknown. Don't describe how outlets covered it or quote labels one outlet used; that belongs in differences.
@@ -390,7 +390,9 @@ export async function verifyWriteup(ai: AiRunner, w: Writeup, items: readonly So
   // The first two sentences and the dek are candidates to open the story and to be its card line.
   const candidates = [w.summary[0]!, w.summary[1] ?? null, w.dek].map((c) => c ?? null);
   const opening = candidates.filter((c): c is Cited => c !== null).map(eventCheck);
-  const claims = [...w.summary, ...w.differences, ...extras, headline, ...opening];
+  // A difference is checked against only the two sources the story page quotes for it, so what passes is what readers see.
+  const shownDifferences = w.differences.map((d) => ({ ...d, cites: d.cites.slice(0, 2) }));
+  const claims = [...w.summary, ...shownDifferences, ...extras, headline, ...opening];
   const listing = claims
     .map((c, i) => {
       const cited = c.cites.map((id) => byId.get(id)).filter((x): x is SourceItem => !!x).map((it) => `  - ${it.title}${it.snippet ? ` — ${it.snippet}` : ""}`);
