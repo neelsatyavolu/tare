@@ -1,4 +1,5 @@
 import type { Edition, Story } from "../editions";
+import { frontOrder } from "../build/select";
 import { coverageLine, esc, longDate } from "../format";
 import { OUTLETS } from "../outlets";
 import { topicName, type TopicId } from "../topics";
@@ -65,14 +66,14 @@ export type Digest = { front: Story[]; yours: Story[]; blindspots: Story[]; also
 
 /**
  * Everyone gets the front page; then up to 8 stories from their topics; then up to 2 blindspots; then, as
- * one-line "Also today" links, the 3 most widely covered stories none of those included.
+ * one-line "Also today" links, the 3 highest-scoring stories (front-page score) none of those included.
  */
 export function digestFor(stories: readonly Story[], topics: readonly TopicId[]): Digest {
   const front = stories.filter((s) => s.front);
   const yours = stories.filter((s) => !s.front && topics.includes(s.topic)).slice(0, 8);
   const blindspots = stories.filter((s) => s.blindspot && !front.includes(s) && !yours.includes(s)).slice(0, 2);
   const taken = new Set([...front, ...yours, ...blindspots]);
-  const also = stories.filter((s) => !taken.has(s)).sort((a, b) => b.coverage.total - a.coverage.total).slice(0, 3);
+  const also = stories.filter((s) => !taken.has(s)).sort(frontOrder).slice(0, 3);
   return { front, yours, blindspots, also };
 }
 
@@ -83,8 +84,12 @@ function photoHtml(p: EmailPhoto, href: string): string {
 <p style="margin:4px 0 12px;font:11px/1.4 ${MONO};color:${C.ink3}">Photo: ${esc(p.credit)}</p>`;
 }
 
-/** The checked one-line dek, or the summary for stories written before decks existed. */
-const lineOf = (s: Story) => s.dek?.text ?? s.summary.map((x) => x.text).join(" ");
+/**
+ * Front-page stories get the same summary sentences as the site (at most two), so the email never tells a
+ * different story; the rest get the checked one-line dek, or the summary for stories written before deks.
+ */
+const lineOf = (s: Story) =>
+  s.front || !s.dek ? s.summary.slice(0, s.front ? 2 : undefined).map((x) => x.text).join(" ") : s.dek.text;
 
 function storyHtml(s: Story, appUrl: string, photo?: EmailPhoto): string {
   const url = `${appUrl}/s/${s.id}`;

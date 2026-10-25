@@ -96,6 +96,16 @@ export const Scale: FC<{ c: Coverage }> = ({ c }) => {
   const read = leanReading(c);
   const pct = (side: Side) => Math.round((c[side] / SIDE_SIZE[side]) * 100);
   const needle = ((c.balance + 1) / 2) * 100;
+  const noCenter = c.center === 0 && c.left > 0 && c.right > 0 ? <p class="no-center">No center outlets in Tare's list covered it.</p> : null;
+  // With too few on either side there's nothing to weigh: one quiet line instead of empty bars.
+  if (read.key === "thin") {
+    return (
+      <div class="scale thin">
+        <p class="reading-thin">{read.sentence}: {c.left} of {SIDE_SIZE.left} left-leaning, {c.center} of {SIDE_SIZE.center} center and {c.right} of {SIDE_SIZE.right} right-leaning outlets covered it.</p>
+        {noCenter}
+      </div>
+    );
+  }
   return (
     <div class="scale" role="img" aria-label={`${c.left} of ${SIDE_SIZE.left} left outlets, ${c.center} of ${SIDE_SIZE.center} center, ${c.right} of ${SIDE_SIZE.right} right${c.unrated ? `, plus ${c.unrated} not rated` : ""}. ${read.sentence}.`}>
       <div class="pans" aria-hidden="true">
@@ -106,9 +116,9 @@ export const Scale: FC<{ c: Coverage }> = ({ c }) => {
           </div>
         ))}
       </div>
-      <div class="ruler" aria-hidden="true">{read.key === "thin" ? null : <span class="needle" style={`left:${(read.key === "even" ? 50 : needle).toFixed(1)}%`} />}</div>
+      <div class="ruler" aria-hidden="true"><span class="needle" style={`left:${(read.key === "even" ? 50 : needle).toFixed(1)}%`} /></div>
       <div class="reading" aria-hidden="true"><span>← Left</span><b>{read.sentence}</b><span>Right →</span></div>
-      {c.center === 0 && c.left > 0 && c.right > 0 ? <p class="no-center">No center outlets in Tare's list covered it.</p> : null}
+      {noCenter}
     </div>
   );
 };
@@ -174,7 +184,7 @@ export const StoryCard: FC<{ story: Story; sources: Map<string, Source>; lead?: 
     </>
   );
   const differences = story.differences.length === 0 ? (
-    page ? <p class="no-differ">No real disagreement found: the outlets' headlines and descriptions tell the same story.</p> : null
+    page ? <p class="no-differ">No differences between the accounts to show side by side.</p> : null
   ) : (
     // On the front, open only when the accounts can't both be true; framing differences stay a click away.
     <details class="differ" open={page || (lead && story.differences.some((d) => d.kind === "fact"))}>
@@ -205,7 +215,8 @@ export const StoryCard: FC<{ story: Story; sources: Map<string, Source>; lead?: 
     <>
       {differences}
       <Scale c={story.coverage} />
-      <p class="why"><span class="why-label">Why it's here</span> {whyText(story.coverage, story.blindspot)}</p>
+      {/* The counts are already in the kicker; this line only earns its place when it explains a blindspot. */}
+      {story.blindspot ? <p class="why"><span class="why-label">Why it's here</span> {whyText(story.coverage, story.blindspot)}</p> : null}
     </>
   ) : (
     <>
@@ -215,7 +226,8 @@ export const StoryCard: FC<{ story: Story; sources: Map<string, Source>; lead?: 
   );
   // The lead runs across the page: story on the left, the weighing on the right.
   return lead ? (
-    <article class="story lead"><div class="lead-main">{main}</div><aside class="lead-side" aria-label="Coverage">{evidence}</aside></article>
+    // Nothing to weigh (thin coverage, no differences): one column, so an empty sidebar doesn't outweigh the story.
+    <article class={`story lead${leanReading(story.coverage).key === "thin" && story.differences.length === 0 ? " solo" : ""}`}><div class="lead-main">{main}</div><aside class="lead-side" aria-label="Coverage">{evidence}</aside></article>
   ) : (
     <article class="story">{main}{evidence}</article>
   );
@@ -235,6 +247,8 @@ const Kicker: FC<{ story: Story; tag?: boolean }> = ({ story, tag = false }) => 
     </p>
   );
 };
+
+const EXPLAINER = /\b(what to know|what we know|explained|explainer|q&a|key questions|everything you need to know)\b/i;
 
 const excerpt = (s: string) => (s.length > 220 ? `${s.slice(0, 220).replace(/\s+\S*$/, "")}…` : s);
 
@@ -256,11 +270,14 @@ export function strongest(cites: readonly string[], sources: Map<string, Source>
  * summary relies on most (the plainest account of the event), then the best-known name.
  */
 export function readFirst(story: Story, sources: Map<string, Source>): Source | null {
+  const list = () => story.itemIds.map((id) => sources.get(id)).filter((s): s is Source => !!s);
   const group = (s: Source) => ({ center: 0, left: 2, right: 2 } as const)[sideOf(s.outlet.lean) ?? "center"] + (sideOf(s.outlet.lean) === null ? 1 : 0);
   const cited = (s: Source) => story.summary.filter((x) => x.cites.includes(s.id)).length;
+  // An explainer is the best start for someone new to the story, whichever side published it.
+  const explainer = list().find((s) => EXPLAINER.test(s.title));
+  if (explainer) return explainer;
   const fame = (s: Source) => (WELL_KNOWN.indexOf(s.outlet.id) + 1) || WELL_KNOWN.length + 1;
-  const list = story.itemIds.map((id) => sources.get(id)).filter((s): s is Source => !!s);
-  return [...list].sort((a, b) => group(a) - group(b) || cited(b) - cited(a) || fame(a) - fame(b))[0] ?? null;
+  return [...list()].sort((a, b) => group(a) - group(b) || cited(b) - cited(a) || fame(a) - fame(b))[0] ?? null;
 }
 
 /** Outlets readers know, shown by name so "8 outlets" doesn't read as fringe. Order is display priority. */

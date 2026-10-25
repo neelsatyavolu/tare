@@ -49,10 +49,12 @@ describe("StoryCard citations", () => {
     expect(html).toContain(`aria-label="Source 5">5</a>`);
   });
 
-  it("links citations within the page on the story page and shows why it's here", async () => {
-    const html = await render(<StoryCard story={story} sources={sources} page />);
+  it("links citations within the page on the story page and explains a blindspot", async () => {
+    const html = await render(<StoryCard story={{ ...story, blindspot: "left" }} sources={sources} page />);
     expect(html).toContain('href="#src-1"');
     expect(html).toContain("Why it&#39;s here");
+    // Without a blindspot the line would only repeat the kicker's counts.
+    expect(await render(<StoryCard story={story} sources={sources} page />)).not.toContain("Why it&#39;s here");
     expect(html).toContain("<h1>Something happened</h1>");
   });
 });
@@ -78,6 +80,12 @@ describe("Scale", () => {
     expect(html).toContain("No left-leaning outlets in Tare&#39;s list covered it");
     expect(html).toContain(`0 of ${SIDE_SIZE.left} left outlets`);
   });
+
+  it("collapses to one line when there's too little to compare", async () => {
+    const html = await render(<Scale c={coverageOf(["vox", "axios", "pbs", "fox"])} />);
+    expect(html).toContain('class="scale thin"');
+    expect(html).not.toContain("needle");
+  });
 });
 
 describe("card helpers", () => {
@@ -99,6 +107,12 @@ describe("card helpers", () => {
     const differing: Story = { ...story, differences: [{ kind: "fact", text: "Tolls differ.", cites: ["i0", "i1"] }] };
     const html = await render(<StoryCard story={differing} sources={withSnippet} page />);
     expect(html).toContain('<q class="snippet">Officials said nine people died.</q>');
+  });
+
+  it("starts readers at an explainer when there is one", () => {
+    const withExplainer = new Map(sources);
+    withExplainer.set("i3", { ...sources.get("i3")!, title: "What to Know About the Vote" });
+    expect(readFirst(story, withExplainer)?.outlet.id).toBe("nyt");
   });
 
   it("starts readers at a well-known center outlet", async () => {
