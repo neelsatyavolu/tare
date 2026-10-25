@@ -184,7 +184,9 @@ input.text{width:100%;max-width:560px;font:400 16px/1.4 var(--font-mono);color:v
 input.text:focus{outline:none;border-bottom-color:var(--brass);box-shadow:0 1px 0 var(--brass)}
 
 /* Article page */
-.article{max-width:760px;margin:0 auto;padding-top:32px}
+.article{max-width:760px;margin:0 auto;padding-top:20px}
+/* A wide crop keeps the headline and the start of the article on the first screen. */
+.article .photo img{aspect-ratio:2/1}
 .article h1{font-size:44px;line-height:1.08;margin-bottom:16px}
 .article .summary{font-size:20px}
 
