@@ -27,12 +27,12 @@ const CONCURRENCY = 6;
 const WRITE_BUDGET = 32;
 const LOCK_MS = 14 * 60_000;
 /** No new rewrites start after this long, so a build finishes inside the 15-minute cron limit; the rest wait an hour. */
-const WRITE_DEADLINE_MS = 6 * 60_000;
-/**
- * Hard stop for rewrites already running: one still going at this point is abandoned and its story keeps the
- * published version, so the build always saves inside the 15-minute cron limit (a killed build saves nothing).
- */
-const WRITE_HARD_STOP_MS = 11 * 60_000;
+/** A cron run gets 15 minutes; the build must save before then (a killed build saves nothing). */
+export const RUN_BUDGET_MS = 13 * 60_000;
+/** No new rewrite starts later than this before the run's deadline (a rewrite with retries can take minutes). */
+const LAST_START_BEFORE_MS = 6 * 60_000;
+/** A rewrite still running this long before the deadline is abandoned; its story keeps the published version. */
+const HARD_STOP_BEFORE_MS = 90_000;
 
 type ItemRow = { id: string; outlet_id: string; title: string; snippet: string; published_at: number; image_url: string | null; embedding: unknown; topic: string | null; importance: number | null; classify_version: number };
 type Member = Embedded & SourceItem & { imageUrl: string | null; topic: string | null; importance: number | null };
@@ -92,33 +92,49 @@ function majority<V>(values: readonly (V | null)[]): V | null {
  * Each group's section and importance: remembered from earlier runs when most of its items have them,
  * else classified now (and remembered on the items for next time).
  */
-async function sections(db: D1Database, ai: AiRunner, groups: readonly Candidate<Member>[]): Promise<Classification[]> {
+/** Groups per classification call; chunks run CLASSIFY_CONCURRENCY at a time and each is saved as soon as it's back. */
+const CLASSIFY_CHUNK = 40;
+const CLASSIFY_CONCURRENCY = 4;
+
+/**
+ * Section and importance for each group: remembered ratings first, then the model for the rest. Ratings are saved
+ * chunk by chunk, so a run that runs out of time keeps what it rated and the next hour carries on from there;
+ * chunks not started by `stopAt` wait an hour (their groups rank as minor meanwhile).
+ */
+async function sections(db: D1Database, ai: AiRunner, groups: readonly Candidate<Member>[], stopAt: number): Promise<Classification[]> {
   const known: Classification[] = groups.map((g) => ({
     topic: majority(g.members.map((m) => m.topic)) as TopicId | null,
     importance: majority(g.members.map((m) => m.importance)),
   }));
   const unknown = groups.map((g, i) => ({ g, i })).filter(({ i }) => known[i]!.topic === null || known[i]!.importance === null);
-  const fresh = unknown.length ? await classifyGroups(ai, unknown.map(({ g }) => g.members)) : [];
-
+  const chunks = Array.from({ length: Math.ceil(unknown.length / CLASSIFY_CHUNK) }, (_, k) => unknown.slice(k * CLASSIFY_CHUNK, (k + 1) * CLASSIFY_CHUNK));
   const stmt = db.prepare("UPDATE items SET topic = COALESCE(?, topic), importance = COALESCE(?, importance), classify_version = ? WHERE id = ?");
-  const writes: D1PreparedStatement[] = [];
-  unknown.forEach(({ g, i }, k) => {
-    const c = fresh[k] ?? { topic: null, importance: null };
-    known[i] = { topic: c.topic ?? known[i]!.topic, importance: c.importance ?? known[i]!.importance };
-    if (c.topic || c.importance) for (const m of g.members) writes.push(stmt.bind(c.topic, c.importance, CLASSIFY_VERSION, m.id));
+
+  await mapLimit(chunks, CLASSIFY_CONCURRENCY, async (chunk) => {
+    if (Date.now() > stopAt) return;
+    const fresh = await classifyGroups(ai, chunk.map(({ g }) => g.members));
+    const writes: D1PreparedStatement[] = [];
+    chunk.forEach(({ g, i }, k) => {
+      const c = fresh[k] ?? { topic: null, importance: null };
+      known[i] = { topic: c.topic ?? known[i]!.topic, importance: c.importance ?? known[i]!.importance };
+      if (c.topic || c.importance) for (const m of g.members) writes.push(stmt.bind(c.topic, c.importance, CLASSIFY_VERSION, m.id));
+    });
+    for (let w = 0; w < writes.length; w += 100) await db.batch(writes.slice(w, w + 100));
   });
-  for (let i = 0; i < writes.length; i += 100) await db.batch(writes.slice(i, i + 100));
   return known;
 }
+
+/** Classification stops starting new chunks this long before the run's deadline, leaving time for write-ups. */
+const CLASSIFY_STOP_BEFORE_MS = 8 * 60_000;
 
 /** A story this widely covered always appears, even when its write-up fails; see `standIn`. */
 export const ALWAYS_PUBLISH = 8;
 
 const TIMED_OUT = Symbol("timed out");
 
-/** The write-up, or TIMED_OUT if it is still running at WRITE_HARD_STOP_MS after the build started. */
-async function beforeHardStop<T>(work: Promise<T>, startedAt: number): Promise<T | typeof TIMED_OUT> {
-  const left = WRITE_HARD_STOP_MS - (Date.now() - startedAt);
+/** The write-up, or TIMED_OUT if it is still running at `stopAt`. */
+async function beforeHardStop<T>(work: Promise<T>, stopAt: number): Promise<T | typeof TIMED_OUT> {
+  const left = stopAt - Date.now();
   if (left <= 0) return TIMED_OUT;
   let timer: ReturnType<typeof setTimeout> | undefined;
   const stop = new Promise<typeof TIMED_OUT>((resolve) => (timer = setTimeout(() => resolve(TIMED_OUT), left)));
@@ -276,9 +292,10 @@ async function lock(db: D1Database, date: string, now: number): Promise<boolean>
  * their id and write-up (rewritten only when coverage grows a lot), new events are written up, and stories
  * that drop out stay in the database, inactive, so links to them keep working.
  */
-export async function buildEdition(db: D1Database, ai: AiRunner, now = Date.now(), opts: { force?: boolean } = {}): Promise<BuildReport> {
+/** `deadlineAt` is when the whole run must be done; a cron run passes its own start + RUN_BUDGET_MS, so time spent pulling feeds counts. */
+export async function buildEdition(db: D1Database, ai: AiRunner, now = Date.now(), opts: { force?: boolean; deadlineAt?: number } = {}): Promise<BuildReport> {
   const date = utcDate(now);
-  const startedAt = Date.now();
+  const deadlineAt = opts.deadlineAt ?? Date.now() + RUN_BUDGET_MS;
   const empty = { date, items: 0, candidates: 0, stories: 0, written: 0, kept: 0 };
   if (!(await lock(db, date, now))) return { ...empty, status: "skipped", error: "another build is running" };
 
@@ -302,7 +319,7 @@ export async function buildEdition(db: D1Database, ai: AiRunner, now = Date.now(
       return vec ? [{ id: r.id, outletId: r.outlet_id, publishedAt: r.published_at, title: r.title, snippet: r.snippet, imageUrl: r.image_url, topic: current ? r.topic : null, importance: current ? r.importance : null, vec }] : [];
     });
     const ranked = rankGroups(clusterItems(members, SAME_EVENT)).slice(0, CLASSIFY_LIMIT);
-    const topics = await sections(db, ai, ranked);
+    const topics = await sections(db, ai, ranked, deadlineAt - CLASSIFY_STOP_BEFORE_MS);
     const picked: Picked[] = pickBalanced(ranked.map((c, i) => ({ ...c, topic: topics[i]?.topic ?? null, importance: topics[i]?.importance ?? null })));
     report = { ...report, candidates: picked.length };
 
@@ -319,9 +336,9 @@ export async function buildEdition(db: D1Database, ai: AiRunner, now = Date.now(
       const carried = ex ? carryOver(ex, group, outletOf, now) : null;
       const outdated = !!ex && ex.writeup_version < WRITEUP_VERSION;
       const rewrite = !carried || opts.force || outdated || needsRewrite(carried.writtenTotal, carried.coverage.total);
-      if (!rewrite || budget <= 0 || Date.now() - startedAt > WRITE_DEADLINE_MS) return carried && checkBlindspot(carried, group, members);
+      if (!rewrite || budget <= 0 || Date.now() > deadlineAt - LAST_START_BEFORE_MS) return carried && checkBlindspot(carried, group, members);
       budget -= 1;
-      const written = await beforeHardStop(writeUp(ai, group, date, now, carried), startedAt);
+      const written = await beforeHardStop(writeUp(ai, group, date, now, carried), deadlineAt - HARD_STOP_BEFORE_MS);
       if (written === TIMED_OUT) return carried && checkBlindspot(carried, group, members);
       // A story the editor flagged on both tries, with nothing published yet, runs as an attributed stand-in instead.
       const fresh = written?.flagged && !carried ? await standIn(group, date, now) : written;
