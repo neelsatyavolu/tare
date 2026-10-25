@@ -80,6 +80,18 @@ describe("validateWriteup", () => {
     expect(w.differences).toEqual([]);
   });
 
+  it("drops a summary sentence that repeats an earlier one", () => {
+    const w = validateWriteup({
+      ...good,
+      summary: [
+        { text: "Gunmen killed seven or nine people at a funeral in Karak.", sources: ["s1"] },
+        { text: "Reports list seven or nine people killed at the funeral in Karak.", sources: ["s2"] },
+        { text: "Officials blamed extremists.", sources: ["s2"] },
+      ],
+    }, items)!;
+    expect(w.summary.map((x) => x.text)).toEqual(["Gunmen killed seven or nine people at a funeral in Karak.", "Officials blamed extremists."]);
+  });
+
   it("drops a card line that is too long instead of cutting it mid-word", () => {
     const long = "word ".repeat(80).trim();
     expect(validateWriteup({ ...good, dek: { text: long, sources: ["s1"] } }, items)!.dek).toBeNull();
