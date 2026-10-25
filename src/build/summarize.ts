@@ -15,7 +15,7 @@ export const SUMMARY_MODEL = "@cf/openai/gpt-oss-120b";
  * 8: no hedged ("could", "may", "likely") why-lines at all.
  * 9: current officeholders in the prompt, so titles stay consistent across stories.
  */
-export const WRITEUP_VERSION = 9;
+export const WRITEUP_VERSION = 11;
 
 /**
  * Facts that change rarely but that the model, trained earlier, tends to get wrong. Keep current: they go
@@ -77,7 +77,7 @@ Rules:
 - Use only facts the sources state. Every summary sentence lists the source numbers it relies on, like ["s1","s4"]. A fact that only one or two outlets report is attributed in the sentence ("Fox News reported that...").
 - Never add a date, year, place, office, title or number that the cited sources don't state. Use a person's title or office only if a cited source states it; otherwise use just the name. Don't combine details from different sources into one claim neither makes (if one outlet mentions France and another Milan, don't say French soldiers were in Milan).
 - If the sources report a dispute, an accusation or who is responsible (who did it, who blames whom, what they said), the summary must say so: that is usually the most important part.
-- When sources give different numbers or facts, don't pick one anywhere, including the headline and dek: give the range or attribute each ("11 or 12 people, depending on the outlet"), and add a "fact" difference.
+- When sources give different numbers or facts, don't pick one anywhere, including the headline and dek: give the range or attribute each ("11 or 12 people, depending on the outlet", lower number first, never "at least 11 to 12"), and add a "fact" difference.
 - Use the tense the sources use. For something still underway (voting, a trial, a rescue), say it is underway; never state a result or outcome the sources don't report. If an allegation or document is old, say when it dates from.
 - In any text you write, name outlets ("The Guardian"), never source numbers.
 - Neutral wording. No loaded, emotive or judging words, no speculation, no predictions, no "critics say" unless a source says it. Attribute claims and quotes to whoever made them.
@@ -133,7 +133,9 @@ export function extractJson(text: string): unknown {
   }
 }
 
-const clean = (s: string) => s.replace(/\s+/g, " ").trim();
+/** Collapses whitespace, and turns the model's habit "at least 11 to 12" into the plain range "11 or 12". */
+export const clean = (s: string) =>
+  s.replace(/\s+/g, " ").trim().replace(/\bat least (\d[\d,]*) to (\d[\d,]*)\b/gi, "$1 or $2");
 
 const contentWords = (s: string) => new Set(s.toLowerCase().match(/[a-z0-9']{4,}/g) ?? []);
 
@@ -147,7 +149,7 @@ export function repeats(why: string, sentences: readonly string[]): boolean {
   });
 }
 
-const HEDGE = /\b(could|may|might|likely|expected to|poised to|set to)\b/i;
+const HEDGE = /\b(could|may|might|likely|expected to|poised to|set to|(?:is|are|was|were) seen as|seen as a)\b/i;
 
 /**
  * A "why it matters" line that forecasts ("could influence voters"). Readers took even sourced forecasts as

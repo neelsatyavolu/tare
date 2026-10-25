@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractJson, repeats, replyText, sourceBlock, speculative, splitInline, summarize, validateWriteup, type AiRunner, type SourceItem } from "../src/build/summarize";
+import { clean, extractJson, repeats, replyText, sourceBlock, speculative, splitInline, summarize, validateWriteup, type AiRunner, type SourceItem } from "../src/build/summarize";
 
 const items: SourceItem[] = [
   { id: "i1", outletId: "vox", title: "Senate passes funding bill", snippet: "The vote was 52-48." },
@@ -61,6 +61,8 @@ describe("speculative", () => {
     expect(speculative({ text: "It could influence voters ahead of the midterms.", cites: ["a"] })).toBe(true);
     expect(speculative({ text: "The plant may add about 4,500 jobs.", cites: ["a"] })).toBe(true);
     expect(speculative({ text: "About 4,500 people will work there.", cites: ["a"] })).toBe(false);
+    // Vague significance reads as a hedge too.
+    expect(speculative({ text: "The outcome is seen as influencing U.S. influence in Latin America.", cites: ["a"] })).toBe(true);
     expect(speculative(null)).toBe(false);
   });
 });
@@ -155,5 +157,12 @@ describe("summarize", () => {
   it("holds the story back when the check pass fails or nothing survives", async () => {
     expect(await summarize(fakeModel(good, (n) => Array(n).fill(false)).ai, items)).toBeNull();
     expect(await summarize(fakeModel(good, () => [true]).ai, items)).toBeNull();
+  });
+});
+
+describe("clean", () => {
+  it("collapses whitespace and rewrites an 'at least X to Y' range", () => {
+    expect(clean("  A shooting   injured at least 11 to 12 people. ")).toBe("A shooting injured 11 or 12 people.");
+    expect(clean("At least 11 people were hurt.")).toBe("At least 11 people were hurt.");
   });
 });
