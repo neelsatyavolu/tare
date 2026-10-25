@@ -1,0 +1,112 @@
+import Foundation
+
+/// The edition as `GET /api/v1/edition` returns it. The server lays it out; the app only renders it.
+struct Edition: Codable, Sendable {
+    let date: String
+    let number: Int
+    let isToday: Bool
+    let slot: String?
+    let updatedAt: Double?
+    let sections: [EditionSection]
+    let stories: [Story]
+}
+
+struct EditionSection: Codable, Sendable, Identifiable {
+    let id: String
+    let name: String
+    let storyIds: [String]
+}
+
+struct Story: Codable, Sendable, Identifiable, Hashable {
+    let id: String
+    let url: String
+    let front: Bool
+    let topic: String
+    let topicName: String
+    let headline: String
+    let cardLine: String
+    let summary: [Sentence]
+    let why: Sentence?
+    let coverage: Coverage
+    let blindspot: String?
+    let importance: Int?
+    let firstSeenAt: Double?
+    let photo: Photo?
+    let correction: Correction?
+    let namedOutlets: String
+    let differences: [Difference]
+    let readFirst: ReadFirst?
+    let sources: [SourceRef]
+
+    /// Shown for a story's first three hours, like the site's "New" marker.
+    var isNew: Bool {
+        guard let first = firstSeenAt else { return false }
+        return Date().timeIntervalSince1970 * 1000 - first < 3 * 3600 * 1000
+    }
+
+    var webURL: URL { URL(string: "https://tare.news\(url)")! }
+}
+
+struct Sentence: Codable, Sendable, Hashable {
+    let text: String
+    /// Source numbers, matching `SourceRef.n`.
+    let cites: [Int]
+}
+
+struct Coverage: Codable, Sendable, Hashable {
+    let left: Int
+    let center: Int
+    let right: Int
+    let unrated: Int
+    let total: Int
+    /// Right share minus left share over their sum, from -1 (all left) to 1 (all right).
+    let balance: Double
+    let sideSize: SideSize
+    let reading: Reading
+
+    struct SideSize: Codable, Sendable, Hashable { let left: Int; let center: Int; let right: Int }
+    struct Reading: Codable, Sendable, Hashable { let key: String; let sentence: String; let tag: String }
+
+    /// Too few left- or right-leaning outlets to weigh: the scale is a single line.
+    var isThin: Bool { reading.key == "thin" }
+    var counts: String { "L \(left) · C \(center) · R \(right)\(unrated > 0 ? " · \(unrated) not rated" : "")" }
+}
+
+struct Photo: Codable, Sendable, Hashable {
+    let url: URL
+    let credit: String
+}
+
+struct Correction: Codable, Sendable, Hashable {
+    let note: String
+    let at: Double
+}
+
+struct Difference: Codable, Sendable, Hashable {
+    let kind: String
+    let label: String
+    let text: String
+    let cites: [Int]
+    let quotes: [SourceRef]
+}
+
+struct ReadFirst: Codable, Sendable, Hashable {
+    let label: String
+    let title: String
+    let url: URL
+    let outlet: String
+}
+
+struct SourceRef: Codable, Sendable, Hashable, Identifiable {
+    let n: Int
+    let id: String
+    let outlet: String
+    let lean: String
+    let leanLabel: String
+    /// "left", "center", "right" or "unrated".
+    let side: String
+    let title: String
+    let url: URL
+    let publishedAt: Double
+    let snippet: String?
+}

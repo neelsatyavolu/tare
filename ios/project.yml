@@ -1,0 +1,100 @@
+name: Tare
+options:
+  bundleIdPrefix: co.xanom
+  developmentLanguage: en
+  createIntermediateGroups: true
+  deploymentTarget:
+    iOS: "18.0"
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    IPHONEOS_DEPLOYMENT_TARGET: "18.0"
+    DEVELOPMENT_TEAM: VTQW687WBQ
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+    CODE_SIGN_STYLE: Automatic
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+targets:
+  Tare:
+    type: application
+    platform: iOS
+    sources:
+      - path: Tare
+        excludes:
+          - Info.plist
+          - Tare.entitlements
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: co.xanom.tare
+        TARGETED_DEVICE_FAMILY: "1,2"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        CODE_SIGN_ENTITLEMENTS: Tare/Tare.entitlements
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: Tare/Info.plist
+    info:
+      path: Tare/Info.plist
+      properties:
+        CFBundleDisplayName: Tare
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        UILaunchScreen:
+          UIColorName: Paper
+        UIApplicationSupportsIndirectInputEvents: true
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        UISupportedInterfaceOrientations~ipad:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationPortraitUpsideDown
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        UIBackgroundModes:
+          - remote-notification
+        UIAppFonts:
+          - LibreCaslonDisplay-Regular.ttf
+          - SourceSerif4-Regular.ttf
+          - SourceSerif4-Semibold.ttf
+          - SourceSerif4-It.ttf
+          - IBMPlexMono-Regular.ttf
+          - IBMPlexMono-Medium.ttf
+        ITSAppUsesNonExemptEncryption: false
+        CFBundleURLTypes:
+          - CFBundleURLName: co.xanom.tare
+            CFBundleURLSchemes:
+              - tare
+  TareTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: TareTests
+    dependencies:
+      - target: Tare
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: co.xanom.tare.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: $(BUILT_PRODUCTS_DIR)/Tare.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tare
+        BUNDLE_LOADER: $(TEST_HOST)
+  TareUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: TareUITests
+    dependencies:
+      - target: Tare
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: co.xanom.tare.uitests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_TARGET_NAME: Tare
+schemes:
+  Tare:
+    build:
+      targets:
+        Tare: all
+        TareTests: [test]
+        TareUITests: [test]
+    test:
+      targets:
+        - TareTests
+        - TareUITests

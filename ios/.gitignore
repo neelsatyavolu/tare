@@ -1,0 +1,6 @@
+*.xcodeproj
+build/
+DerivedData/
+xcuserdata/
+scripts/testflight.local.sh
+.derived/

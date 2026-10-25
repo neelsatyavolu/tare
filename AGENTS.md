@@ -10,3 +10,4 @@
 - `SAME_EVENT` (0.84) and `BLINDSPOT` thresholds were tuned on real feeds; re-tune against live data before changing them.
 - Rotating `LINK_SECRET` breaks emailed links; rotating `AI_TOKEN_KEY` disconnects every reader's AI account.
 - `npm run dev` calls Workers AI on the real Cloudflare account.
+- The iOS app (`ios/`) renders `/api/v1` and never computes an edition; change the API in `src/api/v1.ts` and refresh `ios/TareTests/Fixtures` together. `xcodegen generate` makes the project; build with `DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer` (the beta Xcode hangs tests).
