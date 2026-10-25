@@ -125,6 +125,16 @@ export const Scale: FC<{ c: Coverage }> = ({ c }) => {
 
 const KIND_LABEL = { fact: "Facts differ", framing: "Framing", emphasis: "Emphasis", omission: "Left out" } as const;
 
+/** Reports this far apart may be an update rather than a dispute, so they're labeled by time, not as a conflict. */
+const UPDATE_GAP_MS = 2 * 3600_000;
+
+/** "Facts differ" only when the two quoted reports came out close together; otherwise "Earlier and later reports". */
+export function kindLabel(kind: keyof typeof KIND_LABEL, cites: readonly string[], sources: Map<string, Source>): string {
+  const [a, b] = strongest(cites, sources);
+  if (kind === "fact" && a && b && Math.abs(a.publishedAt - b.publishedAt) > UPDATE_GAP_MS) return "Earlier and later reports";
+  return KIND_LABEL[kind];
+}
+
 const MAX_CITES = 3;
 
 /** Source markers after a sentence, kept on one line: [1, 5, 7 +3]. "+3" jumps to the full source list. */
@@ -192,7 +202,7 @@ export const StoryCard: FC<{ story: Story; sources: Map<string, Source>; lead?: 
       <ul>
         {story.differences.map((d) => (
           <li>
-            <span class="kind">{KIND_LABEL[d.kind]}</span>{d.text}<Cites cites={d.cites} numbers={numbers} base={base} />
+            <span class="kind">{kindLabel(d.kind, d.cites, sources)}</span>{d.text}<Cites cites={d.cites} numbers={numbers} base={base} />
             {/* On the story page, show the headlines that differ, so readers can see it for themselves. */}
             {page ? (
               <ul class="quoted">
@@ -262,7 +272,8 @@ export function badge(story: Story, now = Date.now()): "New" | null {
 
 /** At most two quoted sources per difference: the first two cited, which the write-up lists as its clearest example. */
 export function strongest(cites: readonly string[], sources: Map<string, Source>): Source[] {
-  return cites.map((id) => sources.get(id)).filter((s): s is Source => !!s).slice(0, 2);
+  // Oldest first, so an earlier and a later report read in order.
+  return cites.map((id) => sources.get(id)).filter((s): s is Source => !!s).slice(0, 2).sort((a, b) => a.publishedAt - b.publishedAt);
 }
 
 /**

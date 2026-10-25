@@ -15,7 +15,7 @@ export const SUMMARY_MODEL = "@cf/openai/gpt-oss-120b";
  * 8: no hedged ("could", "may", "likely") why-lines at all.
  * 9: current officeholders in the prompt, so titles stay consistent across stories.
  */
-export const WRITEUP_VERSION = 20;
+export const WRITEUP_VERSION = 21;
 
 /**
  * Facts that change rarely but that the model, trained earlier, tends to get wrong. Keep current: they go
@@ -88,8 +88,8 @@ Rules:
 - Use the tense the sources use. For something still underway (voting, a trial, a rescue), say it is underway; never state a result or outcome the sources don't report. If an allegation or document is old, say when it dates from.
 - In any text you write, name outlets ("The Guardian"), never source numbers.
 - Neutral wording. No loaded, emotive or judging words, no speculation, no predictions, no "critics say" unless a source says it. Attribute claims and quotes to whoever made them.
-- headline: what happened, in plain words, under 100 characters; for an event in which people died, say how many, sentence case, no colon subtitle, no clickbait, no quote marks unless quoting.
-- dek: one sentence for the home page, under 30 words, in this order: what happened, why (the reason or trigger, if a source gives it), and the concrete consequence or the central dispute. No commentary, political messaging or description of coverage. With its sources.
+- headline: what happened, in plain words, under 80 characters, simple subject-verb-object; for an event in which people died, say how many, sentence case, no colon subtitle, no clickbait, no quote marks unless quoting.
+- dek: one sentence for the home page, under 30 words, that stands alone and covers what the headline says (including any claim it names), in this order: what happened, why (the reason or trigger, if a source gives it), and the concrete consequence or the central dispute. No commentary, political messaging or description of coverage. With its sources.
 - why: one sentence on a specific consequence the sources state as fact (a policy that changes, a number of people affected, a decision now due), not general significance, not a forecast, not a repeat of the summary and not a detail of the event itself (a casualty count belongs in the summary). Never use "could", "may", "might" or "likely". If the sources don't give one, give an empty text and no sources.
 - summary: 2 to 4 sentences, under 90 words in total, about the event itself. Every sentence must make sense on its own and not contradict itself or another sentence ("tied, each trailing the other" is wrong; "polls showed a tie" is right). Each sentence must make sense on its own: name the person or body ("Ukraine's defense ministry"), never refer back with "the ministry" or "he". Every fact the headline states (an arrest, a death toll, a dollar amount) must also be in the summary. The first sentence states what the headline says happened and adds a detail the headline doesn't have (where, who, how many, or what triggered it); the rest give the most important context: the stakes, what each side says, or what is still unknown. Don't describe how outlets covered it or quote labels one outlet used; that belongs in differences.
 - differences: at most 2, each listing sources from every side of the difference. Include one only if the accounts differ on who did it, whether it is confirmed or alleged, who is to blame, or how many/how much. kind is "fact" (claims that cannot both be true: 11 vs 12 injured, yes, but "14 years" vs "over a decade" is not) or "framing" (the same event described so that a reader would come away believing something different; quote the words). Different aspects of the same event, wording nits, rounding and one outlet adding a detail are not differences. Leave the list empty when the accounts don't really differ: that is common and fine. Never invent a disagreement and never say which outlet is right. List each difference's sources so the first two are the clearest example, one of each side, and their own headline or description must show the difference as you describe it; if no source text shows it, leave the difference out.
@@ -150,6 +150,16 @@ export const clean = (s: string) =>
     .replace(FORMER, (_m, pre: string, former: string | undefined, name: string) => `${pre}${former ?? (pre === "" ? "Former" : "former")} President ${name}`);
 
 const contentWords = (s: string) => new Set(s.toLowerCase().match(/[a-z0-9']{4,}/g) ?? []);
+
+/**
+ * A card line has to be about the headline's event: one that shares fewer than two content words with the
+ * headline ("The ACLU also moved to intervene") starts halfway through the story, so the card uses the first
+ * summary sentence instead.
+ */
+export function offEvent(dek: string, headline: string): boolean {
+  const h = contentWords(headline);
+  return [...contentWords(dek)].filter((w) => h.has(w)).length < 2;
+}
 
 /** A "why it matters" line that mostly repeats a summary sentence adds nothing; drop it. */
 export function repeats(why: string, sentences: readonly string[]): boolean {
@@ -263,7 +273,8 @@ export function validateWriteup(raw: unknown, items: readonly SourceItem[]): Wri
   const topic = TOPIC_IDS.find((t) => t === r.topic) ?? "world";
   const why = one(r.why);
   const keptWhy = why && !speculative(why) && !repeats(why.text, kept.map((s) => s.text)) ? why : null;
-  return { topic, headline, dek: one(r.dek), why: keptWhy, summary: kept.slice(0, 4), differences, offTopic: [...offTopic].map((l) => byLabel.get(l)!.id) };
+  const dek = one(r.dek);
+  return { topic, headline, dek: dek && !offEvent(dek.text, headline) ? dek : null, why: keptWhy, summary: kept.slice(0, 4), differences, offTopic: [...offTopic].map((l) => byLabel.get(l)!.id) };
 }
 
 /** One model call per story. Throws on transport errors; returns null when the reply can't be used. */

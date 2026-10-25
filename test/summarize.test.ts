@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { aboutCoverage, clean, extractJson, repeats, replyText, sourceBlock, speculative, splitInline, summarize, validateWriteup, type AiRunner, type SourceItem } from "../src/build/summarize";
+import { aboutCoverage, clean, offEvent, extractJson, repeats, replyText, sourceBlock, speculative, splitInline, summarize, validateWriteup, type AiRunner, type SourceItem } from "../src/build/summarize";
 
 const items: SourceItem[] = [
   { id: "i1", outletId: "vox", title: "Senate passes funding bill", snippet: "The vote was 52-48." },
@@ -232,5 +232,13 @@ describe("aboutCoverage", () => {
     expect(aboutCoverage("Several media highlight U.S. involvement in the race.")).toBe(true);
     expect(aboutCoverage("A shooting injured 11 or 12 people, depending on the outlet.")).toBe(false);
     expect(aboutCoverage("Fox News reported that the toll rose to nine.")).toBe(false);
+  });
+});
+
+describe("offEvent", () => {
+  it("flags a card line that doesn't share the headline's event", () => {
+    const headline = "Trump administration sues to block Alaska Senate certification if incumbent loses";
+    expect(offEvent("The ACLU and Common Cause also moved to intervene.", headline)).toBe(true);
+    expect(offEvent("The Justice Department sued to block certification of Alaska's Senate race.", headline)).toBe(false);
   });
 });

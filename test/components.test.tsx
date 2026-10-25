@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { coverageOf } from "../src/build/select";
 import type { Source, Story } from "../src/editions";
 import { outletById, SIDE_SIZE } from "../src/outlets";
-import { badge, orderedSources, readFirst, Scale, StoryCard, strongest } from "../src/web/components";
+import { badge, kindLabel, orderedSources, readFirst, Scale, StoryCard, strongest } from "../src/web/components";
 
 const OUTLET_IDS = ["fox", "vox", "axios", "nyt", "nypost", "pbs"];
 const sources = new Map<string, Source>(
@@ -99,6 +99,17 @@ describe("card helpers", () => {
   it("quotes the first two cited sources, which the write-up lists as its clearest example", () => {
     expect(strongest(["i2", "i0", "i1"], sources).map((s) => s.outlet.id)).toEqual(["axios", "fox"]);
     expect(strongest(["missing", "i3"], sources).map((s) => s.outlet.id)).toEqual(["nyt"]);
+  });
+
+  it("labels a count difference by time when the reports are hours apart", () => {
+    const timed = new Map(sources);
+    timed.set("i0", { ...sources.get("i0")!, publishedAt: 0 });
+    timed.set("i1", { ...sources.get("i1")!, publishedAt: 3 * 3600_000 });
+    timed.set("i2", { ...sources.get("i2")!, publishedAt: 1800_000 });
+    expect(kindLabel("fact", ["i1", "i0"], timed)).toBe("Earlier and later reports");
+    expect(kindLabel("fact", ["i0", "i2"], timed)).toBe("Facts differ");
+    expect(kindLabel("framing", ["i1", "i0"], timed)).toBe("Framing");
+    expect(strongest(["i1", "i0"], timed).map((x) => x.id)).toEqual(["i0", "i1"]);
   });
 
   it("quotes the source's description under its headline on the story page", async () => {
