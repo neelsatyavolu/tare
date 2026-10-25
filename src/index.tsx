@@ -28,6 +28,8 @@ import { readFirst } from "./read-first";
 import { isEditionChoice } from "./slots";
 import { clusterSample, rewriteSample } from "./admin-debug";
 import { api } from "./api/v1";
+import { apnsConfig, pushAll } from "./push/apns";
+import { devicesForBreaking, parseDevice } from "./push/devices";
 import { parseReport, recentReports, REPORT_MAX, REPORT_MIN, saveReport } from "./reports";
 import { displayImage } from "./build/photos";
 
@@ -473,6 +475,21 @@ app.get("/admin/debug/clusters", async (c) => {
   const t = Number(c.req.query("t"));
   if (!(t > 0.5 && t < 1)) return c.json({ error: "t must be between 0.5 and 1" }, 400);
   return c.json(await clusterSample(c.env, t));
+});
+
+// Test push: POST /admin/push/test with {"token": "<hex>", "environment": "sandbox"|"production"} or {"all": true}
+// and the admin token. Sends a "Tare test" alert and returns what APNs said (a dead token is removed).
+app.post("/admin/push/test", async (c) => {
+  const token = c.env.ADMIN_TOKEN;
+  const given = (c.req.header("authorization") ?? "").replace(/^Bearer /, "");
+  if (!token || !timingSafeEqual(given, token)) return c.json({ error: "unauthorized" }, 401);
+  const body = (await c.req.json().catch(() => ({}))) as { token?: unknown; environment?: unknown; all?: unknown };
+  const devices = body.all === true
+    ? await devicesForBreaking(c.env.DB)
+    : [parseDevice({ token: body.token, environment: body.environment })].filter((d): d is NonNullable<typeof d> => d !== null);
+  if (devices.length === 0) return c.json({ error: "no device" }, 400);
+  const report = await pushAll(c.env.DB, apnsConfig(c.env), devices, { title: "Tare test", body: "Push notifications are working.", thread: "test", ttl: 600 });
+  return c.json({ configured: apnsConfig(c.env) !== null, devices: devices.length, report });
 });
 
 // Model comparison: POST /admin/debug/rewrite?story=<id>&model=<workers ai model> with the admin token. Nothing is saved.
