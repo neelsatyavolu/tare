@@ -26,7 +26,7 @@ import {
 import { CSS } from "./web/styles";
 import { readFirst } from "./read-first";
 import { isEditionChoice } from "./slots";
-import { rewriteSample } from "./admin-debug";
+import { clusterSample, rewriteSample } from "./admin-debug";
 import { parseReport, recentReports, REPORT_MAX, REPORT_MIN, saveReport } from "./reports";
 import { displayImage } from "./build/photos";
 
@@ -459,6 +459,16 @@ app.post("/admin/stories/:id/correction", async (c) => {
   const note = ((await c.req.json().catch(() => ({}))) as { note?: unknown }).note;
   if (typeof note !== "string" || note.trim().length < 5 || note.length > 500) return c.json({ error: "note must be 5-500 characters" }, 400);
   return (await setCorrection(c.env.DB, c.req.param("id"), note.trim(), Date.now())) ? c.json({ ok: true }) : c.json({ error: "no such story" }, 404);
+});
+
+// Clustering at a threshold: GET /admin/debug/clusters?t=0.82 with the admin token. Nothing is saved.
+app.get("/admin/debug/clusters", async (c) => {
+  const token = c.env.ADMIN_TOKEN;
+  const given = (c.req.header("authorization") ?? "").replace(/^Bearer /, "");
+  if (!token || !timingSafeEqual(given, token)) return c.json({ error: "unauthorized" }, 401);
+  const t = Number(c.req.query("t"));
+  if (!(t > 0.5 && t < 1)) return c.json({ error: "t must be between 0.5 and 1" }, 400);
+  return c.json(await clusterSample(c.env, t));
 });
 
 // Model comparison: POST /admin/debug/rewrite?story=<id>&model=<workers ai model> with the admin token. Nothing is saved.
