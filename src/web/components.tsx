@@ -1,7 +1,7 @@
 import { createContext, useContext, type Child, type FC } from "hono/jsx";
 import type { Subscriber } from "../subscribers";
 import { leanReading, type Coverage } from "../build/select";
-import { orderedSources, type Source, type Story } from "../editions";
+import { cardLine, orderedSources, type Source, type Story } from "../editions";
 
 export { orderedSources } from "../editions";
 import { easternTime, longDate } from "../format";
@@ -184,7 +184,7 @@ export const StoryCard: FC<{ story: Story; sources: Map<string, Source>; lead?: 
     </>
   );
   const differences = story.differences.length === 0 ? (
-    page ? <p class="no-differ">No differences between the accounts to show side by side.</p> : null
+    null
   ) : (
     // On the front, open only when the accounts can't both be true; framing differences stay a click away.
     <details class="differ" open={page || (lead && story.differences.some((d) => d.kind === "fact"))}>
@@ -313,7 +313,7 @@ export const CompactStory: FC<{ story: Story; sources: Map<string, Source> }> = 
       <div class="compact-body">
         <Kicker story={story} tag />
         <h3><a href={href}>{story.headline}</a></h3>
-        {(story.dek ?? story.summary[0]) ? <p class="dek">{(story.dek ?? story.summary[0])!.text}</p> : null}
+        {cardLine(story) ? <p class="dek">{cardLine(story)}</p> : null}
       </div>
     </article>
   );
@@ -364,6 +364,8 @@ export const IntroStrip: FC = () => {
         <button class="primary" type="submit">Email me the edition</button>
         <a class="meta" href="/sample-email">See a sample</a>
       </form>
+      {/* On phones the form waits at the end of the edition, so the news comes first. */}
+      <a class="intro-more" href="#subscribe">Get it by email</a>
     </div>
   );
 };

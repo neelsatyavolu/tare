@@ -47,13 +47,14 @@ export const EditionPage: FC<{ edition: Edition; stories: Story[]; sources: Sour
         {blindspots.length > 0 ? <a href="#blindspots">Blindspots</a> : null}
         {byTopic.map((g) => <a href={`#${g.topic.id}`}>{g.topic.name}</a>)}
       </nav>
-      <HowToRead />
       {lead ? (
         <Section title="Front page" id="front">
           <StoryCard story={lead} sources={sources} lead />
           <div class="compact-grid">{restFront.map((s) => <CompactStory story={s} sources={sources} />)}</div>
         </Section>
       ) : null}
+      {/* After the front page, so the news comes first; readers who want the key are one tap away. */}
+      <HowToRead />
       {blindspots.length > 0 ? (
         <Section title="Blindspots" id="blindspots">
           <div class="compact-grid">{blindspots.map((s) => <CompactStory story={s} sources={sources} />)}</div>

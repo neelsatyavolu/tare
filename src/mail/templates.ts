@@ -1,4 +1,4 @@
-import type { Edition, Story } from "../editions";
+import { cardLine, type Edition, type Story } from "../editions";
 import { frontOrder } from "../build/select";
 import { coverageLine, esc, longDate } from "../format";
 import { OUTLETS } from "../outlets";
@@ -66,14 +66,17 @@ export type Digest = { front: Story[]; yours: Story[]; blindspots: Story[]; also
 
 /**
  * Everyone gets the front page; then up to 8 stories from their topics; then up to 2 blindspots; then, as
- * one-line "Also today" links, the 3 highest-scoring stories (front-page score) none of those included.
+ * one-line "Also today" links, the 2 highest-scoring stories (front-page score) none of those included, plus the most widely covered one left.
  */
 export function digestFor(stories: readonly Story[], topics: readonly TopicId[]): Digest {
   const front = stories.filter((s) => s.front);
   const yours = stories.filter((s) => !s.front && topics.includes(s.topic)).slice(0, 8);
   const blindspots = stories.filter((s) => s.blindspot && !front.includes(s) && !yours.includes(s)).slice(0, 2);
   const taken = new Set([...front, ...yours, ...blindspots]);
-  const also = stories.filter((s) => !taken.has(s)).sort(frontOrder).slice(0, 3);
+  const rest = stories.filter((s) => !taken.has(s));
+  const top = [...rest].sort(frontOrder).slice(0, 2);
+  const widest = rest.filter((s) => !top.includes(s)).sort((a, b) => b.coverage.total - a.coverage.total)[0];
+  const also = widest ? [...top, widest] : top;
   return { front, yours, blindspots, also };
 }
 
@@ -85,19 +88,18 @@ function photoHtml(p: EmailPhoto, href: string): string {
 }
 
 /**
- * Front-page stories get the same summary sentences as the site (at most two), so the email never tells a
- * different story; the rest get the checked one-line dek, or the summary for stories written before deks.
+ * The same text as the site, so the email never tells a different story: the lead gets its full summary,
+ * like the lead on the site; every other story gets its card line.
  */
-const lineOf = (s: Story) =>
-  s.front || !s.dek ? s.summary.slice(0, s.front ? 2 : undefined).map((x) => x.text).join(" ") : s.dek.text;
+const lineOf = (s: Story, lead = false) => (lead ? s.summary.map((x) => x.text).join(" ") : cardLine(s));
 
-function storyHtml(s: Story, appUrl: string, photo?: EmailPhoto): string {
+function storyHtml(s: Story, appUrl: string, photo?: EmailPhoto, lead = false): string {
   const url = `${appUrl}/s/${s.id}`;
   const label = s.blindspot ? `Possible blindspot · ${topicName(s.topic)}` : topicName(s.topic);
   return `<tr><td style="padding:20px 0;border-bottom:1px solid ${C.rule}">
 ${photo ? photoHtml(photo, url) : ""}${kicker(label)}
 <a href="${esc(url)}" style="font:400 24px/1.2 ${SERIF};color:${C.ink};text-decoration:none">${esc(s.headline)}</a>
-<p style="margin:10px 0 10px;font:17px/1.55 ${SERIF};color:${C.ink}">${esc(lineOf(s))}</p>
+<p style="margin:10px 0 10px;font:17px/1.55 ${SERIF};color:${C.ink}">${esc(lineOf(s, lead))}</p>
 <p style="margin:0;font:12px/1.5 ${MONO};color:${C.ink3}">${esc(coverageLine(s.coverage))}${s.differences.length ? ` · <a href="${esc(url)}" style="color:${C.brass}">How accounts differ</a>` : ""}</p>
 </td></tr>`;
 }
@@ -126,7 +128,7 @@ export function digestEmail(
   const shown = parts.filter(([, list]) => list.length > 0);
 
   const body = `<tr><td style="padding:10px 0 0;text-align:center;font:12px/1.4 ${MONO};letter-spacing:.08em;text-transform:uppercase;color:${C.ink3}">${esc(longDate(edition.date))}</td></tr>
-${shown.map(([title, list]) => section(title) + list.map((s) => storyHtml(s, appUrl, s.front ? photos.get(s.id) : undefined)).join("")).join("")}
+${shown.map(([title, list]) => section(title) + list.map((s) => storyHtml(s, appUrl, s.front ? photos.get(s.id) : undefined, s === lead)).join("")).join("")}
 ${d.also.length ? section("Also today") + d.also.map((s) => alsoHtml(s, appUrl)).join("") : ""}
 <tr><td style="padding:24px 0;font:17px/1.55 ${SERIF};color:${C.ink2}">That's the edition. <a href="${esc(`${appUrl}/e/${edition.date}`)}" style="color:${C.brass}">Read it on the web</a> with every source.</td></tr>`;
   const footer = `You get this because you subscribed to Tare. <a href="${esc(manageUrl)}" style="color:${C.ink3}">Change topics or unsubscribe</a>. Summaries are written by AI from headlines and descriptions only; <a href="${esc(`${appUrl}/method`)}" style="color:${C.ink3}">how it works</a>.`;

@@ -91,6 +91,9 @@ export async function sourcesFor(db: D1Database, stories: readonly Story[]): Pro
   return out;
 }
 
+/** The one line a story card shows, on the site and in the email alike: the checked dek, or the first summary sentence. */
+export const cardLine = (s: Story): string => (s.dek ?? s.summary[0])?.text ?? "";
+
 /** A story's sources in display order (left, center, right, then by outlet), which fixes the citation numbers. */
 export function orderedSources(story: Story, sources: Map<string, Source>): Source[] {
   const order: Record<Side, number> = { left: 0, center: 1, right: 2 };
