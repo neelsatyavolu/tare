@@ -24,7 +24,7 @@ const CLASSIFY_LIMIT = 120;
 const FRONT_SIZE = 6;
 const CONCURRENCY = 10;
 /** New write-ups per run. The first run of the day uses most of it; later runs only write up new events. */
-const WRITE_BUDGET = 32;
+const WRITE_BUDGET = 48;
 const LOCK_MS = 14 * 60_000;
 /** No new rewrites start after this long, so a build finishes inside the 15-minute cron limit; the rest wait an hour. */
 /** A cron run gets 15 minutes; the build must save before then (a killed build saves nothing). */
