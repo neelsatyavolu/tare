@@ -6,6 +6,7 @@ import { outletById, sideOf } from "../outlets";
 import { decodeVector, embedPending } from "./embed";
 import { matchStories, needsRewrite } from "./match";
 import { pickImage } from "./photos";
+import { withRateLimitRetry } from "./ai-retry";
 import { blindspotOf, coverageOf, freshness, frontOrder, frontPage, pickBalanced, rankGroups, SECTION_MIN_OUTLETS, sectionOrder, type Blindspot, type Candidate, type Coverage } from "./select";
 import { summarize, WRITEUP_VERSION, type AiRunner, type Cited, type Difference, type SourceItem } from "./summarize";
 
@@ -22,7 +23,8 @@ const MIN_ITEMS = 40;
 /** Groups sent to the section classifier; the rest are too thinly covered to make the edition. */
 const CLASSIFY_LIMIT = 120;
 const FRONT_SIZE = 6;
-const CONCURRENCY = 10;
+/** Write-ups at a time; 10 tripped Workers AI's per-minute request limit for the write-up model. */
+const CONCURRENCY = 6;
 /** New write-ups per run. The first run of the day uses most of it; later runs only write up new events. */
 const WRITE_BUDGET = 48;
 const LOCK_MS = 14 * 60_000;
@@ -293,7 +295,8 @@ async function lock(db: D1Database, date: string, now: number): Promise<boolean>
  * that drop out stay in the database, inactive, so links to them keep working.
  */
 /** `deadlineAt` is when the whole run must be done; a cron run passes its own start + RUN_BUDGET_MS, so time spent pulling feeds counts. */
-export async function buildEdition(db: D1Database, ai: AiRunner, now = Date.now(), opts: { force?: boolean; deadlineAt?: number } = {}): Promise<BuildReport> {
+export async function buildEdition(db: D1Database, rawAi: AiRunner, now = Date.now(), opts: { force?: boolean; deadlineAt?: number } = {}): Promise<BuildReport> {
+  const ai = withRateLimitRetry(rawAi);
   const date = utcDate(now);
   const deadlineAt = opts.deadlineAt ?? Date.now() + RUN_BUDGET_MS;
   const empty = { date, items: 0, candidates: 0, stories: 0, written: 0, kept: 0 };
