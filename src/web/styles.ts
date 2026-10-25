@@ -73,10 +73,11 @@ nav.jump a:hover{color:var(--ink);border-bottom-color:var(--ink)}
 .compact:not(:has(.thumb)){grid-template-columns:1fr}
 .compact .thumb img{display:block;width:96px;height:96px;object-fit:cover;background:var(--rule)}
 .compact .kicker{margin-bottom:4px;font-size:12px}
-.compact h3{font-size:21px;line-height:1.2;margin:0 0 4px}
+/* Card headlines in semibold text serif: Caslon Display is a thin display cut that reads lighter than the line under it at this size. */
+.compact h3{font:600 20px/1.25 var(--font-serif);margin:0 0 6px;letter-spacing:-.005em}
 .compact h3 a{color:var(--ink);text-decoration:none}
 .compact h3 a:hover{text-decoration:underline;text-decoration-thickness:1px}
-.compact .dek{margin:0;font-size:16px;line-height:1.45;color:var(--ink-2)}
+.compact .dek{margin:0;font-size:15px;line-height:1.45;color:var(--ink-2)}
 .tag{color:var(--ink)}
 .kicker .counts{font-weight:400;letter-spacing:.04em;color:var(--ink-3)}
 .why-matters{max-width:66ch;border-left:2px solid var(--brass);padding-left:12px;color:var(--ink)}
@@ -258,7 +259,8 @@ nav.jump{flex-wrap:nowrap;overflow-x:auto;white-space:nowrap;padding-bottom:4px;
   .compact{grid-template-columns:1fr 72px;gap:12px}
   .compact .thumb{order:2}
   .compact .thumb img{width:72px;height:72px}
-  .compact h3{font-size:20px}
+  .compact h3{font-size:19px}
+  .compact .dek{font-size:14.5px}
   .compact .kicker .counts{display:block}
   .intro-strip{padding:12px}
   .inline-subscribe input[type=email]{width:100%}
