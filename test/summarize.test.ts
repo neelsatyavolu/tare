@@ -51,6 +51,26 @@ describe("validateWriteup", () => {
     expect(validateWriteup(null, items)).toBeNull();
   });
 
+  it("drops a count difference one source calls an update, and same-side framing pairs", () => {
+    const toll: SourceItem[] = [
+      { id: "t1", outletId: "npr", title: "Gunmen kill 7 at funeral", snippet: "" },
+      { id: "t2", outletId: "fox", title: "Death toll rises to 9 in church attack", snippet: "" },
+      { id: "t3", outletId: "nypost", title: "Muslim terrorists murder seven", snippet: "" },
+      { id: "t4", outletId: "vox", title: "Funeral attack kills nine", snippet: "" },
+    ];
+    const w = validateWriteup({
+      ...good,
+      summary: [{ text: "Gunmen attacked a funeral.", sources: ["s1"] }],
+      differences: [
+        { kind: "fact", text: "Seven or nine killed.", sources: ["s1", "s2"] },
+        { kind: "framing", text: "Two right-leaning outlets word it differently.", sources: ["s2", "s3"] },
+        { kind: "fact", text: "Seven or nine killed.", sources: ["s1", "s4"] },
+      ],
+      off_topic: [],
+    }, toll)!;
+    expect(w.differences.map((d) => d.cites)).toEqual([["t1", "t4"]]);
+  });
+
   it("falls back to world for an unknown topic", () => {
     expect(validateWriteup({ ...good, topic: "gossip" }, items)?.topic).toBe("world");
   });
@@ -61,6 +81,7 @@ describe("speculative", () => {
     expect(speculative({ text: "It could influence voters ahead of the midterms.", cites: ["a"] })).toBe(true);
     expect(speculative({ text: "The plant may add about 4,500 jobs.", cites: ["a"] })).toBe(true);
     expect(speculative({ text: "About 4,500 people will work there.", cites: ["a"] })).toBe(false);
+    expect(speculative({ text: "The result will shape U.S. influence in Latin America.", cites: ["a"] })).toBe(true);
     // Vague significance reads as a hedge too.
     expect(speculative({ text: "The outcome is seen as influencing U.S. influence in Latin America.", cites: ["a"] })).toBe(true);
     expect(speculative(null)).toBe(false);

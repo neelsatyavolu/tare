@@ -188,7 +188,7 @@ export const StoryCard: FC<{ story: Story; sources: Map<string, Source>; lead?: 
               <ul class="quoted">
                 {strongest(d.cites, sources).map((s) => (
                   <li>
-                    <span class="outlet">{s.outlet.name} · {LEAN_LABEL[s.outlet.lean]}</span> <a href={s.url} rel="noopener noreferrer nofollow" target="_blank">{s.title}</a>
+                    <span class="outlet">{s.outlet.name} · {LEAN_LABEL[s.outlet.lean]}{s.publishedAt ? ` · ${easternTime(s.publishedAt)}` : ""}</span> <a href={s.url} rel="noopener noreferrer nofollow" target="_blank">{s.title}</a>
                     {/* The description often holds the detail that differs, so it's quoted too. */}
                     {s.snippet ? <q class="snippet">{excerpt(s.snippet)}</q> : null}
                   </li>
@@ -238,11 +238,12 @@ const Kicker: FC<{ story: Story; tag?: boolean }> = ({ story, tag = false }) => 
 
 const excerpt = (s: string) => (s.length > 220 ? `${s.slice(0, 220).replace(/\s+\S*$/, "")}…` : s);
 
-/** One marker per card: "Updated" when the write-up was redone later in the day, else "New" for the first hours. */
-export function badge(story: Story, now = Date.now()): "New" | "Updated" | null {
-  if (story.writtenAt && story.firstSeenAt && story.writtenAt - story.firstSeenAt > 3600_000 && now - story.writtenAt < NEW_FOR_MS) return "Updated";
-  if (story.firstSeenAt && now - story.firstSeenAt < NEW_FOR_MS) return "New";
-  return null;
+/**
+ * "New" for a story's first hours. There's no "Updated" marker: a rewrite isn't always a new development, and a
+ * marker that can't say what changed misleads returning readers. Quoted sources show their publish times instead.
+ */
+export function badge(story: Story, now = Date.now()): "New" | null {
+  return story.firstSeenAt && now - story.firstSeenAt < NEW_FOR_MS ? "New" : null;
 }
 
 /** At most two quoted sources per difference: the first two cited, which the write-up lists as its clearest example. */

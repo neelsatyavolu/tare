@@ -75,6 +75,12 @@ describe("leanReading", () => {
     expect(leanReading(coverageOf([L[0]!, L[1]!, L[2]!])).key).toBe("only-left");
   });
 
+  it("says a side covered none of it when the rest of the press did, even with few on the other side", () => {
+    // The Alaska case: L 2 · C 7 · R 0.
+    expect(leanReading(coverageOf([L[0]!, L[1]!, ...C.slice(0, 7)])).key).toBe("no-right");
+    expect(leanReading(coverageOf([L[0]!, C[0]!, C[1]!])).key).toBe("thin");
+  });
+
   it("says the center led when center outlets outnumber each side", () => {
     // The review's California ballots case: L 3 · C 4 · R 1 is not "more left".
     const r = leanReading(coverageOf([L[0]!, L[1]!, L[2]!, C[0]!, C[1]!, C[2]!, C[3]!, R[0]!]));

@@ -81,10 +81,10 @@ describe("Scale", () => {
 });
 
 describe("card helpers", () => {
-  it("shows one badge: Updated over New", () => {
+  it("marks only new stories, not rewrites", () => {
     const now = 10 * 3600_000;
     expect(badge({ ...story, firstSeenAt: now - 600_000 }, now)).toBe("New");
-    expect(badge({ ...story, firstSeenAt: now - 2 * 3600_000, writtenAt: now - 600_000 }, now)).toBe("Updated");
+    expect(badge({ ...story, firstSeenAt: now - 4 * 3600_000, writtenAt: now - 600_000 }, now)).toBeNull();
     expect(badge({ ...story, firstSeenAt: now - 9 * 3600_000 }, now)).toBeNull();
   });
 

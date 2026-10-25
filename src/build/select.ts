@@ -59,8 +59,14 @@ export type LeanReading = {
  * that side had at least 3 outlets and at least twice as many as the other (in shares too), and it says
  * plainly when there's too little to compare. It describes coverage, never the story.
  */
+/** With this many rated outlets on the other side and the center, a side's silence is labeled even if the counts are small. */
+const ZERO_SIDE_MIN = 6;
+
 export function leanReading(c: Coverage): LeanReading {
   const thin: LeanReading = { key: "thin", sentence: "Too few left- or right-leaning outlets to compare", tag: "Too few to compare" };
+  // One side at zero while the other side and the center carried it is worth saying even with few on that side.
+  if (c.right === 0 && c.left > 0 && c.left + c.center >= ZERO_SIDE_MIN) return { key: "no-right", sentence: "No right-leaning outlets in Tare's list covered it", tag: "No right-leaning coverage" };
+  if (c.left === 0 && c.right > 0 && c.right + c.center >= ZERO_SIDE_MIN) return { key: "no-left", sentence: "No left-leaning outlets in Tare's list covered it", tag: "No left-leaning coverage" };
   if (c.left < 3 && c.right < 3) return thin;
   // With no center coverage either, it's one side's story rather than something the other side skipped.
   if (c.right >= 3 && c.left === 0 && c.center === 0) return { key: "only-right", sentence: "Only right-leaning outlets in Tare's list covered it", tag: "Right-leaning outlets only" };
@@ -188,5 +194,5 @@ export const FRONT_EXTRA = 2;
 export const frontScore = (s: Weighed) => (s.importance ?? 2) + Math.min(1.5, Math.log2(Math.max(1, s.coverage.total)) / 3);
 export const frontOrder = (a: Weighed, b: Weighed) => frontScore(b) - frontScore(a) || b.coverage.total - a.coverage.total;
 
-/** Section order: what the most outlets covered first, then importance on ties. */
-export const sectionOrder = (a: Weighed, b: Weighed) => b.coverage.total - a.coverage.total || (b.importance ?? 2) - (a.importance ?? 2);
+/** Section order: the same consequence-first score as the front page, so a wide but minor story can't lead a section. */
+export const sectionOrder = frontOrder;
