@@ -135,9 +135,11 @@ describe("card helpers", () => {
 });
 
 describe("cardLine", () => {
-  it("shows no line rather than one that only restates the headline", () => {
+  it("replaces a line that only restates the headline with the next one that stands alone, or nothing", () => {
     const echo: Story = { ...story, dek: { text: "Something happened.", cites: ["i0"] } };
-    expect(cardLine(echo)).toBe("");
+    expect(cardLine(echo)).toBe("Everyone reported it.");
+    const followOn: Story = { ...echo, summary: [{ text: "Officials also responded.", cites: ["i0"] }] };
+    expect(cardLine(followOn)).toBe("");
     expect(cardLine({ ...story, dek: { text: "A fresh detail.", cites: ["i0"] } })).toBe("A fresh detail.");
   });
 });

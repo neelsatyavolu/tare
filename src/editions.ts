@@ -91,11 +91,7 @@ export async function sourcesFor(db: D1Database, stories: readonly Story[]): Pro
   return out;
 }
 
-/**
- * The one line a story card shows, on the site and in the email alike: the checked dek, or the first summary
- * sentence. When that line only restates the headline (the write-up's fallback), the card shows the headline
- * alone: the next sentence may be a reaction, which would read as the event.
- */
+/** A sentence that says no more than the headline (the write-up's last-resort opening). */
 export const restatesHeadline = (s: Story, text: string) => {
   const same = (a: string) => a.toLowerCase().replace(/[^a-z0-9]/g, "");
   return same(text) === same(s.headline);
@@ -107,9 +103,18 @@ export function shownSummary(s: Story): Story["summary"] {
   return rest.length > 0 ? rest : s.summary;
 }
 
+/** A sentence that reads as a follow-on to something not shown ("have also intervened", "defended the same ad"). */
+export const CONTINUATION = /\b(also|the same|had earlier|meanwhile|separately|as well|in response)\b/i;
+
+/**
+ * The one line a story card shows, on the site and in the email alike: the checked dek, or the first summary
+ * sentence. When that line only restates the headline, the card shows the next sentence that stands on its own,
+ * or nothing: a follow-on would read as the event.
+ */
 export function cardLine(s: Story): string {
   const line = (s.dek ?? s.summary[0])?.text ?? "";
-  return restatesHeadline(s, line) ? "" : line;
+  if (!restatesHeadline(s, line)) return line;
+  return s.summary.find((x) => !restatesHeadline(s, x.text) && !CONTINUATION.test(x.text))?.text ?? "";
 }
 
 /** A story's sources in display order (left, center, right, then by outlet), which fixes the citation numbers. */
