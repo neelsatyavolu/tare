@@ -13,6 +13,7 @@ import { parseFeed } from "../.tmp/rss.mjs";
 const UA = "Mozilla/5.0 (compatible; TareBot/0.1; +https://tare.news/method)";
 const FRESH_MS = 72 * 3600_000;
 const MAX_FEEDS = 10;
+const COMMENTS_FEED = /\/comments\/feed\b/i;
 const COMMON_PATHS = ["/feed", "/feed/", "/rss", "/rss.xml", "/feeds/all.rss", "/index.xml", "/rss/index.xml", "/feed/rss2"];
 
 const extra = JSON.parse(readFileSync("data/outlets-extra.json", "utf8"));
@@ -49,7 +50,7 @@ async function checkFeed(url, now) {
   const dated = items.filter((i) => i.publishedAt > 0);
   if (dated.length / items.length < 0.9) return null;
   const fresh = dated.filter((i) => now - i.publishedAt < FRESH_MS).length;
-  return fresh > 0 ? { url, fresh } : null;
+  return fresh > 0 ? { url, fresh, links: items.map((i) => i.url) } : null;
 }
 
 function homepageLinks(html, base) {
@@ -85,16 +86,22 @@ async function discover(domain, now) {
   const preset = known.get(domain)?.feeds ?? extraByDomain.get(domain)?.feeds ?? extra.presets?.[domain] ?? [];
   const found = home ? homepageLinks(home.text, home.url) : [];
   const guesses = COMMON_PATHS.map((p) => `https://${host}${p}`);
-  const candidates = [...new Set([...preset, ...found, ...guesses])];
+  // WordPress advertises a feed of reader comments next to the posts feed; those aren't headlines.
+  const candidates = [...new Set([...preset, ...found, ...guesses])].filter((u) => preset.includes(u) || !COMMENTS_FEED.test(u));
 
   const ok = [];
+  const seen = new Set();
   for (const url of candidates) {
     if (ok.length >= MAX_FEEDS) break;
     // Hand-picked section feeds are all tried; for the rest one working feed is enough.
     if (!preset.includes(url) && ok.length > 0 && ok.some((f) => !preset.includes(f.url))) continue;
     // One retry: busy servers sometimes refuse a burst of requests.
     const feed = (await checkFeed(url, now)) ?? (await new Promise((r) => setTimeout(r, 2000)).then(() => checkFeed(url, now)));
-    if (feed) ok.push(feed);
+    // A found feed whose items are all in feeds already kept is the same feed at another address (no www, a
+    // trailing slash); it would only add a fetch every hour.
+    if (!feed || (!preset.includes(url) && feed.links.every((l) => seen.has(l)))) continue;
+    ok.push(feed);
+    for (const l of feed.links) seen.add(l);
   }
   return { name: home ? siteName(home.text) : null, feeds: ok.map((f) => f.url) };
 }

@@ -7,10 +7,11 @@ import { WRITEUP_VERSION, type AiRunner } from "../src/build/summarize";
 const NOW = Date.parse("2026-10-24T10:15:00Z");
 
 // Three events, each covered across the spectrum, plus filler that matches nothing.
-const EVENTS: Record<string, { axis: number; outlets: string[]; topic: string }> = {
-  senate: { axis: 0, outlets: ["vox", "nyt", "npr", "bbc", "pbs", "fox", "nypost", "breitbart"], topic: "politics" },
-  quake: { axis: 1, outlets: ["guardian", "abc", "bbc", "upi", "washtimes", "dailywire"], topic: "world" },
-  merger: { axis: 2, outlets: ["fox", "nypost", "dailycaller", "federalist", "dailywire", "breitbart", "washtimes", "washexam", "natreview", "freebeacon", "cnbc"], topic: "business" },
+// `subtopic` is what the fake classifier answers; "f1" under world is a wrong answer the build must drop.
+const EVENTS: Record<string, { axis: number; outlets: string[]; topic: string; subtopic?: string }> = {
+  senate: { axis: 0, outlets: ["vox", "nyt", "npr", "bbc", "pbs", "fox", "nypost", "breitbart"], topic: "politics", subtopic: "congress" },
+  quake: { axis: 1, outlets: ["guardian", "abc", "bbc", "upi", "washtimes", "dailywire"], topic: "world", subtopic: "f1" },
+  merger: { axis: 2, outlets: ["fox", "nypost", "dailycaller", "federalist", "dailywire", "breitbart", "washtimes", "washexam", "natreview", "freebeacon", "cnbc"], topic: "business", subtopic: "companies" },
   // Not seeded at first: breaks later in the day.
   storm: { axis: 3, outlets: ["guardian", "bbc", "fox"], topic: "climate" },
 };
@@ -56,7 +57,7 @@ function fakeAi(opts: { failSummaries?: boolean } = {}): AiRunner {
         const map = Object.fromEntries(user0!.split("\n").map((line) => {
           const [label, rest] = line.split(": ");
           const key = Object.keys(EVENTS).find((k) => rest!.startsWith(k));
-          return [label, { section: key ? EVENTS[key]!.topic : "world", importance: key ? 4 : 2 }];
+          return [label, { section: key ? EVENTS[key]!.topic : "world", subtopic: key ? (EVENTS[key]!.subtopic ?? null) : null, importance: key ? 4 : 2 }];
         }));
         return { response: JSON.stringify(map) };
       }
@@ -148,6 +149,19 @@ describe("buildEdition", () => {
 
     const edition = await env.DB.prepare("SELECT number, status FROM editions WHERE date = ?").bind("2026-10-24").first();
     expect(edition).toEqual({ number: 1, status: "ready" });
+  });
+
+  it("stores each story's subtopic, dropping one that isn't under its section", async () => {
+    await buildEdition(env.DB, fakeAi(), NOW);
+    const { results } = await env.DB.prepare("SELECT headline, subtopic FROM stories ORDER BY headline").all<{ headline: string; subtopic: string | null }>();
+    expect(results).toEqual([
+      { headline: "merger headline", subtopic: "companies" },
+      { headline: "quake headline", subtopic: null },
+      { headline: "senate headline", subtopic: "congress" },
+    ]);
+    // Remembered on the items, under the current rules, so the next hour doesn't ask again.
+    const item = await env.DB.prepare("SELECT subtopic, classify_version FROM items WHERE title LIKE 'senate%' LIMIT 1").first();
+    expect(item).toEqual({ subtopic: "congress", classify_version: 4 });
   });
 
   const HOUR = 3600_000;

@@ -79,7 +79,7 @@ describe("breakingStories", () => {
   const now = 100 * 3600_000;
   const wide = coverageOf(["vox", "nyt", "axios", "pbs", "fox", "nypost"]);
   const story = (id: string, over: Partial<Story>): Story => ({
-    id, editionDate: "2026-10-25", rank: 0, front: true, topic: "world", headline: id, summary: [], differences: [], coverage: wide,
+    id, editionDate: "2026-10-25", rank: 0, front: true, topic: "world", subtopic: null, headline: id, summary: [], differences: [], coverage: wide,
     blindspot: null, itemIds: [], imageItemId: null, firstSeenAt: now - 600_000, importance: 5, dek: null, why: null, writtenAt: null, ...over,
   });
   const ids = (list: Story[]) => list.map((s) => s.id);

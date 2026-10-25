@@ -115,18 +115,20 @@ export function rankGroups<T extends { outletId: string; publishedAt: number }>(
 export type BalanceOptions = { front: number; perSection: number; sections?: Partial<Record<TopicId, number>>; blindspots: number; max: number };
 
 /** Busy sections get room for a real page of news; quieter ones a handful. Even numbers fill the two-column grid. */
-export const SECTION_CAPS: Record<TopicId, number> = { world: 10, us: 10, politics: 10, sports: 10, business: 6, tech: 6, culture: 6, science: 4, climate: 4 };
-export const BALANCE: BalanceOptions = { front: 6, perSection: 6, sections: SECTION_CAPS, blindspots: 3, max: 80 };
+export const SECTION_CAPS: Record<TopicId, number> = { world: 10, us: 10, politics: 10, sports: 10, tech: 10, ai: 10, business: 6, culture: 6, science: 4, climate: 4 };
+/** `max` leaves room for every section's cap (80) plus the front page, blindspots and importance-5 stories. */
+export const BALANCE: BalanceOptions = { front: 6, perSection: 6, sections: SECTION_CAPS, blindspots: 3, max: 96 };
 
 /**
  * Which groups get written up. Fixed rules, no personalization and no engagement signals:
  * 1. the front page: the most widely covered stories that both the left and the right reported;
  * 2. every section: its most widely covered stories (3+ outlets), up to `perSection`, or failing that its
- *    single best story with 2 outlets, so politics can't crowd out science or sports;
+ *    single best story with 2 outlets, so politics can't crowd out science or sports; one subtopic takes at
+ *    most SUBTOPIC_SHARE of a section while other stories wait;
  * 3. blindspots: widely covered stories one side mostly skipped.
  * `ranked` must come from rankGroups (best first); the result keeps that order.
  */
-export function pickBalanced<C extends Candidate<unknown> & { topic: TopicId | null; importance: number | null }>(all: readonly C[], opts: BalanceOptions = BALANCE): C[] {
+export function pickBalanced<C extends Candidate<unknown> & { topic: TopicId | null; subtopic?: string | null; importance: number | null }>(all: readonly C[], opts: BalanceOptions = BALANCE): C[] {
   const chosen = new Set<C>();
   // Puzzle hints, gossip and viral posts (importance 1) don't make any part of the edition.
   const ranked = all.filter((c) => c.importance !== 1);
@@ -143,7 +145,7 @@ export function pickBalanced<C extends Candidate<unknown> & { topic: TopicId | n
     // section has something to read without a thin story pushing out a widely covered one.
     const wideEnough = inSection.filter((c) => c.coverage.total >= MIN_OUTLETS);
     const narrow = inSection.filter((c) => c.coverage.total >= SECTION_MIN_OUTLETS && c.coverage.total < MIN_OUTLETS && (c.importance ?? 0) >= 2);
-    [...wideEnough, ...narrow].slice(0, opts.sections?.[topic] ?? opts.perSection).forEach((c) => chosen.add(c));
+    fillSection([...wideEnough, ...narrow], opts.sections?.[topic] ?? opts.perSection).forEach((c) => chosen.add(c));
   }
 
   wide
@@ -153,6 +155,30 @@ export function pickBalanced<C extends Candidate<unknown> & { topic: TopicId | n
     .forEach((c) => chosen.add(c));
 
   return ranked.filter((c) => chosen.has(c)).slice(0, opts.max);
+}
+
+/**
+ * One subtopic takes at most this share of its section's slots while other stories wait. Subtopics with many
+ * specialist outlets (a race weekend's F1 stories each carry a dozen motorsport sites) would otherwise fill a
+ * section ranked by breadth; with nothing else waiting, they fill the rest.
+ */
+export const SUBTOPIC_SHARE = 0.5;
+
+/** The first `cap` of `ordered` (best first), passing over a subtopic's stories once it has its share. */
+function fillSection<C extends { subtopic?: string | null }>(ordered: readonly C[], cap: number): C[] {
+  const limit = Math.max(1, Math.floor(cap * SUBTOPIC_SHARE));
+  const taken = new Map<string, number>();
+  const first: C[] = [];
+  const waiting: C[] = [];
+  for (const c of ordered) {
+    const n = c.subtopic ? (taken.get(c.subtopic) ?? 0) : 0;
+    if (c.subtopic && n >= limit) waiting.push(c);
+    else {
+      if (c.subtopic) taken.set(c.subtopic, n + 1);
+      first.push(c);
+    }
+  }
+  return [...first, ...waiting].slice(0, cap);
 }
 
 /** Front-page stories and blindspots must be at least this important (see IMPORTANCE_RUBRIC). */

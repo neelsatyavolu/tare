@@ -9,9 +9,11 @@ import { currentSlot, DEFAULT_TIME_ZONE, EDITION_CHOICES, SLOT_NAME, zoneName, t
 export { orderedSources } from "../editions";
 import { easternStamp, easternTime, longDate } from "../format";
 import { LEAN_LABEL, OUTLETS, sideOf, SIDE_SIZE, type Side } from "../outlets";
-import { TOPICS, topicName, type TopicId } from "../topics";
+import { subtopicName, subtopicsOf, TOPICS, topicName } from "../topics";
 import { whyText } from "../build/select";
+import { distributionOf, distributionSentence, storyOutlets } from "../distribution";
 import { CSS_VERSION } from "./styles";
+import { DistBar, ReadAcross, Spectrum } from "./spectrum";
 
 const FONTS = "https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=Libre+Caslon+Display&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap";
 
@@ -128,6 +130,26 @@ export const Scale: FC<{ c: Coverage }> = ({ c }) => {
       <div class="reading" aria-hidden="true"><span>← Left</span><b>{read.sentence}</b><span>Right →</span></div>
       {noCenter}
     </div>
+  );
+};
+
+/**
+ * The story page's coverage block: the counts in words, the scale (shares), the source spectrum (each outlet
+ * placed by its score) and one headline from each side. It describes who covered the story, never its claims.
+ */
+const Balance: FC<{ story: Story; sources: Map<string, Source> }> = ({ story, sources }) => {
+  const outlets = storyOutlets(story, sources);
+  const d = distributionOf(outlets);
+  return (
+    <section class="balance" aria-labelledby="balance-h">
+      <h2 id="balance-h" class="balance-h">How balanced is this coverage?</h2>
+      {d.total > 0 ? <p class="balance-counts">{distributionSentence(d)}</p> : null}
+      {/* The counts are already in the kicker; this line only earns its place when it explains a blindspot. */}
+      {story.blindspot ? <p class="why"><span class="why-label">Why it's here</span> {whyText(story.coverage, story.blindspot)}</p> : null}
+      <Scale c={story.coverage} />
+      {d.total > 0 ? <Spectrum outlets={outlets} d={d} /> : null}
+      <ReadAcross story={story} sources={sources} />
+    </section>
   );
 };
 
@@ -257,12 +279,11 @@ export const StoryCard: FC<{ story: Story; sources: Map<string, Source>; lead?: 
   const evidence = page ? (
     <>
       {differences}
-      <Scale c={story.coverage} />
-      {/* The counts are already in the kicker; this line only earns its place when it explains a blindspot. */}
-      {story.blindspot ? <p class="why"><span class="why-label">Why it's here</span> {whyText(story.coverage, story.blindspot)}</p> : null}
+      <Balance story={story} sources={sources} />
     </>
   ) : (
     <>
+      <DistBar d={distributionOf(storyOutlets(story, sources))} />
       <Scale c={story.coverage} />
       {differences}
     </>
@@ -279,16 +300,20 @@ export const StoryCard: FC<{ story: Story; sources: Map<string, Source>; lead?: 
   );
 };
 
-/** Kicker: markers, section, and the coverage counts themselves, plus a side word only when the counts justify one. */
+/**
+ * Kicker: markers, section and subtopic (linked to its topic page), and the coverage counts themselves, plus a
+ * side word only when the counts justify one.
+ */
 const Kicker: FC<{ story: Story; tag?: boolean }> = ({ story, tag = false }) => {
   const read = leanReading(story.coverage);
   const c = story.coverage;
   const sideWord = tag && read.key !== "even" && read.key !== "thin";
+  const sub = subtopicName(story.subtopic);
   return (
     <p class="kicker">
       {badge(story) ? <b class="new">{badge(story)} · </b> : null}
       {story.blindspot ? <b>Possible blindspot · </b> : null}
-      {topicName(story.topic)} · {c.total} outlets <span class="counts">(L {c.left} · C {c.center} · R {c.right}{c.unrated ? ` · ${c.unrated} not rated` : ""})</span>
+      {topicName(story.topic)}{sub ? <> · <a href={`/topic/${story.subtopic}`}>{sub}</a></> : null} · {c.total} outlets <span class="counts">(L {c.left} · C {c.center} · R {c.right}{c.unrated ? ` · ${c.unrated} not rated` : ""})</span>
       {sideWord ? <> · <span class={`tag ${read.key}`}>{read.tag}</span></> : null}
     </p>
   );
@@ -343,6 +368,7 @@ export const CompactStory: FC<{ story: Story; sources: Map<string, Source> }> = 
         <Kicker story={story} tag />
         <h3><a href={href}>{story.headline}</a></h3>
         {cardLine(story) ? <p class="dek">{cardLine(story)}</p> : null}
+        <DistBar d={distributionOf(storyOutlets(story, sources))} />
       </div>
     </article>
   );
@@ -404,7 +430,7 @@ export const HowToRead: FC = () => (
     <div class="howto-body">
       <div>
         <h3>The scale</h3>
-        <p>The three bars show what share of Tare's left-leaning, center and right-leaning outlets covered a story. The line under them says whether the left or the right covered it more, or that too few did to compare. The labels describe who reads each outlet, not whether its reporting is accurate.</p>
+        <p>The three bars show what share of Tare's left-leaning, center and right-leaning outlets covered a story. The line under them says whether the left or the right covered it more, or that too few did to compare. The thin bar on each story counts the outlets that covered it from left (L) to right (R): darkest at the ends, lighter for those that lean, hatched for center. The labels describe who reads each outlet, not whether its reporting is accurate.</p>
       </div>
       <div>
         <h3>The small numbers</h3>
@@ -438,18 +464,37 @@ export const EditionChoices: FC<{ selected: EditionChoice }> = ({ selected }) =>
   </fieldset>
 );
 
-export const TopicChips: FC<{ selected: readonly TopicId[] }> = ({ selected }) => (
+const TopicChip: FC<{ id: string; name: string; selected: readonly string[] }> = ({ id, name, selected }) => (
+  <label class="chip">
+    <input type="checkbox" name="topics" value={id} checked={selected.includes(id)} />
+    <span>{name}</span>
+  </label>
+);
+
+/**
+ * Sections, each with its subtopics in a native <details> (no JavaScript), open when one of them is chosen.
+ * `selected` holds section and subtopic ids alike.
+ */
+export const TopicChips: FC<{ selected: readonly string[] }> = ({ selected }) => (
   <fieldset>
     <legend>Your topics</legend>
-    <div class="chips">
-      {TOPICS.map((t) => (
-        <label class="chip">
-          <input type="checkbox" name="topics" value={t.id} checked={selected.includes(t.id)} />
-          <span>{t.name}</span>
-        </label>
-      ))}
+    <div class="topic-groups">
+      {TOPICS.map((t) => {
+        const subs = subtopicsOf(t.id);
+        return (
+          <div class="topic-group">
+            <TopicChip id={t.id} name={t.name} selected={selected} />
+            {subs.length > 0 ? (
+              <details class="subtopics" open={subs.some((s) => selected.includes(s.id))}>
+                <summary>Narrower topics<span class="sr"> in {t.name}</span></summary>
+                <div class="chips">{subs.map((s) => <TopicChip id={s.id} name={s.name} selected={selected} />)}</div>
+              </details>
+            ) : null}
+          </div>
+        );
+      })}
     </div>
-    <p class="hint">You always get the front page.</p>
+    <p class="hint">Choose a whole section, or only the parts you want, like Formula 1 or AI policy. You always get the front page.</p>
   </fieldset>
 );
 

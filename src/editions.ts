@@ -1,7 +1,7 @@
 import type { BuiltStory } from "./build/build";
 import type { Coverage } from "./build/select";
 import { outletById, sideOf, type Outlet, type Side } from "./outlets";
-import { isTopicId } from "./topics";
+import { isTopicId, subtopicUnder } from "./topics";
 
 export type Edition = { date: string; number: number; status: "building" | "ready" | "failed"; itemCount: number; builtAt: number | null; sentAt: number | null };
 export type Story = Omit<BuiltStory, "coverage"> & {
@@ -13,33 +13,37 @@ export type Source = { id: string; outlet: Outlet; title: string; url: string; p
 
 type EditionRow = { date: string; number: number; status: Edition["status"]; item_count: number; built_at: number | null; sent_at: number | null };
 type StoryRow = {
-  id: string; edition_date: string; rank: number; front: number; topic: string; headline: string;
+  id: string; edition_date: string; rank: number; front: number; topic: string; subtopic?: string | null; headline: string;
   summary: string; differences: string; coverage: string; blindspot: "left" | "right" | null; item_ids: string; image_item_id: string | null; first_seen_at: number | null; importance: number | null;
   dek: string | null; why: string | null; written_at: number | null; correction_note?: string | null; corrected_at?: number | null;
 };
 
 const toEdition = (r: EditionRow): Edition => ({ date: r.date, number: r.number, status: r.status, itemCount: r.item_count, builtAt: r.built_at, sentAt: r.sent_at });
 
-const toStory = (r: StoryRow): Story => ({
-  id: r.id,
-  editionDate: r.edition_date,
-  rank: r.rank,
-  front: r.front === 1,
-  topic: isTopicId(r.topic) ? r.topic : "world",
-  headline: r.headline,
-  dek: r.dek ? JSON.parse(r.dek) : null,
-  why: r.why ? JSON.parse(r.why) : null,
-  summary: JSON.parse(r.summary),
-  differences: JSON.parse(r.differences),
-  coverage: JSON.parse(r.coverage),
-  blindspot: r.blindspot,
-  itemIds: JSON.parse(r.item_ids),
-  imageItemId: r.image_item_id,
-  firstSeenAt: r.first_seen_at,
-  writtenAt: r.written_at,
-  importance: r.importance,
-  correction: r.correction_note && r.corrected_at ? { note: r.correction_note, at: r.corrected_at } : null,
-});
+const toStory = (r: StoryRow): Story => {
+  const topic = isTopicId(r.topic) ? r.topic : "world";
+  return {
+    id: r.id,
+    editionDate: r.edition_date,
+    rank: r.rank,
+    front: r.front === 1,
+    topic,
+    subtopic: subtopicUnder(topic, r.subtopic),
+    headline: r.headline,
+    dek: r.dek ? JSON.parse(r.dek) : null,
+    why: r.why ? JSON.parse(r.why) : null,
+    summary: JSON.parse(r.summary),
+    differences: JSON.parse(r.differences),
+    coverage: JSON.parse(r.coverage),
+    blindspot: r.blindspot,
+    itemIds: JSON.parse(r.item_ids),
+    imageItemId: r.image_item_id,
+    firstSeenAt: r.first_seen_at,
+    writtenAt: r.written_at,
+    importance: r.importance,
+    correction: r.correction_note && r.corrected_at ? { note: r.correction_note, at: r.corrected_at } : null,
+  };
+};
 
 /** Records the editor's correction note on a story; the story's text is fixed separately (a rewrite, or removal). */
 export async function setCorrection(db: D1Database, storyId: string, note: string, now: number): Promise<boolean> {

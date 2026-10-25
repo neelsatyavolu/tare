@@ -2,6 +2,8 @@ import { env } from "cloudflare:workers";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { app } from "../src/index";
 import { utcDate } from "../src/util";
+import { bucketOf } from "../src/distribution";
+import { outletById } from "../src/outlets";
 
 const DATE = utcDate(Date.now());
 const LEAD = "a".repeat(32);
@@ -45,6 +47,42 @@ describe("/api/v1", () => {
     expect(body.sources[0]).toMatchObject({ n: 1, side: "left", url: "https://vox.test/1", snippet: "Vox says more." });
     expect(body.differences[0].quotes).toHaveLength(2);
     expect((await req(`/api/v1/stories/${"c".repeat(32)}`)).status).toBe(404);
+  });
+
+  it("gives each source its score and bucket, and each story its five-bucket distribution", async () => {
+    const body = (await (await req(`/api/v1/stories/${LEAD}`)).json()) as any;
+    const vox = outletById("vox")!;
+    const fox = outletById("fox")!;
+    expect(body.sources[0]).toMatchObject({ outlet: "Vox", zeta: vox.zeta, bucket: bucketOf(vox.lean) });
+    expect(body.sources[1]).toMatchObject({ outlet: "Fox News", zeta: fox.zeta, bucket: bucketOf(fox.lean) });
+    const d = body.distribution;
+    expect(Object.keys(d).sort()).toEqual(["center", "leanLeft", "leanRight", "left", "right", "total", "unrated"]);
+    expect(d.total).toBe(2);
+    expect(d[bucketOf(vox.lean)!]).toBeGreaterThanOrEqual(1);
+    expect(d.left + d.leanLeft + d.center + d.leanRight + d.right + d.unrated).toBe(d.total);
+    // Existing fields stay as they were.
+    expect(body.sources[0]).toMatchObject({ lean: vox.lean, side: "left" });
+    const edition = (await (await req("/api/v1/edition")).json()) as any;
+    expect(edition.stories.every((s: any) => s.distribution.total === 2)).toBe(true);
+  });
+
+  it("gives each story its subtopic and name, null when it has none", async () => {
+    await env.DB.prepare("UPDATE stories SET subtopic = 'nba' WHERE id = ?").bind(OTHER).run();
+    const body = (await (await req("/api/v1/edition")).json()) as any;
+    const other = body.stories.find((s: any) => s.id === OTHER);
+    expect(other).toMatchObject({ topic: "sports", topicName: "Sports", subtopic: "nba", subtopicName: "NBA" });
+    expect(body.stories.find((s: any) => s.id === LEAD)).toMatchObject({ topic: "politics", subtopic: null, subtopicName: null });
+  });
+
+  it("lists every section with its subtopics", async () => {
+    const res = await req("/api/v1/topics");
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as any;
+    const ids = body.sections.map((s: any) => s.id);
+    expect(ids).toContain("ai");
+    const sports = body.sections.find((s: any) => s.id === "sports");
+    expect(sports.subtopics).toContainEqual({ id: "f1", name: "Formula 1" });
+    expect(body.sections.find((s: any) => s.id === "ai").subtopics.map((s: any) => s.id)).toEqual(["ai-models", "ai-policy", "ai-business"]);
   });
 
   it("registers, updates and removes a device", async () => {

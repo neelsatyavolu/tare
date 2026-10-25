@@ -1,7 +1,7 @@
 import SafariServices
 import SwiftUI
 
-/// One story: the full article, why it matters, the coverage scale, where accounts differ, and every source.
+/// One story: the full article, why it matters, how balanced the coverage is (scale, spectrum, read-across), where accounts differ, and every source.
 struct StoryView: View {
     let id: String
     @Environment(EditionStore.self) private var store
@@ -44,7 +44,7 @@ struct StoryView: View {
                         .buttonStyle(.plain)
                     }
                     Rectangle().fill(Theme.rule).frame(height: 1)
-                    CoverageScaleView(coverage: story.coverage)
+                    BalanceSection(story: story) { openURL = $0 }
                     if !story.differences.isEmpty {
                         DifferencesView(differences: story.differences) { openURL = $0 }
                     }

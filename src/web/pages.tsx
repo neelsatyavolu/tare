@@ -8,7 +8,7 @@ import { IMPORTANCE_RUBRIC } from "../build/classify";
 import type { Edition, Source, Story } from "../editions";
 import { longDate, shortDate } from "../format";
 import { LEAN_LABEL, OUTLETS, SIDE_SIZE } from "../outlets";
-import { TOPICS, topicName, type TopicId } from "../topics";
+import { interestName, isSubtopicId, isTopicId, sectionOf, subtopicsOf, topicName, type InterestId } from "../topics";
 import { CompactStory, editionLine, HowToRead, IntroStrip, Layout, orderedSources, SourceList, StoryCard, SubscribeForm, TimeZoneContext, TopicChips, useViewer, EditionChoices } from "./components";
 import { AiConnection, BriefingBlock } from "./ai";
 import { STALE_MS, type BriefingRow } from "../briefing";
@@ -16,9 +16,10 @@ import type { AiProvider } from "../ai/oauth";
 
 type Sources = Map<string, Source>;
 
-const Section: FC<{ title: string; id?: string; children?: Child }> = ({ title, id, children }) => (
+/** `href` links the section's name to its topic page; `note` follows it unlinked (" · Following"). */
+const Section: FC<{ title: string; id?: string; href?: string; note?: string; children?: Child }> = ({ title, id, href, note, children }) => (
   <section class="section" id={id} aria-label={title}>
-    <div class="section-head"><h2>{title}</h2></div>
+    <div class="section-head"><h2>{href ? <a href={href}>{title}</a> : title}{note}</h2></div>
     {children}
   </section>
 );
@@ -57,12 +58,37 @@ export const EditionPage: FC<{ edition: Edition; stories: Story[]; sources: Sour
         </Section>
       ) : null}
       {byTopic.map((g) => (
-        <Section title={g.followed ? `${g.topic.name} · Following` : g.topic.name} id={g.topic.id}>
+        <Section title={g.topic.name} id={g.topic.id} href={`/topic/${g.topic.id}`} note={g.followed ? " · Following" : undefined}>
           <div class="compact-grid">{g.list.map((s) => <CompactStory story={s} sources={sources} />)}</div>
         </Section>
       ))}
       <p class="end">That's the edition.</p>
       <SubscribeForm />
+    </Layout>
+  );
+};
+
+/**
+ * One section's or subtopic's stories in today's edition. A section page links to its subtopics; a subtopic
+ * page links back to its section.
+ */
+export const TopicPage: FC<{ id: InterestId; edition: Edition | null; stories: Story[]; sources: Sources }> = ({ id, edition, stories, sources }) => {
+  const name = interestName(id) ?? id;
+  const parent = isSubtopicId(id) ? sectionOf(id) : null;
+  const subs = isTopicId(id) ? subtopicsOf(id) : [];
+  return (
+    <Layout title={`${name} · Tare`} editionLine={edition ? editionLine(edition.date, edition.number, stories.length) : undefined}>
+      <p class="meta"><a href="/">← Today's edition</a>{parent ? <> · <a href={`/topic/${parent}`}>{topicName(parent)}</a></> : null}</p>
+      {subs.length > 0 ? (
+        <nav class="jump" aria-label={`Narrower topics in ${name}`}>{subs.map((s) => <a href={`/topic/${s.id}`}>{s.name}</a>)}</nav>
+      ) : null}
+      <Section title={name}>
+        {stories.length > 0 ? (
+          <div class="compact-grid">{stories.map((s) => <CompactStory story={s} sources={sources} />)}</div>
+        ) : (
+          <p class="meta">No {name} stories in today's edition yet. The edition updates every hour.</p>
+        )}
+      </Section>
     </Layout>
   );
 };
@@ -130,10 +156,11 @@ export const MethodPage: FC = () => (
       <p>Every hour Tare groups the last 24 hours of headlines by event, using text embeddings to spot headlines about the same thing, and sorts each group into a section. It does this every hour, so breaking stories appear within the hour, and it applies the same fixed rules every time. There's no algorithm tuned to you: nothing is ranked by clicks, shares or what you've read.</p>
       <ol>
         <li>The <b>front page</b> is the {BALANCE.front} most important stories that outlets on both the left and the right reported. Each story's score is its importance on the scale below plus a small bonus for how many outlets covered it, capped at 1.5, so wide coverage breaks ties but can't lift a minor story past a more important one. Important stories (4 or 5 on the scale) also get a bonus for being new, which fades over {FRESH_HOURS} hours, so the newest important news leads. A story that {FRONT_BY_BREADTH} or more outlets covered also gets a front slot, unless it is rated minor. Everyone gets the front page, whatever topics they choose.</li>
-        <li>Every <b>section</b> (world, U.S., politics, business, technology, science, climate, culture and sports) gets up to {SECTION_CAPS.world} of its most widely covered stories ({SECTION_CAPS.science} to {SECTION_CAPS.business} in the quieter sections: business, technology, science, climate and culture) with at least {MIN_OUTLETS} outlets, listed most important first (same score as the front page). A section short of that fills up with stories {SECTION_MIN_OUTLETS} outlets covered, after the wider ones, so every section has something to read and one busy topic can't crowd out the rest.</li>
+        <li>Every <b>section</b> (world, U.S., politics, business, technology, artificial intelligence, science, climate, culture and sports) gets up to {SECTION_CAPS.world} of its most widely covered stories ({SECTION_CAPS.science} to {SECTION_CAPS.business} in the quieter sections: business, science, climate and culture) with at least {MIN_OUTLETS} outlets, listed most important first (same score as the front page). A section short of that fills up with stories {SECTION_MIN_OUTLETS} outlets covered, after the wider ones, so every section has something to read and one busy topic can't crowd out the rest. One subtopic, such as Formula 1 in sports, takes at most half of a section while other stories are waiting.</li>
         <li>A <b>blindspot</b> is a story at least {BLINDSPOT.minCount} outlets and {Math.round(BLINDSPOT.minShare * 100)}% of one side covered while at most {BLINDSPOT.maxOther} outlet on the other side did, with at least {BLINDSPOT.minTotal} outlets in all. Before calling it one, Tare checks every headline the other side published that day for a looser match; if it finds one, it isn't a blindspot. Up to {BALANCE.blindspots} make each edition.</li>
       </ol>
-      <p>Picking topics in your account only changes the order: your sections come first. You still see everything else.</p>
+      <p>The same model that sorts stories into sections also tags a narrower topic when one clearly fits, such as Formula 1 in sports or AI policy in artificial intelligence. Each section and narrower topic has its own page listing today's stories.</p>
+      <p>Picking topics in your account only changes the order: your sections come first, and your email includes stories from the sections and narrower topics you chose. You still see everything else.</p>
 
       <h2>Corrections</h2>
       <p>Every story page has a "Report an error" form. Reports go to the editor, not to the public page. A story found to be wrong is rewritten from its sources or taken off the edition, and its page keeps a dated note saying what was corrected.</p>
@@ -165,8 +192,9 @@ export const MethodPage: FC = () => (
       <p>
         Tare draws the lines at half that distance and the full distance from 0: under −1.24 is <b>left</b>, −1.24 to −0.62 <b>leans left</b>,
         −0.62 to 0.62 <b>center</b>, 0.62 to 1.24 <b>leans right</b>, and over 1.24 <b>right</b>. It measures audiences, not articles: an outlet
-        read mostly by one side lands on that side even if its reporting is straight. Outlets the study didn't cover (mostly international ones,
-        like the BBC) are <b>not rated</b>: their coverage counts, but never toward the left or the right.
+        read mostly by one side lands on that side even if its reporting is straight. Outlets the study didn't cover are <b>not rated</b>: international
+        ones like the BBC, and specialist tech, science and motorsport outlets like The Verge, Science or Autosport. Their coverage counts,
+        but never toward the left or the right, so many technology, AI and Formula 1 stories show few rated outlets.
       </p>
       <table>
         <thead><tr><th>Outlet</th><th>Label</th><th>Score (90% range)</th></tr></thead>
@@ -197,7 +225,7 @@ export const MessagePage: FC<{ title: string; children?: Child }> = ({ title, ch
   </Layout>
 );
 
-export const ManagePage: FC<{ token: string; email: string; topics: TopicId[]; editions: EditionChoice; status: string; saved?: boolean }> = ({ token, email, topics, editions, status, saved }) => (
+export const ManagePage: FC<{ token: string; email: string; topics: InterestId[]; editions: EditionChoice; status: string; saved?: boolean }> = ({ token, email, topics, editions, status, saved }) => (
   <Layout title="Your subscription · Tare">
     <div class="prose">
       <h1>Your subscription</h1>
@@ -214,7 +242,7 @@ export const ManagePage: FC<{ token: string; email: string; topics: TopicId[]; e
           <button type="submit">Unsubscribe</button>
         </form>
       ) : null}
-      <p class="meta" style="margin-top:28px">Topics you follow: {topics.length ? topics.map(topicName).join(", ") : "front page only"}.</p>
+      <p class="meta" style="margin-top:28px">Topics you follow: {topics.length ? topics.map((t) => interestName(t) ?? t).join(", ") : "front page only"}.</p>
     </div>
   </Layout>
 );

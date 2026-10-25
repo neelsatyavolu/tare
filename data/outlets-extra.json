@@ -1,5 +1,5 @@
 {
-  "_about": "Hand-kept input for scripts/discover-feeds.mjs. `known`: outlets whose ids and section feeds predate the generated list (ids must stay stable). `unrated`: outlets not in the Eady et al. 2025 data; they count as coverage but not toward left/center/right. `exclude`: domains in the Eady data that are not news publishers (pollsters, fact-checkers, advocacy groups, satire, trade press) or that no longer publish. `presets`: feed URLs to try for outlets whose homepage doesn't advertise them. `names`: display names where an outlet's site doesn't give a clean one.",
+  "_about": "Hand-kept input for scripts/discover-feeds.mjs. `known`: outlets whose ids and section feeds predate the generated list (ids must stay stable). `unrated`: outlets not in the Eady et al. 2025 data; they count as coverage but not toward left/center/right. `extraDomains`: ids, names and feeds for unrated outlets (each is also listed in `unrated`). `exclude`: domains in the Eady data that are not news publishers (pollsters, fact-checkers, advocacy groups, satire, trade press) or that no longer publish. `presets`: feed URLs to try for outlets whose homepage doesn't advertise them. `names`: display names where an outlet's site doesn't give a clean one.",
   "known": [
     {
       "id": "guardian",
@@ -13,7 +13,9 @@
         "https://www.theguardian.com/sport/rss",
         "https://www.theguardian.com/science/rss",
         "https://www.theguardian.com/environment/rss",
-        "https://www.theguardian.com/culture/rss"
+        "https://www.theguardian.com/culture/rss",
+        "https://www.theguardian.com/technology/artificialintelligenceai/rss",
+        "https://www.theguardian.com/sport/formulaone/rss"
       ]
     },
     {
@@ -21,7 +23,8 @@
       "name": "Vox",
       "domain": "vox.com",
       "feeds": [
-        "https://www.vox.com/rss/index.xml"
+        "https://www.vox.com/rss/index.xml",
+        "https://www.vox.com/rss/technology/index.xml"
       ]
     },
     {
@@ -62,7 +65,8 @@
         "https://rss.nytimes.com/services/xml/rss/nyt/Science.xml",
         "https://rss.nytimes.com/services/xml/rss/nyt/Health.xml",
         "https://rss.nytimes.com/services/xml/rss/nyt/Climate.xml",
-        "https://rss.nytimes.com/services/xml/rss/nyt/Arts.xml"
+        "https://rss.nytimes.com/services/xml/rss/nyt/Arts.xml",
+        "https://rss.nytimes.com/services/xml/rss/nyt/PersonalTech.xml"
       ]
     },
     {
@@ -86,7 +90,9 @@
       "feeds": [
         "https://feeds.nbcnews.com/nbcnews/public/news",
         "https://feeds.nbcnews.com/nbcnews/public/world",
-        "https://feeds.nbcnews.com/nbcnews/public/health"
+        "https://feeds.nbcnews.com/nbcnews/public/health",
+        "https://feeds.nbcnews.com/nbcnews/public/tech",
+        "https://feeds.nbcnews.com/nbcnews/public/business"
       ]
     },
     {
@@ -122,7 +128,8 @@
       "name": "The Atlantic",
       "domain": "theatlantic.com",
       "feeds": [
-        "https://www.theatlantic.com/feed/all/"
+        "https://www.theatlantic.com/feed/all/",
+        "https://www.theatlantic.com/feed/channel/technology/"
       ]
     },
     {
@@ -130,7 +137,8 @@
       "name": "Politico",
       "domain": "politico.com",
       "feeds": [
-        "https://rss.politico.com/politics-news.xml"
+        "https://rss.politico.com/politics-news.xml",
+        "https://rss.politico.com/technology.xml"
       ]
     },
     {
@@ -144,7 +152,9 @@
         "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
         "https://feeds.bbci.co.uk/news/health/rss.xml",
         "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
-        "https://feeds.bbci.co.uk/sport/rss.xml"
+        "https://feeds.bbci.co.uk/sport/rss.xml",
+        "https://feeds.bbci.co.uk/news/technology/rss.xml",
+        "https://feeds.bbci.co.uk/sport/formula1/rss.xml"
       ]
     },
     {
@@ -352,7 +362,40 @@
     "bbc.com",
     "newsnationnow.com",
     "aljazeera.com",
-    "latimes.com"
+    "latimes.com",
+    "theverge.com",
+    "arstechnica.com",
+    "techcrunch.com",
+    "wired.com",
+    "technologyreview.com",
+    "404media.co",
+    "engadget.com",
+    "theregister.com",
+    "spectrum.ieee.org",
+    "platformer.news",
+    "cnet.com",
+    "theinformation.com",
+    "fastcompany.com",
+    "tomshardware.com",
+    "geekwire.com",
+    "the-decoder.com",
+    "ft.com",
+    "semafor.com",
+    "news.sky.com",
+    "scientificamerican.com",
+    "science.org",
+    "autosport.com",
+    "motorsport.com",
+    "the-race.com",
+    "racefans.net",
+    "planetf1.com",
+    "crash.net",
+    "motorsportweek.com",
+    "racingnews365.com",
+    "grandprix.com",
+    "espn.com",
+    "theathletic.com",
+    "telegraph.co.uk"
   ],
   "extraDomains": [
     {
@@ -369,6 +412,282 @@
       "domain": "latimes.com",
       "feeds": [
         "https://www.latimes.com/news/rss2.0.xml"
+      ]
+    },
+    {
+      "id": "verge",
+      "name": "The Verge",
+      "domain": "theverge.com",
+      "feeds": [
+        "https://www.theverge.com/rss/index.xml",
+        "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml"
+      ]
+    },
+    {
+      "id": "arstechnica",
+      "name": "Ars Technica",
+      "domain": "arstechnica.com",
+      "feeds": [
+        "https://feeds.arstechnica.com/arstechnica/index",
+        "https://arstechnica.com/ai/feed/"
+      ]
+    },
+    {
+      "id": "techcrunch",
+      "name": "TechCrunch",
+      "domain": "techcrunch.com",
+      "feeds": [
+        "https://techcrunch.com/feed/",
+        "https://techcrunch.com/category/artificial-intelligence/feed/"
+      ]
+    },
+    {
+      "id": "wired",
+      "name": "Wired",
+      "domain": "wired.com",
+      "feeds": [
+        "https://www.wired.com/feed/rss",
+        "https://www.wired.com/feed/tag/ai/latest/rss"
+      ]
+    },
+    {
+      "id": "techreview",
+      "name": "MIT Technology Review",
+      "domain": "technologyreview.com",
+      "feeds": [
+        "https://www.technologyreview.com/feed/"
+      ]
+    },
+    {
+      "id": "404media",
+      "name": "404 Media",
+      "domain": "404media.co",
+      "feeds": [
+        "https://www.404media.co/rss/"
+      ]
+    },
+    {
+      "id": "engadget",
+      "name": "Engadget",
+      "domain": "engadget.com",
+      "feeds": [
+        "https://www.engadget.com/rss.xml"
+      ]
+    },
+    {
+      "id": "register",
+      "name": "The Register",
+      "domain": "theregister.com",
+      "feeds": [
+        "https://www.theregister.com/headlines.atom"
+      ]
+    },
+    {
+      "id": "ieeespectrum",
+      "name": "IEEE Spectrum",
+      "domain": "spectrum.ieee.org",
+      "feeds": [
+        "https://spectrum.ieee.org/feeds/feed.rss"
+      ]
+    },
+    {
+      "id": "platformer",
+      "name": "Platformer",
+      "domain": "platformer.news",
+      "feeds": [
+        "https://www.platformer.news/rss/"
+      ]
+    },
+    {
+      "id": "cnet",
+      "name": "CNET",
+      "domain": "cnet.com",
+      "feeds": [
+        "https://www.cnet.com/rss/news/",
+        "https://www.cnet.com/rss/ai/"
+      ]
+    },
+    {
+      "id": "theinformation",
+      "name": "The Information",
+      "domain": "theinformation.com",
+      "feeds": [
+        "https://www.theinformation.com/feed"
+      ]
+    },
+    {
+      "id": "fastcompany",
+      "name": "Fast Company",
+      "domain": "fastcompany.com",
+      "feeds": [
+        "https://www.fastcompany.com/technology/rss"
+      ]
+    },
+    {
+      "id": "tomshardware",
+      "name": "Tom's Hardware",
+      "domain": "tomshardware.com",
+      "feeds": [
+        "https://www.tomshardware.com/feeds.xml"
+      ]
+    },
+    {
+      "id": "geekwire",
+      "name": "GeekWire",
+      "domain": "geekwire.com",
+      "feeds": [
+        "https://www.geekwire.com/feed/"
+      ]
+    },
+    {
+      "id": "decoder",
+      "name": "The Decoder",
+      "domain": "the-decoder.com",
+      "feeds": [
+        "https://the-decoder.com/feed/"
+      ]
+    },
+    {
+      "id": "ft",
+      "name": "Financial Times",
+      "domain": "ft.com",
+      "feeds": [
+        "https://www.ft.com/technology?format=rss",
+        "https://www.ft.com/artificial-intelligence?format=rss",
+        "https://www.ft.com/world?format=rss"
+      ]
+    },
+    {
+      "id": "semafor",
+      "name": "Semafor",
+      "domain": "semafor.com",
+      "feeds": [
+        "https://www.semafor.com/rss.xml"
+      ]
+    },
+    {
+      "id": "skynews",
+      "name": "Sky News",
+      "domain": "news.sky.com",
+      "feeds": [
+        "https://feeds.skynews.com/feeds/rss/home.xml",
+        "https://feeds.skynews.com/feeds/rss/technology.xml"
+      ]
+    },
+    {
+      "id": "sciam",
+      "name": "Scientific American",
+      "domain": "scientificamerican.com",
+      "feeds": [
+        "https://www.scientificamerican.com/platform/syndication/rss/"
+      ]
+    },
+    {
+      "id": "sciencemag",
+      "name": "Science",
+      "domain": "science.org",
+      "feeds": [
+        "https://www.science.org/rss/news_current.xml"
+      ]
+    },
+    {
+      "id": "autosport",
+      "name": "Autosport",
+      "domain": "autosport.com",
+      "feeds": [
+        "https://www.autosport.com/rss/f1/news/"
+      ]
+    },
+    {
+      "id": "motorsportcom",
+      "name": "Motorsport.com",
+      "domain": "motorsport.com",
+      "feeds": [
+        "https://www.motorsport.com/rss/f1/news/"
+      ]
+    },
+    {
+      "id": "therace",
+      "name": "The Race",
+      "domain": "the-race.com",
+      "feeds": [
+        "https://www.the-race.com/rss/"
+      ]
+    },
+    {
+      "id": "racefans",
+      "name": "RaceFans",
+      "domain": "racefans.net",
+      "feeds": [
+        "https://www.racefans.net/feed/"
+      ]
+    },
+    {
+      "id": "planetf1",
+      "name": "PlanetF1",
+      "domain": "planetf1.com",
+      "feeds": [
+        "https://www.planetf1.com/rss"
+      ]
+    },
+    {
+      "id": "crash",
+      "name": "Crash.net",
+      "domain": "crash.net",
+      "feeds": [
+        "https://www.crash.net/rss/f1"
+      ]
+    },
+    {
+      "id": "motorsportweek",
+      "name": "Motorsport Week",
+      "domain": "motorsportweek.com",
+      "feeds": [
+        "https://www.motorsportweek.com/feed/"
+      ]
+    },
+    {
+      "id": "racingnews365",
+      "name": "RacingNews365",
+      "domain": "racingnews365.com",
+      "feeds": [
+        "https://racingnews365.com/feed/news.xml"
+      ]
+    },
+    {
+      "id": "grandprix",
+      "name": "GrandPrix.com",
+      "domain": "grandprix.com",
+      "feeds": [
+        "https://www.grandprix.com/rss.xml"
+      ]
+    },
+    {
+      "id": "espn",
+      "name": "ESPN",
+      "domain": "espn.com",
+      "feeds": [
+        "https://www.espn.com/espn/rss/f1/news",
+        "https://www.espn.com/espn/rss/news"
+      ]
+    },
+    {
+      "id": "athletic",
+      "name": "The Athletic",
+      "domain": "theathletic.com",
+      "feeds": [
+        "https://www.nytimes.com/athletic/rss/formula-1/",
+        "https://www.nytimes.com/athletic/rss/news/"
+      ]
+    },
+    {
+      "id": "telegraph",
+      "name": "The Telegraph",
+      "domain": "telegraph.co.uk",
+      "feeds": [
+        "https://www.telegraph.co.uk/rss.xml",
+        "https://www.telegraph.co.uk/formula-1/rss.xml",
+        "https://www.telegraph.co.uk/technology/rss.xml"
       ]
     }
   ],
@@ -420,7 +739,8 @@
       "https://feeds.content.dowjones.io/public/rss/RSSWSJD"
     ],
     "economist.com": [
-      "https://www.economist.com/latest/rss.xml"
+      "https://www.economist.com/latest/rss.xml",
+      "https://www.economist.com/science-and-technology/rss.xml"
     ],
     "newsweek.com": [
       "https://www.newsweek.com/rss"
@@ -435,7 +755,8 @@
     ],
     "forbes.com": [
       "https://www.forbes.com/news/feed/",
-      "https://www.forbes.com/business/feed/"
+      "https://www.forbes.com/business/feed/",
+      "https://www.forbes.com/innovation/feed/"
     ],
     "nymag.com": [
       "https://nymag.com/intelligencer/rss/index.xml",
@@ -520,6 +841,10 @@
     "cbn.com/cbnnews": [
       "https://www2.cbn.com/rss-cbn-news-all",
       "https://www.cbn.com/rss/cbnnews"
+    ],
+    "newyorker.com": [
+      "https://www.newyorker.com/feed/rss",
+      "https://www.newyorker.com/feed/tech"
     ]
   },
   "names": {
@@ -547,6 +872,7 @@
     "redstate.com": "RedState",
     "townhall.com": "Townhall",
     "thenationalpulse.com": "The National Pulse",
-    "thepoliticalinsider.com": "The Political Insider"
+    "thepoliticalinsider.com": "The Political Insider",
+    "vice.com": "VICE"
   }
 }

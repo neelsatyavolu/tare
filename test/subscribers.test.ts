@@ -18,6 +18,10 @@ describe("parseEmail / parseTopics", () => {
   it("keeps known topics once", () => {
     expect(parseTopics(["world", "world", "gossip", 3, "tech"])).toEqual(["world", "tech"]);
   });
+
+  it("accepts subtopic ids alongside sections", () => {
+    expect(parseTopics(["f1", "ai", "ai-policy", "f1", "formula-1", "nfl"])).toEqual(["f1", "ai", "ai-policy", "nfl"]);
+  });
 });
 
 describe("links", () => {
@@ -120,5 +124,21 @@ describe("subscribers", () => {
     expect((await dueSubscribers(env.DB, "2026-10-24-pm", "pm")).map((s) => s.email)).toEqual(["n@ex.com"]);
     expect(await dueSubscribers(env.DB, "2026-10-24-am", "am")).toHaveLength(2);
     expect((await findById(env.DB, a.id))?.editions).toBe("morning");
+  });
+});
+
+describe("migration 0017: Technology readers follow AI", () => {
+  it("adds ai to readers who follow tech, once, and leaves the rest alone", async () => {
+    const add = (id: string, topics: string[]) =>
+      env.DB.prepare("INSERT INTO subscribers (id, email, topics, status, created_at) VALUES (?, ?, ?, 'active', 0)").bind(id, `${id}@example.com`, JSON.stringify(topics)).run();
+    await add("m-tech", ["world", "tech"]);
+    await add("m-both", ["ai", "tech"]);
+    await add("m-world", ["world", "f1"]);
+    const migration = env.TEST_MIGRATIONS.find((m) => m.name.startsWith("0017_"))!;
+    for (const q of migration.queries) await env.DB.prepare(q).run();
+    const topics = async (id: string) => JSON.parse((await env.DB.prepare("SELECT topics FROM subscribers WHERE id = ?").bind(id).first<{ topics: string }>())!.topics);
+    expect(await topics("m-tech")).toEqual(["world", "tech", "ai"]);
+    expect(await topics("m-both")).toEqual(["ai", "tech"]);
+    expect(await topics("m-world")).toEqual(["world", "f1"]);
   });
 });

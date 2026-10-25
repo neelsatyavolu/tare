@@ -7,7 +7,8 @@ import data from "../data/outlets.generated.json";
  * Eady, Bonneau, Tucker & Nagler (2025), "News Sharing and Partisanship on Social Media", Political Analysis,
  * CC0 (data/eady2025). The score measures who shares an outlet's links, scaled so 0 is neutral and 1.24 is
  * the gap between the median Democratic and median Republican member of the 116th Congress. Outlets not in
- * that data (mostly international) are "unrated": they count as coverage but never toward left or right.
+ * that data (international ones, and specialist tech, science and motorsport outlets) are "unrated": they count
+ * as coverage but never toward left or right.
  */
 export type Lean = "left" | "lean-left" | "center" | "lean-right" | "right" | "unrated";
 export type Side = "left" | "center" | "right";

@@ -14,6 +14,7 @@ const story: Story = {
   rank: 0,
   front: true,
   topic: "world",
+  subtopic: null,
   headline: "Something happened",
   summary: [
     { text: "Everyone reported it.", cites: ["i0", "i1", "i2", "i3", "i4", "i5"] },

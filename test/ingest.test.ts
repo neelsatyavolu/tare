@@ -46,6 +46,23 @@ describe("ingest", () => {
     expect((await ingest(env.DB, shared, NOW, two)).inserted).toBe(2);
   });
 
+  it("keeps at most six feeds in flight and still pulls every one", async () => {
+    let open = 0;
+    let peak = 0;
+    const slow = (async (input: RequestInfo | URL) => {
+      open += 1;
+      peak = Math.max(peak, open);
+      await new Promise((r) => setTimeout(r, 5));
+      open -= 1;
+      return new Response(feed([{ title: "Story", link: `${String(input)}/1`, date: "Sat, 24 Oct 2026 10:00:00 GMT" }]));
+    }) as typeof fetch;
+    const many: Outlet[] = [{ ...outlets[0]!, feeds: Array.from({ length: 20 }, (_, i) => `https://a.test/f${i}`) }];
+    const report = await ingest(env.DB, slow, NOW, many);
+    expect(peak).toBe(6);
+    expect(report.failed).toEqual([]);
+    expect(report.inserted).toBe(20);
+  });
+
   it("is idempotent across runs", async () => {
     await ingest(env.DB, fakeFetch, NOW, outlets);
     const second = await ingest(env.DB, fakeFetch, NOW + 60_000, outlets);

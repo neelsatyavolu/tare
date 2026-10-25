@@ -21,8 +21,10 @@ import { timingSafeEqual, utcDate } from "./util";
 import { Layout, SubscribeForm, TimeZoneContext, ViewerContext } from "./web/components";
 import { ICON } from "./web/icon";
 import {
-  AccountPage, ArchivePage, EditionPage, EmptyPage, ManagePage, MessagePage, MethodPage, SignInPage, StoryPage, UnsubscribeConfirmPage,
+  AccountPage, ArchivePage, EditionPage, EmptyPage, ManagePage, MessagePage, MethodPage, SignInPage, StoryPage, TopicPage, UnsubscribeConfirmPage,
 } from "./web/pages";
+import { isInterestId } from "./topics";
+import { follows } from "./layout";
 import { CSS } from "./web/styles";
 import { readFirst } from "./read-first";
 import { DEFAULT_TIME_ZONE, isEditionChoice, isTimeZone, zoneName } from "./slots";
@@ -120,6 +122,16 @@ async function renderEdition(c: Context<App>, date: string | null) {
 
 app.get("/", (c) => renderEdition(c, null));
 app.get("/e/:date", (c) => renderEdition(c, c.req.param("date")));
+
+// One section's or subtopic's stories in the latest edition.
+app.get("/topic/:id", async (c) => {
+  const id = c.req.param("id");
+  if (!isInterestId(id)) return c.notFound();
+  const edition = await latestEdition(c.env.DB);
+  const stories = edition ? (await storiesFor(c.env.DB, edition.date)).filter((s) => follows([id], s)) : [];
+  const sources = await sourcesFor(c.env.DB, stories);
+  return page(c, <TopicPage id={id} edition={edition} stories={stories} sources={sources} />);
+});
 
 app.get("/s/:id", async (c) => {
   const story = await storyById(c.env.DB, c.req.param("id"));

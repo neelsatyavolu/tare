@@ -3,6 +3,11 @@ import { sha256Hex } from "../util";
 import { parseFeed, type FeedItem } from "./rss";
 
 const FEED_TIMEOUT_MS = 15_000;
+/** A Worker keeps six connections open and queues the rest, so firing every fetch at once would start each
+ * feed's timeout while it waits in that queue. Six lanes keep the timeout on the fetch itself. */
+const FEED_CONCURRENCY = 6;
+/** Feeds not started by then are skipped, so a run of slow feeds can't eat the build's time (about 30 s is normal). */
+const INGEST_BUDGET_MS = 3 * 60_000;
 const MAX_AGE_MS = 48 * 3600_000;
 const KEEP_MS = 3 * 24 * 3600_000;
 /** Bigger than any real feed (the largest seen is about 1.1 MB); protects memory from a broken one. */
@@ -26,10 +31,29 @@ async function fetchFeed(url: string, fetcher: typeof fetch, now: number): Promi
   return parseFeed(body, now);
 }
 
+/** Like Promise.allSettled over `list`, with at most `limit` calls in flight; an item not started by `deadline` is rejected. */
+async function settleLimited<T, R>(list: readonly T[], limit: number, deadline: number, fn: (x: T) => Promise<R>): Promise<PromiseSettledResult<R>[]> {
+  const out: PromiseSettledResult<R>[] = new Array(list.length);
+  let next = 0;
+  const lane = async () => {
+    for (let i = next++; i < list.length; i = next++) {
+      try {
+        if (Date.now() > deadline) throw new Error("skipped: ingest time budget used up");
+        out[i] = { status: "fulfilled", value: await fn(list[i]!) };
+      } catch (reason) {
+        out[i] = { status: "rejected", reason };
+      }
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, list.length) }, lane));
+  return out;
+}
+
 /** Pulls every outlet's feeds and stores new headlines. A failing feed is logged and skipped, never fatal. */
 export async function ingest(db: D1Database, fetcher: typeof fetch = fetch, now = Date.now(), outlets: readonly Outlet[] = OUTLETS): Promise<IngestReport> {
   const jobs = outlets.flatMap((o) => o.feeds.map((url) => ({ outlet: o, url })));
-  const results = await Promise.allSettled(jobs.map((j) => fetchFeed(j.url, fetcher, now)));
+  // The budget runs on the real clock; `now` dates the items and can be fixed in tests.
+  const results = await settleLimited(jobs, FEED_CONCURRENCY, Date.now() + INGEST_BUDGET_MS, (j) => fetchFeed(j.url, fetcher, now));
 
   const failed: string[] = [];
   const rows: { id: string; outletId: string; item: FeedItem }[] = [];

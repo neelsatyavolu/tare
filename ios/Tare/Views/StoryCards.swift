@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// The kicker over every story: markers, section, and the coverage counts, plus a side word when one applies.
+/// The kicker over every story: markers, section (and subtopic), and the coverage counts, plus a side word when one applies.
 struct StoryKicker: View {
     let story: Story
     var showTag = true
@@ -10,7 +10,7 @@ struct StoryKicker: View {
         let parts: [String] = [
             story.isNew ? "New" : nil,
             story.blindspot != nil ? "Possible blindspot" : nil,
-            story.topicName,
+            story.subtopicName.map { "\(story.topicName) · \($0)" } ?? story.topicName,
             "\(c.total) outlets",
         ].compactMap { $0 }
         let tag = showTag && !["even", "thin"].contains(c.reading.key) ? " · \(c.reading.tag)" : ""
@@ -67,6 +67,7 @@ struct LeadCard: View {
                 .foregroundStyle(Theme.ink)
                 .fixedSize(horizontal: false, vertical: true)
             ArticleText(sentences: Array(story.summary.prefix(4)), size: 18)
+            if let d = story.distribution { DistBar(distribution: d).padding(.top, 2) }
             if story.summary.count > 4 {
                 Text("CONTINUE READING →")
                     .font(Theme.mono(12, medium: true))
@@ -99,6 +100,7 @@ struct StoryRow: View {
                         .lineSpacing(2)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                if let d = story.distribution { DistBar(distribution: d).padding(.top, 2) }
             }
             Spacer(minLength: 0)
             if let photo = story.photo {

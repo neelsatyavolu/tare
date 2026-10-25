@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { choiceFor, DEFAULT_TIME_ZONE, isTimeZone, type EditionChoice, type Slot } from "./slots";
-import { isTopicId, type TopicId } from "./topics";
+import { isInterestId, type InterestId } from "./topics";
 
-export type Subscriber = { id: string; email: string; topics: TopicId[]; status: "pending" | "active" | "unsubscribed"; lastSentDate: string | null; editions: EditionChoice; timezone: string };
+/** `topics` holds what the reader follows: section ids and subtopic ids alike. */
+export type Subscriber = { id: string; email: string; topics: InterestId[]; status: "pending" | "active" | "unsubscribed"; lastSentDate: string | null; editions: EditionChoice; timezone: string };
 
 type Row = { id: string; email: string; topics: string; status: Subscriber["status"]; last_sent_date: string | null; confirm_sent_at: number | null; editions: EditionChoice | null; timezone: string | null };
 
@@ -16,12 +17,13 @@ export function parseEmail(raw: unknown): string | null {
   return r.success ? r.data : null;
 }
 
-export function parseTopics(raw: readonly unknown[]): TopicId[] {
-  return [...new Set(raw.filter((t): t is string => typeof t === "string").filter(isTopicId))];
+/** Known section and subtopic ids, each once; anything else is dropped. */
+export function parseTopics(raw: readonly unknown[]): InterestId[] {
+  return [...new Set(raw.filter((t): t is string => typeof t === "string").filter(isInterestId))];
 }
 
 function toSubscriber(r: Row): Subscriber {
-  const topics = (JSON.parse(r.topics) as string[]).filter(isTopicId);
+  const topics = (JSON.parse(r.topics) as string[]).filter(isInterestId);
   return { id: r.id, email: r.email, topics, status: r.status, lastSentDate: r.last_sent_date, editions: r.editions ?? "both", timezone: isTimeZone(r.timezone) ? r.timezone : DEFAULT_TIME_ZONE };
 }
 
@@ -31,7 +33,7 @@ const COLUMNS = "id, email, topics, status, last_sent_date, confirm_sent_at, edi
  * The account for an address, created (pending) if new. Concurrent requests for the same new address
  * can't both insert: the second hits ON CONFLICT and reads the first one's row.
  */
-async function findOrCreate(db: D1Database, email: string, topics: TopicId[], now: number, timezone: string | null = null): Promise<Row> {
+async function findOrCreate(db: D1Database, email: string, topics: InterestId[], now: number, timezone: string | null = null): Promise<Row> {
   await db
     .prepare("INSERT INTO subscribers (id, email, topics, status, created_at, timezone) VALUES (?, ?, ?, 'pending', ?, ?) ON CONFLICT(email) DO NOTHING")
     .bind(crypto.randomUUID(), email, JSON.stringify(topics), now, isTimeZone(timezone) ? timezone : null)
@@ -67,7 +69,7 @@ export type EmailOutcome = { id: string; email: string; send: "confirm" | "manag
  * account's topics change from the account page.
  */
 /** `timezone` is the reader's detected IANA zone, used to send at their 7 a.m. and 6 p.m. */
-export async function signUp(db: D1Database, email: string, topics: TopicId[], now = Date.now(), timezone: string | null = null): Promise<EmailOutcome> {
+export async function signUp(db: D1Database, email: string, topics: InterestId[], now = Date.now(), timezone: string | null = null): Promise<EmailOutcome> {
   const row = await findOrCreate(db, email, topics, now, timezone);
   const { claimed, previous } = await claimEmail(db, row, now);
   if (!claimed) return { id: row.id, email, send: null, previous, claimedAt: now };
@@ -133,7 +135,7 @@ export async function confirm(db: D1Database, id: string, now = Date.now()): Pro
   return findById(db, id);
 }
 
-export async function setTopics(db: D1Database, id: string, topics: TopicId[]): Promise<void> {
+export async function setTopics(db: D1Database, id: string, topics: InterestId[]): Promise<void> {
   await db.prepare("UPDATE subscribers SET topics = ? WHERE id = ?").bind(JSON.stringify(topics), id).run();
 }
 

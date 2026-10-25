@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BLINDSPOT, blindspotOf, coverageOf, freshness, frontPage, leanReading, pickBalanced, rankGroups, whyText } from "../src/build/select";
+import { BALANCE, BLINDSPOT, blindspotOf, coverageOf, freshness, frontPage, leanReading, pickBalanced, rankGroups, SECTION_CAPS, whyText } from "../src/build/select";
 import { TOPIC_IDS, type TopicId } from "../src/topics";
 import { leanOf, OUTLETS, sideOf, SIDE_SIZE } from "../src/outlets";
 
@@ -162,6 +162,16 @@ describe("pickBalanced", () => {
     expect(frontPage([minor], 5).size).toBe(0);
   });
 
+  it("keeps one subtopic to half a section while other stories wait", () => {
+    const f1 = [9, 9, 8, 8, 7, 7].map((n) => ({ ...group(n, "sports", false, 2), subtopic: "f1" }));
+    const nfl = [3, 3].map((n) => ({ ...group(n, "sports", false, 2), subtopic: "nfl" }));
+    const picked = pickBalanced([...f1, ...nfl], { ...opts, front: 0, perSection: 4 });
+    expect(picked.filter((p) => p.subtopic === "f1")).toHaveLength(2);
+    expect(picked).toEqual(expect.arrayContaining(nfl));
+    // With nothing else waiting, the subtopic fills the section.
+    expect(pickBalanced(f1, { ...opts, front: 0, perSection: 4 })).toHaveLength(4);
+  });
+
   it("caps the total", () => {
     const many = TOPIC_IDS.flatMap((t) => [group(5, t), group(4, t), group(3, t)]);
     expect(pickBalanced(many, { ...opts, max: 7 })).toHaveLength(7);
@@ -226,5 +236,15 @@ describe("section caps", () => {
     const picked = pickBalanced([...groups("world", 14), ...groups("science", 8)], { front: 0, perSection: 6, sections: { world: 10, science: 4 }, blindspots: 0, max: 80 });
     expect(picked.filter((p) => p.topic === "world")).toHaveLength(10);
     expect(picked.filter((p) => p.topic === "science")).toHaveLength(4);
+  });
+
+  it("treats technology and AI as busy sections, with room in the edition for every cap", () => {
+    expect(SECTION_CAPS.tech).toBe(10);
+    expect(SECTION_CAPS.ai).toBe(10);
+    expect(BALANCE.max).toBeGreaterThanOrEqual(Object.values(SECTION_CAPS).reduce((a, b) => a + b, 0) + BALANCE.front + BALANCE.blindspots);
+    const groups = (topic: TopicId, n: number) => Array.from({ length: n }, (_, i) => ({ id: `${topic}${i}`, topic, importance: 3, blindspot: null, latest: 0, members: [], coverage: coverageOf([L[i % L.length]!, R[i % R.length]!, C[i % C.length]!]) }));
+    const picked = pickBalanced([...groups("tech", 12), ...groups("ai", 12)], { ...BALANCE, front: 0 });
+    expect(picked.filter((p) => p.topic === "tech")).toHaveLength(10);
+    expect(picked.filter((p) => p.topic === "ai")).toHaveLength(10);
   });
 });

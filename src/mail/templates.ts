@@ -2,9 +2,10 @@ import { cardLine, shownSummary, type Edition, type Source, type Story } from ".
 import { readFirstLabel } from "../read-first";
 import { SLOT_NAME, type Slot } from "../slots";
 import { frontOrder } from "../build/select";
+import { follows } from "../layout";
 import { coverageLine, esc, longDate } from "../format";
 import { OUTLETS } from "../outlets";
-import { topicName, type TopicId } from "../topics";
+import { subtopicName, topicName } from "../topics";
 
 // Inline styles only: mail clients drop <style> and web fonts. Palette from DESIGN.md (Newsprint).
 const C = { paper: "#F3EFE6", sheet: "#FBF9F4", ink: "#1C1A16", ink2: "#5E594F", ink3: "#6F695E", rule: "#D6D0C4", brass: "#8A5A12" };
@@ -79,12 +80,13 @@ export function manageEmail(manageUrl: string): { subject: string; html: string;
 export type Digest = { front: Story[]; yours: Story[]; blindspots: Story[]; also: Story[] };
 
 /**
- * Everyone gets the front page; then up to 8 stories from their topics; then up to 2 blindspots; then, as
- * one-line "Also today" links, the 2 highest-scoring stories (front-page score) none of those included, plus the most widely covered one left.
+ * Everyone gets the front page; then up to 8 stories from their topics (a followed section or subtopic); then up
+ * to 2 blindspots; then, as one-line "Also today" links, the 2 highest-scoring stories (front-page score) none of
+ * those included, plus the most widely covered one left.
  */
-export function digestFor(stories: readonly Story[], topics: readonly TopicId[]): Digest {
+export function digestFor(stories: readonly Story[], topics: readonly string[]): Digest {
   const front = stories.filter((s) => s.front);
-  const yours = stories.filter((s) => !s.front && topics.includes(s.topic)).slice(0, 8);
+  const yours = stories.filter((s) => !s.front && follows(topics, s)).slice(0, 8);
   const blindspots = stories.filter((s) => s.blindspot && !front.includes(s) && !yours.includes(s)).slice(0, 2);
   const taken = new Set([...front, ...yours, ...blindspots]);
   const rest = stories.filter((s) => !taken.has(s));
@@ -113,7 +115,8 @@ const firstReadHtml = (src: Source) =>
 
 function storyHtml(s: Story, appUrl: string, photo?: EmailPhoto, lead = false, firstRead?: Source, sinceMorning = false): string {
   const url = `${appUrl}/s/${s.id}`;
-  const label = `${sinceMorning ? "New since this morning · " : ""}${s.blindspot ? "Possible blindspot · " : ""}${topicName(s.topic)}`;
+  const sub = subtopicName(s.subtopic);
+  const label = `${sinceMorning ? "New since this morning · " : ""}${s.blindspot ? "Possible blindspot · " : ""}${topicName(s.topic)}${sub ? ` · ${sub}` : ""}`;
   return `<tr><td style="padding:20px 0;border-bottom:1px solid ${C.rule}">
 ${photo ? photoHtml(photo, url) : ""}${kicker(label)}
 <a href="${esc(url)}" style="font:400 24px/1.2 ${SERIF};color:${C.ink};text-decoration:none">${esc(s.headline)}</a>

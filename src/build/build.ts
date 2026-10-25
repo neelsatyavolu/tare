@@ -1,4 +1,4 @@
-import type { TopicId } from "../topics";
+import { subtopicUnder, type SubtopicId, type TopicId } from "../topics";
 import { mapLimit, sha256Hex, utcDate } from "../util";
 import { classifyGroups, CLASSIFY_VERSION, type Classification } from "./classify";
 import { clusterItems, dot, normalize, type Embedded } from "./cluster";
@@ -20,8 +20,11 @@ export { EMBED_MODEL } from "./embed";
 export const SAME_EVENT = 0.84;
 const WINDOW_MS = 24 * 3600_000;
 const MIN_ITEMS = 40;
-/** Groups sent to the section classifier; the rest are too thinly covered to make the edition. */
-const CLASSIFY_LIMIT = 120;
+/**
+ * Groups sent to the section classifier; the rest are too thinly covered to make the edition. Room for 160 so
+ * technology and AI stories, which fewer outlets carry, still get sorted into their sections.
+ */
+const CLASSIFY_LIMIT = 160;
 const FRONT_SIZE = 6;
 /** Write-ups at a time; 10 tripped Workers AI's per-minute request limit for the write-up model. */
 const CONCURRENCY = 6;
@@ -36,15 +39,17 @@ const LAST_START_BEFORE_MS = 6 * 60_000;
 /** A rewrite still running this long before the deadline is abandoned; its story keeps the published version. */
 const HARD_STOP_BEFORE_MS = 90_000;
 
-type ItemRow = { id: string; outlet_id: string; title: string; snippet: string; published_at: number; image_url: string | null; embedding: unknown; topic: string | null; importance: number | null; classify_version: number };
-type Member = Embedded & SourceItem & { imageUrl: string | null; topic: string | null; importance: number | null };
-type Picked = Candidate<Member> & { topic: TopicId | null; importance: number | null };
+type ItemRow = { id: string; outlet_id: string; title: string; snippet: string; published_at: number; image_url: string | null; embedding: unknown; topic: string | null; subtopic: string | null; importance: number | null; classify_version: number };
+type Member = Embedded & SourceItem & { imageUrl: string | null; topic: string | null; subtopic: string | null; importance: number | null };
+type Picked = Candidate<Member> & { topic: TopicId | null; subtopic: SubtopicId | null; importance: number | null };
 
 export type BuiltStory = {
   id: string;
   rank: number;
   front: boolean;
   topic: TopicId;
+  /** A narrower topic within `topic` (see SUBTOPICS), when the classifier found one. */
+  subtopic: SubtopicId | null;
   headline: string;
   dek: Cited | null;
   why: Cited | null;
@@ -58,7 +63,7 @@ export type BuiltStory = {
 };
 
 type ExistingRow = {
-  id: string; topic: TopicId; headline: string; summary: string; differences: string; item_ids: string; dek: string | null; why: string | null;
+  id: string; topic: TopicId; subtopic: string | null; headline: string; summary: string; differences: string; item_ids: string; dek: string | null; why: string | null;
   image_item_id: string | null; written_total: number | null; first_seen_at: number | null; importance: number | null;
   writeup_version: number; written_at: number | null;
 };
@@ -104,22 +109,26 @@ const CLASSIFY_CONCURRENCY = 4;
  * chunks not started by `stopAt` wait an hour (their groups rank as minor meanwhile).
  */
 async function sections(db: D1Database, ai: AiRunner, groups: readonly Candidate<Member>[], stopAt: number): Promise<Classification[]> {
-  const known: Classification[] = groups.map((g) => ({
-    topic: majority(g.members.map((m) => m.topic)) as TopicId | null,
-    importance: majority(g.members.map((m) => m.importance)),
-  }));
+  const known: Classification[] = groups.map((g) => {
+    const topic = majority(g.members.map((m) => m.topic)) as TopicId | null;
+    return { topic, subtopic: subtopicUnder(topic, majority(g.members.map((m) => m.subtopic))), importance: majority(g.members.map((m) => m.importance)) };
+  });
   const unknown = groups.map((g, i) => ({ g, i })).filter(({ i }) => known[i]!.topic === null || known[i]!.importance === null);
   const chunks = Array.from({ length: Math.ceil(unknown.length / CLASSIFY_CHUNK) }, (_, k) => unknown.slice(k * CLASSIFY_CHUNK, (k + 1) * CLASSIFY_CHUNK));
-  const stmt = db.prepare("UPDATE items SET topic = COALESCE(?, topic), importance = COALESCE(?, importance), classify_version = ? WHERE id = ?");
+  // A subtopic is saved whenever a section is: null then means "none fits", not "not rated".
+  const stmt = db.prepare(
+    "UPDATE items SET topic = COALESCE(?, topic), subtopic = CASE WHEN ? IS NULL THEN subtopic ELSE ? END, importance = COALESCE(?, importance), classify_version = ? WHERE id = ?",
+  );
 
   await mapLimit(chunks, CLASSIFY_CONCURRENCY, async (chunk) => {
     if (Date.now() > stopAt) return;
     const fresh = await classifyGroups(ai, chunk.map(({ g }) => g.members));
     const writes: D1PreparedStatement[] = [];
     chunk.forEach(({ g, i }, k) => {
-      const c = fresh[k] ?? { topic: null, importance: null };
-      known[i] = { topic: c.topic ?? known[i]!.topic, importance: c.importance ?? known[i]!.importance };
-      if (c.topic || c.importance) for (const m of g.members) writes.push(stmt.bind(c.topic, c.importance, CLASSIFY_VERSION, m.id));
+      const c = fresh[k] ?? { topic: null, subtopic: null, importance: null };
+      const prev = known[i]!;
+      known[i] = { topic: c.topic ?? prev.topic, subtopic: c.topic ? c.subtopic : prev.subtopic, importance: c.importance ?? prev.importance };
+      if (c.topic || c.importance) for (const m of g.members) writes.push(stmt.bind(c.topic, c.topic, c.subtopic, c.importance, CLASSIFY_VERSION, m.id));
     });
     for (let w = 0; w < writes.length; w += 100) await db.batch(writes.slice(w, w + 100));
   });
@@ -151,7 +160,7 @@ async function beforeHardStop<T>(work: Promise<T>, stopAt: number): Promise<T | 
  * Stands in for a write-up that failed on a widely covered story: a center (else unrated) outlet's own
  * headline and description, attributed, until the next hour's retry (writeupVersion 0 forces one).
  */
-export async function standIn(group: { members: readonly Member[]; topic: TopicId | null; importance: number | null }, date: string, now: number): Promise<LineupStory | null> {
+export async function standIn(group: { members: readonly Member[]; topic: TopicId | null; subtopic: SubtopicId | null; importance: number | null }, date: string, now: number): Promise<LineupStory | null> {
   const sources = onePerOutlet(group.members);
   const coverage = coverageOf(sources.map((s) => s.outletId));
   if (coverage.total < ALWAYS_PUBLISH) return null;
@@ -165,6 +174,7 @@ export async function standIn(group: { members: readonly Member[]; topic: TopicI
   return {
     id: await sha256Hex(`${date}:${sources.map((s) => s.id).join(",")}`),
     topic: group.topic ?? "world",
+    subtopic: group.topic ? group.subtopic : null,
     headline: pick.title,
     dek: null,
     why: null,
@@ -195,6 +205,7 @@ async function writeUp(ai: AiRunner, group: Picked, date: string, now: number, p
       id: await sha256Hex(`${date}:${kept.map((s) => s.id).join(",")}`),
       // The section decided before selection wins, so a story stays in the section it was picked for.
       topic: group.topic ?? w.topic,
+      subtopic: group.topic ? group.subtopic : null,
       headline: w.headline,
       dek: w.dek,
       why: w.why,
@@ -226,6 +237,8 @@ function carryOver(ex: ExistingRow, group: Picked, outletOf: ReadonlyMap<string,
   return {
     id: ex.id,
     topic: ex.topic,
+    // The story keeps its section; its subtopic follows this hour's rating when that agrees on the section.
+    subtopic: group.topic === ex.topic ? group.subtopic : subtopicUnder(ex.topic, ex.subtopic),
     headline: ex.headline,
     dek: ex.dek ? JSON.parse(ex.dek) : null,
     why: ex.why ? JSON.parse(ex.why) : null,
@@ -307,7 +320,7 @@ export async function buildEdition(db: D1Database, rawAi: AiRunner, now = Date.n
     await embedPending(db, ai, now - WINDOW_MS);
     const { results } = await db
       .prepare(
-        `SELECT id, outlet_id, title, snippet, published_at, image_url, embedding, topic, importance, classify_version FROM items
+        `SELECT id, outlet_id, title, snippet, published_at, image_url, embedding, topic, subtopic, importance, classify_version FROM items
          WHERE published_at > ? AND published_at <= ? AND embedding IS NOT NULL`,
       )
       .bind(now - WINDOW_MS, now)
@@ -319,15 +332,15 @@ export async function buildEdition(db: D1Database, rawAi: AiRunner, now = Date.n
       const vec = decodeVector(r.embedding);
       // Ratings made under older rules are forgotten, so the group is classified again.
       const current = r.classify_version >= CLASSIFY_VERSION;
-      return vec ? [{ id: r.id, outletId: r.outlet_id, publishedAt: r.published_at, title: r.title, snippet: r.snippet, imageUrl: r.image_url, topic: current ? r.topic : null, importance: current ? r.importance : null, vec }] : [];
+      return vec ? [{ id: r.id, outletId: r.outlet_id, publishedAt: r.published_at, title: r.title, snippet: r.snippet, imageUrl: r.image_url, topic: current ? r.topic : null, subtopic: current ? r.subtopic : null, importance: current ? r.importance : null, vec }] : [];
     });
     const ranked = rankGroups(clusterItems(members, SAME_EVENT)).slice(0, CLASSIFY_LIMIT);
     const topics = await sections(db, ai, ranked, deadlineAt - CLASSIFY_STOP_BEFORE_MS);
-    const picked: Picked[] = pickBalanced(ranked.map((c, i) => ({ ...c, topic: topics[i]?.topic ?? null, importance: topics[i]?.importance ?? null })));
+    const picked: Picked[] = pickBalanced(ranked.map((c, i) => ({ ...c, topic: topics[i]?.topic ?? null, subtopic: topics[i]?.subtopic ?? null, importance: topics[i]?.importance ?? null })));
     report = { ...report, candidates: picked.length };
 
     const { results: existing } = await db
-      .prepare("SELECT id, topic, headline, summary, differences, item_ids, dek, why, image_item_id, written_total, first_seen_at, importance, writeup_version, written_at FROM stories WHERE edition_date = ?")
+      .prepare("SELECT id, topic, subtopic, headline, summary, differences, item_ids, dek, why, image_item_id, written_total, first_seen_at, importance, writeup_version, written_at FROM stories WHERE edition_date = ?")
       .bind(date)
       .all<ExistingRow>();
     const outletOf = await outletsOf(db, results, existing);
@@ -364,10 +377,10 @@ export async function buildEdition(db: D1Database, rawAi: AiRunner, now = Date.n
     // Front page first in its own order, then the rest by breadth (sections list them in this order).
     const ordered = [...stories].sort((a, b) => Number(front.has(b)) - Number(front.has(a)) || (front.has(a) ? frontOrder(a, b) : sectionOrder(a, b)));
     const upsert = db.prepare(
-      `INSERT INTO stories (id, edition_date, rank, front, topic, headline, summary, differences, coverage, blindspot, item_ids, image_item_id,
+      `INSERT INTO stories (id, edition_date, rank, front, topic, subtopic, headline, summary, differences, coverage, blindspot, item_ids, image_item_id,
                             active, first_seen_at, updated_at, written_total, importance, writeup_version, dek, why, written_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(id) DO UPDATE SET rank = excluded.rank, front = excluded.front, topic = excluded.topic, headline = excluded.headline,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET rank = excluded.rank, front = excluded.front, topic = excluded.topic, subtopic = excluded.subtopic, headline = excluded.headline,
          summary = excluded.summary, differences = excluded.differences, coverage = excluded.coverage, blindspot = excluded.blindspot,
          item_ids = excluded.item_ids, image_item_id = excluded.image_item_id, active = 1, updated_at = excluded.updated_at,
          written_total = excluded.written_total, importance = excluded.importance, writeup_version = excluded.writeup_version,
@@ -378,7 +391,7 @@ export async function buildEdition(db: D1Database, rawAi: AiRunner, now = Date.n
     await db.batch([
       ...ordered.map((s, rank) =>
         upsert.bind(
-          s.id, date, rank, front.has(s) ? 1 : 0, s.topic, s.headline, JSON.stringify(s.summary), JSON.stringify(s.differences),
+          s.id, date, rank, front.has(s) ? 1 : 0, s.topic, s.subtopic, s.headline, JSON.stringify(s.summary), JSON.stringify(s.differences),
           JSON.stringify(s.coverage), s.blindspot, JSON.stringify(s.itemIds), s.imageItemId, s.firstSeenAt, now, s.writtenTotal, s.importance, s.writeupVersion,
           s.dek ? JSON.stringify(s.dek) : null, s.why ? JSON.stringify(s.why) : null, s.writtenAt,
         ),

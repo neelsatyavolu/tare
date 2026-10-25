@@ -23,11 +23,16 @@ struct Story: Codable, Sendable, Identifiable, Hashable {
     let front: Bool
     let topic: String
     let topicName: String
+    /// Optional fields the API added later stay optional, so an older server's JSON still decodes.
+    let subtopic: String?
+    let subtopicName: String?
     let headline: String
     let cardLine: String
     let summary: [Sentence]
     let why: Sentence?
     let coverage: Coverage
+    /// Distinct outlets per lean bucket, for the distribution bar and the spectrum.
+    let distribution: Distribution?
     let blindspot: String?
     let importance: Int?
     let firstSeenAt: Double?
@@ -105,6 +110,10 @@ struct SourceRef: Codable, Sendable, Hashable, Identifiable {
     let leanLabel: String
     /// "left", "center", "right" or "unrated".
     let side: String
+    /// The outlet's Eady 2025 audience-lean score; nil when it has none.
+    let zeta: Double?
+    /// "left", "leanLeft", "center", "leanRight", "right" or "unrated": a key into the story's `distribution`.
+    let bucket: String?
     let title: String
     let url: URL
     let publishedAt: Double

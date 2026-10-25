@@ -105,6 +105,45 @@ describe("pages", () => {
   });
 });
 
+describe("topic pages", () => {
+  const F1_ID = "f".repeat(32);
+  beforeEach(async () => {
+    await env.DB.batch([
+      env.DB.prepare("UPDATE stories SET subtopic = 'congress' WHERE id = ?").bind(STORY_ID),
+      env.DB.prepare("INSERT INTO stories (id, edition_date, rank, front, topic, subtopic, headline, summary, differences, coverage, blindspot, item_ids) VALUES (?, ?, 1, 0, 'sports', 'f1', 'Verstappen wins in Austin', ?, '[]', ?, NULL, '[\"i1\",\"i2\"]')")
+        .bind(F1_ID, DATE, JSON.stringify([{ text: "He won.", cites: ["i1"] }]), JSON.stringify({ left: 1, center: 0, right: 1, total: 2, balance: 0 })),
+    ]);
+  });
+
+  it("links section heads and subtopic kickers from the edition", async () => {
+    const html = await (await req("/")).text();
+    expect(html).toContain('<a href="/topic/sports">Sports</a>');
+    expect(html).toContain('<a href="/topic/f1">Formula 1</a>');
+    expect(html).toContain('<a href="/topic/congress">Congress</a>');
+  });
+
+  it("lists a section's or a subtopic's stories from today's edition", async () => {
+    const sports = await req("/topic/sports");
+    expect(sports.status).toBe(200);
+    const html = await sports.text();
+    expect(html).toContain("Verstappen wins in Austin");
+    expect(html).not.toContain("Senate passes bill");
+    expect(html).toContain('href="/topic/nfl"');
+
+    const f1 = await (await req("/topic/f1")).text();
+    expect(f1).toContain("Verstappen wins in Austin");
+    expect(f1).toContain('href="/topic/sports"');
+    // Front-page stories count too.
+    expect(await (await req("/topic/congress")).text()).toContain("Senate passes bill");
+    expect(await (await req("/topic/golf")).text()).toContain("No Golf stories in today");
+  });
+
+  it("404s unknown topics", async () => {
+    expect((await req("/topic/gossip")).status).toBe(404);
+    expect((await req("/topic/formula-1")).status).toBe(404);
+  });
+});
+
 describe("subscribe flow", () => {
   it("signs up, emails a confirm link and activates on click", async () => {
     const res = await req("/subscribe", form({ email: "New@Example.com", topics: ["tech", "bogus"] }));
@@ -190,7 +229,12 @@ describe("accounts", () => {
   it("saves topics, turns the email on, signs out and deletes", async () => {
     const cookie = await signIn("full@ex.com");
     const headers = { cookie, "content-type": "application/x-www-form-urlencoded" };
-    await req("/account/topics", { method: "POST", headers, body: "topics=tech&topics=world" });
+    await req("/account/topics", { method: "POST", headers, body: "topics=tech&topics=world&topics=f1&topics=bogus" });
+    expect((await env.DB.prepare("SELECT topics FROM subscribers WHERE email = 'full@ex.com'").first<{ topics: string }>())?.topics).toBe('["tech","world","f1"]');
+    // Subtopics sit under their section; a section with a chosen subtopic starts open.
+    const picker = await (await req("/account", { headers: { cookie } })).text();
+    expect(picker).toContain('name="topics" value="f1" checked');
+    expect(picker).toContain('<details class="subtopics" open="">');
     await req("/account/email", { method: "POST", headers, body: "on=1" });
     const html = await (await req("/account?saved=on", { headers: { cookie } })).text();
     expect(html).toContain("Email turned on.");

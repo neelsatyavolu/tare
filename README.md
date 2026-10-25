@@ -10,7 +10,7 @@ A native SwiftUI app with push notifications (morning and evening editions, brea
 
 ## How lean is decided
 
-Not by Tare. Each outlet's left/center/right label comes from Eady, Bonneau, Tucker & Nagler (2025), "News Sharing and Partisanship on Social Media", *Political Analysis*, a published audience-lean score for 184 U.S. news sites (CC0, `data/eady2025/`). The score is scaled so 0 is neutral and 1.24 is the gap between the median Democratic and median Republican member of the 116th Congress; Tare buckets at ±0.62 and ±1.24. Outlets outside that data (mostly international) are "not rated": their coverage counts, but never toward left or right. Research notes: `docs/research/bias-datasets.md`.
+Not by Tare. Each outlet's left/center/right label comes from Eady, Bonneau, Tucker & Nagler (2025), "News Sharing and Partisanship on Social Media", *Political Analysis*, a published audience-lean score for 184 U.S. news sites (CC0, `data/eady2025/`). The score is scaled so 0 is neutral and 1.24 is the gap between the median Democratic and median Republican member of the 116th Congress; Tare buckets at ±0.62 and ±1.24. Outlets outside that data (international ones like the BBC, and specialist tech, science and motorsport outlets like The Verge or Autosport) are "not rated": their coverage counts, but never toward left or right. Research notes: `docs/research/bias-datasets.md`.
 
 ## How it works
 

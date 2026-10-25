@@ -59,6 +59,23 @@ describe("digestFor", () => {
   });
 });
 
+describe("digestFor by subtopic", () => {
+  it("includes a story when the reader follows its subtopic but not its section", () => {
+    const f1 = { ...story("f", 5, "sports", false), subtopic: "f1" };
+    const nfl = { ...story("g", 6, "sports", false), subtopic: "nfl" };
+    const list = [...STORIES, f1, nfl] as unknown as Story[];
+    expect(digestFor(list, ["f1"]).yours.map((s) => s.headline)).toEqual(["Headline f"]);
+    // Following the section still brings every story in it.
+    expect(digestFor(list, ["sports"]).yours.map((s) => s.headline)).toEqual(["Headline d", "Headline f", "Headline g"]);
+  });
+
+  it("labels a story with its section and subtopic", () => {
+    const f1 = { ...story("f", 0, "sports", true), subtopic: "f1" } as unknown as Story;
+    const mail = digestEmail({ date: DATE, number: 1, status: "ready", itemCount: 0, builtAt: null, sentAt: null }, digestFor([f1], []), "https://tare.test", "https://tare.test/m");
+    expect(mail.html).toContain("Sports · Formula 1");
+  });
+});
+
 describe("sendEdition", () => {
   beforeEach(seed);
 

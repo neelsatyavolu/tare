@@ -7,8 +7,9 @@ import { editionLayout } from "../layout";
 import { LEAN_LABEL, sideOf, SIDE_SIZE } from "../outlets";
 import { readFirst, readFirstLabel } from "../read-first";
 import { currentSlot, DEFAULT_TIME_ZONE, isTimeZone, SLOT_NAME } from "../slots";
-import { topicName } from "../topics";
+import { subtopicName, subtopicsOf, topicName, TOPICS } from "../topics";
 import { DATE_RE } from "../editions";
+import { bucketOf, distributionOf, storyOutlets } from "../distribution";
 import { kindLabel, namedOutlets } from "../web/components";
 import { registerDevice, removeDevice, parseDevice } from "../push/devices";
 import { account } from "./account";
@@ -40,6 +41,9 @@ function sourceJson(s: Source, n: number) {
     lean: s.outlet.lean,
     leanLabel: LEAN_LABEL[s.outlet.lean],
     side: sideOf(s.outlet.lean) ?? "unrated",
+    // The Eady 2025 score behind `lean`, and its bucket as a key into the story's `distribution`.
+    zeta: s.outlet.zeta,
+    bucket: bucketOf(s.outlet.lean) ?? "unrated",
     title: s.title,
     url: s.url,
     publishedAt: s.publishedAt,
@@ -60,11 +64,15 @@ function storyJson(story: Story, sources: Map<string, Source>, full: boolean) {
     front: story.front,
     topic: story.topic,
     topicName: topicName(story.topic),
+    subtopic: story.subtopic ?? null,
+    subtopicName: subtopicName(story.subtopic),
     headline: story.headline,
     cardLine: cardLine(story),
     summary: shownSummary(story).map((s) => ({ text: s.text, cites: cite(s.cites) })),
     why: story.why ? { text: story.why.text, cites: cite(story.why.cites) } : null,
     coverage: { ...story.coverage, sideSize: SIDE_SIZE, reading: read },
+    // Distinct outlets per bucket, left to right, for the app's distribution bar and spectrum.
+    distribution: distributionOf(storyOutlets(story, sources)),
     blindspot: story.blindspot,
     importance: story.importance,
     firstSeenAt: story.firstSeenAt,
@@ -126,6 +134,12 @@ api.get("/stories/:id", async (c) => {
   const sources = await sourcesFor(c.env.DB, [story]);
   c.header("cache-control", `public, max-age=${EDITION_MAX_AGE}`);
   return c.json(storyJson(story, sources, true));
+});
+
+/** Every section with its subtopics, in display order: what a reader can follow. */
+api.get("/topics", (c) => {
+  c.header("cache-control", "public, max-age=3600");
+  return c.json({ sections: TOPICS.map((t) => ({ id: t.id, name: t.name, subtopics: subtopicsOf(t.id).map((s) => ({ id: s.id, name: s.name })) })) });
 });
 
 /** Registers (or updates) a device for push notifications. Body: {token, editions, breaking, environment}. */

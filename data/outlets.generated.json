@@ -1,5 +1,5 @@
 {
- "generatedAt": "2026-10-25T07:51:09.881Z",
+ "generatedAt": "2026-10-25T21:02:00.822Z",
  "source": "scripts/discover-feeds.mjs",
  "outlets": [
   {
@@ -120,8 +120,7 @@
    "zetaLow": -1.9884634521391091,
    "zetaHigh": -1.453575759286002,
    "feeds": [
-    "https://www.motherjones.com/feed/",
-    "https://motherjones.com/feed"
+    "https://www.motherjones.com/feed/"
    ]
   },
   {
@@ -177,7 +176,7 @@
    "zetaHigh": -1.1209477824710246,
    "feeds": [
     "https://www.vox.com/rss/index.xml",
-    "https://vox.com/rss/index.xml"
+    "https://www.vox.com/rss/technology/index.xml"
    ]
   },
   {
@@ -221,8 +220,7 @@
    "zetaLow": -1.4500688548881364,
    "zetaHigh": -0.9580903940124248,
    "feeds": [
-    "https://www.salon.com/feed/",
-    "https://salon.com/feed"
+    "https://www.salon.com/feed/"
    ]
   },
   {
@@ -345,7 +343,8 @@
    "zetaLow": -1.0593366763634036,
    "zetaHigh": -0.6536881415955594,
    "feeds": [
-    "https://www.newyorker.com/feed/rss"
+    "https://www.newyorker.com/feed/rss",
+    "https://www.newyorker.com/feed/tech"
    ]
   },
   {
@@ -424,12 +423,14 @@
    "feeds": [
     "https://rss.nytimes.com/services/xml/rss/nyt/HomePage.xml",
     "https://rss.nytimes.com/services/xml/rss/nyt/World.xml",
+    "https://rss.nytimes.com/services/xml/rss/nyt/US.xml",
     "https://rss.nytimes.com/services/xml/rss/nyt/Business.xml",
     "https://rss.nytimes.com/services/xml/rss/nyt/Technology.xml",
     "https://rss.nytimes.com/services/xml/rss/nyt/Science.xml",
     "https://rss.nytimes.com/services/xml/rss/nyt/Health.xml",
     "https://rss.nytimes.com/services/xml/rss/nyt/Climate.xml",
-    "https://rss.nytimes.com/services/xml/rss/nyt/Arts.xml"
+    "https://rss.nytimes.com/services/xml/rss/nyt/Arts.xml",
+    "https://rss.nytimes.com/services/xml/rss/nyt/PersonalTech.xml"
    ]
   },
   {
@@ -448,7 +449,8 @@
     "https://www.theguardian.com/science/rss",
     "https://www.theguardian.com/environment/rss",
     "https://www.theguardian.com/culture/rss",
-    "https://www.theguardian.com/us/rss"
+    "https://www.theguardian.com/technology/artificialintelligenceai/rss",
+    "https://www.theguardian.com/sport/formulaone/rss"
    ]
   },
   {
@@ -509,7 +511,8 @@
    "zetaLow": -0.7778509031774217,
    "zetaHigh": -0.40638757717273294,
    "feeds": [
-    "https://www.theatlantic.com/feed/all/"
+    "https://www.theatlantic.com/feed/all/",
+    "https://www.theatlantic.com/feed/channel/technology/"
    ]
   },
   {
@@ -534,7 +537,8 @@
     "https://feeds.nbcnews.com/nbcnews/public/news",
     "https://feeds.nbcnews.com/nbcnews/public/world",
     "https://feeds.nbcnews.com/nbcnews/public/health",
-    "https://nbcnews.com/feed"
+    "https://feeds.nbcnews.com/nbcnews/public/tech",
+    "https://feeds.nbcnews.com/nbcnews/public/business"
    ]
   },
   {
@@ -637,7 +641,8 @@
    "zetaLow": -0.4436420830638461,
    "zetaHigh": -0.01381962365529667,
    "feeds": [
-    "https://www.economist.com/latest/rss.xml"
+    "https://www.economist.com/latest/rss.xml",
+    "https://www.economist.com/science-and-technology/rss.xml"
    ]
   },
   {
@@ -648,7 +653,8 @@
    "zetaLow": -0.39370742191456914,
    "zetaHigh": -0.03816616588129053,
    "feeds": [
-    "https://rss.politico.com/politics-news.xml"
+    "https://rss.politico.com/politics-news.xml",
+    "https://rss.politico.com/technology.xml"
    ]
   },
   {
@@ -841,8 +847,7 @@
     "https://thehill.com/policy/technology/feed/",
     "https://thehill.com/business/feed/",
     "https://thehill.com/policy/healthcare/feed/",
-    "https://thehill.com/policy/energy-environment/feed/",
-    "https://thehill.com/comments/feed/"
+    "https://thehill.com/policy/energy-environment/feed/"
    ]
   },
   {
@@ -856,8 +861,7 @@
     "https://rss.upi.com/news/top_news.rss",
     "https://rss.upi.com/news/world_news.rss",
     "https://rss.upi.com/news/sports_news.rss",
-    "https://rss.upi.com/news/entertainment_news.rss",
-    "https://rss.upi.com/news/news.rss"
+    "https://rss.upi.com/news/entertainment_news.rss"
    ]
   },
   {
@@ -868,7 +872,8 @@
    "zetaLow": 0.008941751045040422,
    "zetaHigh": 0.3733236307638666,
    "feeds": [
-    "https://www.forbes.com/business/feed/"
+    "https://www.forbes.com/business/feed/",
+    "https://www.forbes.com/innovation/feed/"
    ]
   },
   {
@@ -934,8 +939,7 @@
    "zetaLow": 0.4414666463655511,
    "zetaHigh": 1.3032128873932003,
    "feeds": [
-    "https://thedispatch.com/feed/",
-    "https://thedispatch.com/feed"
+    "https://thedispatch.com/feed/"
    ]
   },
   {
@@ -957,8 +961,7 @@
    "zetaLow": 0.679287296131252,
    "zetaHigh": 1.2227154421666908,
    "feeds": [
-    "https://reason.com/feed/",
-    "https://reason.com/feed"
+    "https://reason.com/feed/"
    ]
   },
   {
@@ -1040,8 +1043,7 @@
    "zetaHigh": 1.5534358476014871,
    "feeds": [
     "https://www.washingtonexaminer.com/feed",
-    "https://www.washingtonexaminer.com/policy/feed",
-    "https://washingtonexaminer.com/feed"
+    "https://www.washingtonexaminer.com/policy/feed"
    ]
   },
   {
@@ -1080,8 +1082,7 @@
     "https://moxie.foxnews.com/google-publisher/politics.xml",
     "https://moxie.foxnews.com/google-publisher/tech.xml",
     "https://moxie.foxnews.com/google-publisher/health.xml",
-    "https://moxie.foxnews.com/google-publisher/entertainment.xml",
-    "https://foxnews.com/rss"
+    "https://moxie.foxnews.com/google-publisher/entertainment.xml"
    ]
   },
   {
@@ -1114,8 +1115,7 @@
    "zetaLow": 1.3845580996488256,
    "zetaHigh": 1.822079325023237,
    "feeds": [
-    "https://www.nationalreview.com/feed/",
-    "https://nationalreview.com/feed"
+    "https://www.nationalreview.com/feed/"
    ]
   },
   {
@@ -1181,8 +1181,7 @@
    "zetaLow": 1.6917749664828552,
    "zetaHigh": 2.1596195999936376,
    "feeds": [
-    "https://dailycaller.com/feed/",
-    "https://api.dailycaller.com/?feed=full&key=abad8678eeda58de4efcc7e9a704d008"
+    "https://dailycaller.com/feed/"
    ]
   },
   {
@@ -1205,8 +1204,7 @@
    "zetaHigh": 2.291352467969399,
    "feeds": [
     "https://feeds.feedburner.com/breitbart",
-    "https://feeds.feedburner.com/breitbart/world",
-    "https://breitbart.com/feed"
+    "https://feeds.feedburner.com/breitbart/world"
    ]
   },
   {
@@ -1217,8 +1215,7 @@
    "zetaLow": 1.7755497771193138,
    "zetaHigh": 2.303483232488426,
    "feeds": [
-    "https://freebeacon.com/feed/",
-    "https://freebeacon.com/feed"
+    "https://freebeacon.com/feed/"
    ]
   },
   {
@@ -1240,8 +1237,7 @@
    "zetaLow": 1.852472257946766,
    "zetaHigh": 2.449839488046843,
    "feeds": [
-    "https://thefederalist.com/feed/",
-    "https://thefederalist.com/feed"
+    "https://thefederalist.com/feed/"
    ]
   },
   {
@@ -1333,12 +1329,46 @@
    ]
   },
   {
+   "id": "404media",
+   "name": "404 Media",
+   "domain": "404media.co",
+   "feeds": [
+    "https://www.404media.co/rss/"
+   ]
+  },
+  {
    "id": "aljazeera",
    "name": "Al Jazeera",
    "domain": "aljazeera.com",
    "feeds": [
-    "https://www.aljazeera.com/xml/rss/all.xml",
-    "https://aljazeera.com/rss"
+    "https://www.aljazeera.com/xml/rss/all.xml"
+   ]
+  },
+  {
+   "id": "arstechnica",
+   "name": "Ars Technica",
+   "domain": "arstechnica.com",
+   "feeds": [
+    "https://feeds.arstechnica.com/arstechnica/index",
+    "https://arstechnica.com/ai/feed/"
+   ]
+  },
+  {
+   "id": "athletic",
+   "name": "The Athletic",
+   "domain": "theathletic.com",
+   "feeds": [
+    "https://www.nytimes.com/athletic/rss/formula-1/",
+    "https://www.nytimes.com/athletic/rss/news/"
+   ]
+  },
+  {
+   "id": "autosport",
+   "name": "Autosport",
+   "domain": "autosport.com",
+   "feeds": [
+    "https://www.autosport.com/rss/f1/news/",
+    "https://www.autosport.com/rss/google/"
    ]
   },
   {
@@ -1352,7 +1382,97 @@
     "https://feeds.bbci.co.uk/news/science_and_environment/rss.xml",
     "https://feeds.bbci.co.uk/news/health/rss.xml",
     "https://feeds.bbci.co.uk/news/entertainment_and_arts/rss.xml",
-    "https://feeds.bbci.co.uk/sport/rss.xml"
+    "https://feeds.bbci.co.uk/sport/rss.xml",
+    "https://feeds.bbci.co.uk/news/technology/rss.xml",
+    "https://feeds.bbci.co.uk/sport/formula1/rss.xml"
+   ]
+  },
+  {
+   "id": "cnet",
+   "name": "CNET",
+   "domain": "cnet.com",
+   "feeds": [
+    "https://www.cnet.com/rss/news/",
+    "https://www.cnet.com/rss/ai/",
+    "https://www.cnet.com/rss/all/"
+   ]
+  },
+  {
+   "id": "crash",
+   "name": "Crash.net",
+   "domain": "crash.net",
+   "feeds": [
+    "https://www.crash.net/rss/f1",
+    "https://www.crash.net/rss"
+   ]
+  },
+  {
+   "id": "decoder",
+   "name": "The Decoder",
+   "domain": "the-decoder.com",
+   "feeds": [
+    "https://the-decoder.com/feed/"
+   ]
+  },
+  {
+   "id": "engadget",
+   "name": "Engadget",
+   "domain": "engadget.com",
+   "feeds": [
+    "https://www.engadget.com/rss.xml",
+    "https://www.engadget.com/category/news/feed/"
+   ]
+  },
+  {
+   "id": "espn",
+   "name": "ESPN",
+   "domain": "espn.com",
+   "feeds": [
+    "https://www.espn.com/espn/rss/f1/news",
+    "https://www.espn.com/espn/rss/news"
+   ]
+  },
+  {
+   "id": "fastcompany",
+   "name": "Fast Company",
+   "domain": "fastcompany.com",
+   "feeds": [
+    "https://www.fastcompany.com/technology/rss",
+    "https://fastcompany.com/rss"
+   ]
+  },
+  {
+   "id": "ft",
+   "name": "Financial Times",
+   "domain": "ft.com",
+   "feeds": [
+    "https://www.ft.com/technology?format=rss",
+    "https://www.ft.com/artificial-intelligence?format=rss",
+    "https://www.ft.com/world?format=rss"
+   ]
+  },
+  {
+   "id": "geekwire",
+   "name": "GeekWire",
+   "domain": "geekwire.com",
+   "feeds": [
+    "https://www.geekwire.com/feed/"
+   ]
+  },
+  {
+   "id": "grandprix",
+   "name": "GrandPrix.com",
+   "domain": "grandprix.com",
+   "feeds": [
+    "https://grandprix.com/rss.xml"
+   ]
+  },
+  {
+   "id": "ieeespectrum",
+   "name": "IEEE Spectrum",
+   "domain": "spectrum.ieee.org",
+   "feeds": [
+    "https://spectrum.ieee.org/feeds/feed.rss"
    ]
   },
   {
@@ -1365,12 +1485,169 @@
    ]
   },
   {
+   "id": "motorsportcom",
+   "name": "Motorsport.com",
+   "domain": "motorsport.com",
+   "feeds": [
+    "https://www.motorsport.com/rss/f1/news/",
+    "https://www.motorsport.com/rss/google/"
+   ]
+  },
+  {
+   "id": "motorsportweek",
+   "name": "Motorsport Week",
+   "domain": "motorsportweek.com",
+   "feeds": [
+    "https://www.motorsportweek.com/feed/"
+   ]
+  },
+  {
    "id": "newsnation",
    "name": "NewsNation",
    "domain": "newsnationnow.com",
    "feeds": [
-    "https://www.newsnationnow.com/feed/",
-    "https://newsnationnow.com/feed"
+    "https://www.newsnationnow.com/feed/"
+   ]
+  },
+  {
+   "id": "planetf1",
+   "name": "PlanetF1",
+   "domain": "planetf1.com",
+   "feeds": [
+    "https://www.planetf1.com/rss"
+   ]
+  },
+  {
+   "id": "platformer",
+   "name": "Platformer",
+   "domain": "platformer.news",
+   "feeds": [
+    "https://www.platformer.news/rss/"
+   ]
+  },
+  {
+   "id": "racefans",
+   "name": "RaceFans",
+   "domain": "racefans.net",
+   "feeds": [
+    "https://www.racefans.net/feed/"
+   ]
+  },
+  {
+   "id": "racingnews365",
+   "name": "RacingNews365",
+   "domain": "racingnews365.com",
+   "feeds": [
+    "https://racingnews365.com/feed/news.xml"
+   ]
+  },
+  {
+   "id": "register",
+   "name": "The Register",
+   "domain": "theregister.com",
+   "feeds": [
+    "https://www.theregister.com/headlines.atom"
+   ]
+  },
+  {
+   "id": "sciam",
+   "name": "Scientific American",
+   "domain": "scientificamerican.com",
+   "feeds": [
+    "https://www.scientificamerican.com/platform/syndication/rss/"
+   ]
+  },
+  {
+   "id": "sciencemag",
+   "name": "Science",
+   "domain": "science.org",
+   "feeds": [
+    "https://www.science.org/rss/news_current.xml"
+   ]
+  },
+  {
+   "id": "semafor",
+   "name": "Semafor",
+   "domain": "semafor.com",
+   "feeds": [
+    "https://www.semafor.com/rss.xml"
+   ]
+  },
+  {
+   "id": "skynews",
+   "name": "Sky News",
+   "domain": "news.sky.com",
+   "feeds": [
+    "https://feeds.skynews.com/feeds/rss/home.xml",
+    "https://feeds.skynews.com/feeds/rss/technology.xml"
+   ]
+  },
+  {
+   "id": "techcrunch",
+   "name": "TechCrunch",
+   "domain": "techcrunch.com",
+   "feeds": [
+    "https://techcrunch.com/feed/",
+    "https://techcrunch.com/category/artificial-intelligence/feed/"
+   ]
+  },
+  {
+   "id": "techreview",
+   "name": "MIT Technology Review",
+   "domain": "technologyreview.com",
+   "feeds": [
+    "https://www.technologyreview.com/feed/"
+   ]
+  },
+  {
+   "id": "telegraph",
+   "name": "The Telegraph",
+   "domain": "telegraph.co.uk",
+   "feeds": [
+    "https://www.telegraph.co.uk/rss.xml",
+    "https://www.telegraph.co.uk/formula-1/rss.xml"
+   ]
+  },
+  {
+   "id": "theinformation",
+   "name": "The Information",
+   "domain": "theinformation.com",
+   "feeds": [
+    "https://www.theinformation.com/feed"
+   ]
+  },
+  {
+   "id": "therace",
+   "name": "The Race",
+   "domain": "the-race.com",
+   "feeds": [
+    "https://www.the-race.com/rss/"
+   ]
+  },
+  {
+   "id": "tomshardware",
+   "name": "Tom's Hardware",
+   "domain": "tomshardware.com",
+   "feeds": [
+    "https://www.tomshardware.com/feeds.xml"
+   ]
+  },
+  {
+   "id": "verge",
+   "name": "The Verge",
+   "domain": "theverge.com",
+   "feeds": [
+    "https://www.theverge.com/rss/index.xml",
+    "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml"
+   ]
+  },
+  {
+   "id": "wired",
+   "name": "Wired",
+   "domain": "wired.com",
+   "feeds": [
+    "https://www.wired.com/feed/rss",
+    "https://www.wired.com/feed/tag/ai/latest/rss"
    ]
   }
  ]
