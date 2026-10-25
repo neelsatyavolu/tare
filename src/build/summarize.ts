@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { LEAN_LABEL, outletById, sideOf } from "../outlets";
 import { TOPIC_IDS, TOPICS, type TopicId } from "../topics";
+import { review } from "./editor";
 
 export const SUMMARY_MODEL = "@cf/openai/gpt-oss-120b";
 
@@ -15,7 +16,7 @@ export const SUMMARY_MODEL = "@cf/openai/gpt-oss-120b";
  * 8: no hedged ("could", "may", "likely") why-lines at all.
  * 9: current officeholders in the prompt, so titles stay consistent across stories.
  */
-export const WRITEUP_VERSION = 25;
+export const WRITEUP_VERSION = 26;
 
 /**
  * Facts that change rarely but that the model, trained earlier, tends to get wrong. Keep current: they go
@@ -38,6 +39,8 @@ export type Writeup = {
   trimmed?: boolean;
   /** Set by the check pass: false when neither the first sentence nor the dek reports the headline's event. */
   opensWithEvent?: boolean;
+  /** False when the final editor read flagged the story; such a write-up never replaces a published one. */
+  edited?: boolean;
 };
 
 /** The slice of the Workers AI binding this module uses, so tests can pass a fake. */
@@ -315,13 +318,24 @@ export async function summarize(ai: AiRunner, unordered: readonly SourceItem[], 
   // Oldest first, so the model can tell an earlier report from a later update.
   const items = [...unordered].sort((a, b) => (a.publishedAt ?? 0) - (b.publishedAt ?? 0));
   const today = new Date(now).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
-  const first = await attempt(ai, items, today, ATTEMPTS[0]);
-  if (first && !weak(first, items)) return first;
-  const second = await attempt(ai, items, today, ATTEMPTS[1]);
-  // Prefer one that opens with the event itself, then the fuller one, then one the checker didn't have to cut.
-  const score = (w: Writeup) => (headless(w) ? 0 : 10) + w.summary.length - (w.trimmed ? 0.5 : 0);
-  const best = !second ? first : !first ? second : score(second) > score(first) ? second : first;
-  return best && headless(best) ? withHeadline(best) : best;
+  // Prefer one the editor passed, then one that opens with the event itself, then the fuller one, then one the
+  // checker didn't have to cut.
+  const score = (w: Writeup) => (w.edited === false ? 0 : 100) + (headless(w) ? 0 : 10) + w.summary.length - (w.trimmed ? 0.5 : 0);
+  let best: Writeup | null = null;
+  for (const settings of ATTEMPTS) {
+    const raw = await attempt(ai, items, today, settings);
+    if (!raw) continue;
+    const w = await edit(ai, headless(raw) ? withHeadline(raw) : raw, items);
+    if (!best || score(w) > score(best)) best = w;
+    if (w.edited !== false && !weak(raw, items)) return w;
+  }
+  return best;
+}
+
+/** The editor's read of the whole story: bad differences are dropped; a flagged story is marked, not published over a good one. */
+async function edit(ai: AiRunner, w: Writeup, items: readonly SourceItem[]): Promise<Writeup> {
+  const r = await review(ai, w, items);
+  return { ...w, differences: w.differences.filter((_, i) => !r.badDifferences.includes(i)), edited: r.ok };
 }
 
 /** A write-up worth a second try: the checker cut it, or a story with several sources got a one-sentence summary. */

@@ -135,9 +135,9 @@ describe("card helpers", () => {
 });
 
 describe("cardLine", () => {
-  it("skips a line that only restates the headline", () => {
+  it("shows no line rather than one that only restates the headline", () => {
     const echo: Story = { ...story, dek: { text: "Something happened.", cites: ["i0"] } };
-    expect(cardLine(echo)).toBe("Everyone reported it.");
+    expect(cardLine(echo)).toBe("");
     expect(cardLine({ ...story, dek: { text: "A fresh detail.", cites: ["i0"] } })).toBe("A fresh detail.");
   });
 });

@@ -63,6 +63,7 @@ function fakeAi(opts: { failSummaries?: boolean } = {}): AiRunner {
         const n = (user0!.match(/^\[\d+\]/gm) ?? []).length;
         return { response: JSON.stringify({ supported: Array(n).fill(true) }) };
       }
+      if (system!.startsWith("You are the last editor")) return { response: JSON.stringify({ story_ok: true, bad_differences: [] }) };
       if (opts.failSummaries) throw new Error("model down");
       summaryCalls += 1;
       const user = (input.messages as { content: string }[])[1]!.content;

@@ -181,7 +181,7 @@ describe("sourceBlock", () => {
 });
 
 /** A fake model: answers write-ups with `reply`, and the check pass with `verdicts` (default: all supported). */
-function fakeModel(reply: unknown, verdicts?: (n: number) => boolean[]): { ai: AiRunner; calls: Record<string, unknown>[] } {
+function fakeModel(reply: unknown, verdicts?: (n: number) => boolean[], editor: unknown = { story_ok: true, bad_differences: [] }): { ai: AiRunner; calls: Record<string, unknown>[] } {
   const calls: Record<string, unknown>[] = [];
   const ai: AiRunner = {
     run: async (_m, input) => {
@@ -191,6 +191,7 @@ function fakeModel(reply: unknown, verdicts?: (n: number) => boolean[]): { ai: A
         const n = (user!.match(/^\[\d+\]/gm) ?? []).length;
         return { response: JSON.stringify({ supported: verdicts ? verdicts(n) : Array(n).fill(true) }) };
       }
+      if (system!.startsWith("You are the last editor")) return { response: JSON.stringify(editor) };
       return { response: JSON.stringify(reply) };
     },
   };
@@ -204,7 +205,16 @@ describe("summarize", () => {
     expect(w?.summary).toHaveLength(3);
     expect(JSON.stringify(calls[0])).toContain("[s4] New York Post (leans right)");
     expect(JSON.stringify(calls[0])).toContain("Today is Sunday, October 25, 2026");
-    expect(calls).toHaveLength(2);
+    // Write-up, claim check, editor read.
+    expect(calls).toHaveLength(3);
+  });
+
+  it("drops differences the editor flags and marks a flagged story after both attempts", async () => {
+    const { ai, calls } = fakeModel(good, undefined, { story_ok: false, problems: ["x"], bad_differences: [1] });
+    const w = await summarize(ai, items);
+    expect(w?.differences).toEqual([]);
+    expect(w?.edited).toBe(false);
+    expect(calls).toHaveLength(6);
   });
 
   it("lists sources oldest first, with their publish times", async () => {

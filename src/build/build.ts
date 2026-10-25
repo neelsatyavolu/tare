@@ -55,7 +55,7 @@ type ExistingRow = {
 };
 
 /** One row to save: a story in this hour's lineup. */
-type LineupStory = Omit<BuiltStory, "rank" | "front"> & { writtenTotal: number; firstSeenAt: number; writeupVersion: number; writtenAt: number | null };
+type LineupStory = Omit<BuiltStory, "rank" | "front"> & { writtenTotal: number; firstSeenAt: number; writeupVersion: number; writtenAt: number | null; flagged?: boolean };
 
 export type BuildReport = {
   date: string; status: "ready" | "failed" | "skipped"; items: number; candidates: number; stories: number;
@@ -168,6 +168,7 @@ async function writeUp(ai: AiRunner, group: Picked, date: string, now: number): 
       writeupVersion: WRITEUP_VERSION,
       writtenAt: now,
       firstSeenAt: now,
+      flagged: w.edited === false,
     };
   } catch (err) {
     console.error(`summary failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -299,7 +300,8 @@ export async function buildEdition(db: D1Database, ai: AiRunner, now = Date.now(
       // A rewrite keeps the story's id and first-seen time, so its link and "new" marker don't change. Its sources
       // are the fresh write-up's, so the source list always matches the counts.
       // A failed rewrite (stand-in, version 0) never replaces an existing write-up.
-      const usable = fresh && !(carried && fresh.writeupVersion === 0) ? fresh : null;
+      // Nor does one the final editor flagged: the published version stays until a rewrite passes.
+      const usable = fresh && !(carried && (fresh.writeupVersion === 0 || fresh.flagged)) ? fresh : null;
       const story = usable && carried ? { ...usable, id: carried.id, firstSeenAt: carried.firstSeenAt } : (usable ?? carried);
       return story && checkBlindspot(story, group, members);
     });
