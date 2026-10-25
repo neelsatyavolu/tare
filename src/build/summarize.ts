@@ -12,8 +12,9 @@ export const SUMMARY_MODEL = "@cf/openai/gpt-oss-120b";
  * 5: a code rule drops "why" lines whose hedges (could, may, likely...) no cited source uses.
  * 6: standalone sentences, checked headlines, stricter difference checks, a retry when the check trims.
  * 7: no single figure where outlets disagree (headline included); tense and status rules; specific "why" lines.
+ * 8: no hedged ("could", "may", "likely") why-lines at all.
  */
-export const WRITEUP_VERSION = 7;
+export const WRITEUP_VERSION = 8;
 
 export type SourceItem = { id: string; outletId: string; title: string; snippet: string };
 export type Cited = { text: string; cites: string[] };
@@ -75,7 +76,7 @@ Rules:
 - Neutral wording. No loaded, emotive or judging words, no speculation, no predictions, no "critics say" unless a source says it. Attribute claims and quotes to whoever made them.
 - headline: what happened, in plain words, under 100 characters, sentence case, no colon subtitle, no clickbait, no quote marks unless quoting.
 - dek: one sentence for the home page, under 30 words: what happened and, if there is one, the central dispute, accusation or claim of responsibility (for example, who said they caused it and why). With its sources.
-- why: one sentence on a specific consequence the sources state (a policy that would change, a number of people affected, a decision now due), not general significance and not a repeat of the summary. No "could", "may" or "might" unless a source says exactly that. If the sources don't give one, give an empty text and no sources.
+- why: one sentence on a specific consequence the sources state as fact (a policy that changes, a number of people affected, a decision now due), not general significance, not a forecast and not a repeat of the summary. Never use "could", "may", "might" or "likely". If the sources don't give one, give an empty text and no sources.
 - summary: 2 to 4 sentences, under 90 words in total, about the event itself. Each sentence must make sense on its own: name the person or body ("Ukraine's defense ministry"), never refer back with "the ministry" or "he". The first sentence states what the headline says happened; the rest give the most important context. Don't describe how outlets covered it or quote labels one outlet used; that belongs in differences.
 - differences: at most 2, each listing sources from every side of the difference. Include one only if the accounts differ on who did it, whether it is confirmed or alleged, who is to blame, or how many/how much. kind is "fact" (claims that cannot both be true: 11 vs 12 injured, yes, but "14 years" vs "over a decade" is not) or "framing" (the same event described so that a reader would come away believing something different; quote the words). Different aspects of the same event, wording nits, rounding and one outlet adding a detail are not differences. Leave the list empty when the accounts don't really differ: that is common and fine. Never invent a disagreement and never say which outlet is right.
 - off_topic: numbers of any sources that are about a different event than most of the others.
@@ -139,18 +140,14 @@ export function repeats(why: string, sentences: readonly string[]): boolean {
   });
 }
 
-const HEDGES = /\b(could|may|might|likely|expected to|poised to|set to)\b/gi;
+const HEDGE = /\b(could|may|might|likely|expected to|poised to|set to)\b/i;
 
 /**
- * A "why it matters" line that predicts an effect ("could influence voters") its sources don't state. The
- * model check misses these, so this is a plain rule: every hedge word must appear in a cited source.
+ * A "why it matters" line that forecasts ("could influence voters"). Readers took even sourced forecasts as
+ * Tare's prediction, so the rule is plain: a hedged why-line is dropped. Consequences are stated or left out.
  */
-export function speculative(c: Cited | null, items: readonly SourceItem[]): boolean {
-  if (!c) return false;
-  const hedges = [...new Set((c.text.match(HEDGES) ?? []).map((h) => h.toLowerCase()))];
-  if (hedges.length === 0) return false;
-  const cited = items.filter((it) => c.cites.includes(it.id)).map((it) => `${it.title} ${it.snippet}`.toLowerCase());
-  return hedges.some((h) => !cited.some((t) => new RegExp(`\\b${h}\\b`).test(t)));
+export function speculative(c: Cited | null): boolean {
+  return !!c && HEDGE.test(c.text);
 }
 
 /** "Sentence one [s1, s2]. Sentence two [\"s3\"]." → one entry per sentence, each with only its own citations. */
@@ -218,7 +215,7 @@ export function validateWriteup(raw: unknown, items: readonly SourceItem[]): Wri
   };
   const topic = TOPIC_IDS.find((t) => t === r.topic) ?? "world";
   const why = one(r.why);
-  const keptWhy = why && !speculative(why, items) && !repeats(why.text, summary.map((s) => s.text)) ? why : null;
+  const keptWhy = why && !speculative(why) && !repeats(why.text, summary.map((s) => s.text)) ? why : null;
   return { topic, headline, dek: one(r.dek), why: keptWhy, summary: summary.slice(0, 4), differences, offTopic: [...offTopic].map((l) => byLabel.get(l)!.id) };
 }
 

@@ -57,11 +57,11 @@ describe("validateWriteup", () => {
 });
 
 describe("speculative", () => {
-  const src: SourceItem[] = [{ id: "a", outletId: "fox", title: "Audi to build Georgia plant", snippet: "The plant may add 4,500 jobs." }];
-  it("flags hedged effects its sources don't state, and allows ones they do", () => {
-    expect(speculative({ text: "It could influence voters ahead of the midterms.", cites: ["a"] }, src)).toBe(true);
-    expect(speculative({ text: "The plant may add about 4,500 jobs.", cites: ["a"] }, src)).toBe(false);
-    expect(speculative({ text: "About 4,500 people will work there.", cites: ["a"] }, src)).toBe(false);
+  it("flags any hedged forecast, even one a source makes, and keeps stated consequences", () => {
+    expect(speculative({ text: "It could influence voters ahead of the midterms.", cites: ["a"] })).toBe(true);
+    expect(speculative({ text: "The plant may add about 4,500 jobs.", cites: ["a"] })).toBe(true);
+    expect(speculative({ text: "About 4,500 people will work there.", cites: ["a"] })).toBe(false);
+    expect(speculative(null)).toBe(false);
   });
 });
 
