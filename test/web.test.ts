@@ -75,6 +75,17 @@ describe("pages", () => {
     expect(rows).toEqual([{ story_id: STORY_ID, body: "The second sentence says 52-48 but the Vox headline says 51-49." }]);
   });
 
+  it("shows a dated correction the editor recorded, and the admin list of reports", async () => {
+    const auth = { authorization: "Bearer test-admin-token", "content-type": "application/json" };
+    expect((await req(`/admin/stories/${STORY_ID}/correction`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).status).toBe(401);
+    const set = await req(`/admin/stories/${STORY_ID}/correction`, { method: "POST", headers: auth, body: JSON.stringify({ note: "An earlier version said 52-48; the vote was 51-49." }) });
+    expect(set.status).toBe(200);
+    const html = await (await req(`/s/${STORY_ID}`)).text();
+    expect(html).toContain("Correction,");
+    expect(html).toContain("An earlier version said 52-48; the vote was 51-49.");
+    expect((await req("/admin/reports", { headers: { authorization: "Bearer test-admin-token" } })).status).toBe(200);
+  });
+
   it("404s unknown stories, bad dates and missing editions", async () => {
     expect((await req("/s/nope")).status).toBe(404);
     expect((await req("/e/2020-01-01")).status).toBe(404);

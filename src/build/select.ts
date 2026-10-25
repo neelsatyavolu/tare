@@ -129,6 +129,8 @@ export function pickBalanced<C extends Candidate<unknown> & { topic: TopicId | n
   const wide = ranked.filter((c) => c.coverage.total >= MIN_OUTLETS);
 
   frontPage(wide, opts.front).forEach((c) => chosen.add(c));
+  // The most consequential news (importance 5: deadly attacks, elections, wars) is never left out for want of breadth.
+  wide.filter((c) => (c.importance ?? 0) >= 5).forEach((c) => chosen.add(c));
 
   for (const topic of TOPIC_IDS) {
     // Chosen by breadth, so a section's picks are what the press broadly covered; shown in consequence order.

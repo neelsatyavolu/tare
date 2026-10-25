@@ -4,14 +4,18 @@ import { outletById, sideOf, type Outlet, type Side } from "./outlets";
 import { isTopicId } from "./topics";
 
 export type Edition = { date: string; number: number; status: "building" | "ready" | "failed"; itemCount: number; builtAt: number | null; sentAt: number | null };
-export type Story = Omit<BuiltStory, "coverage"> & { editionDate: string; coverage: Coverage; firstSeenAt: number | null; writtenAt: number | null };
+export type Story = Omit<BuiltStory, "coverage"> & {
+  editionDate: string; coverage: Coverage; firstSeenAt: number | null; writtenAt: number | null;
+  /** Set by the editor when a published story was corrected; shown, dated, on its page. */
+  correction?: { note: string; at: number } | null;
+};
 export type Source = { id: string; outlet: Outlet; title: string; url: string; publishedAt: number; imageUrl: string | null; snippet?: string };
 
 type EditionRow = { date: string; number: number; status: Edition["status"]; item_count: number; built_at: number | null; sent_at: number | null };
 type StoryRow = {
   id: string; edition_date: string; rank: number; front: number; topic: string; headline: string;
   summary: string; differences: string; coverage: string; blindspot: "left" | "right" | null; item_ids: string; image_item_id: string | null; first_seen_at: number | null; importance: number | null;
-  dek: string | null; why: string | null; written_at: number | null;
+  dek: string | null; why: string | null; written_at: number | null; correction_note?: string | null; corrected_at?: number | null;
 };
 
 const toEdition = (r: EditionRow): Edition => ({ date: r.date, number: r.number, status: r.status, itemCount: r.item_count, builtAt: r.built_at, sentAt: r.sent_at });
@@ -34,7 +38,14 @@ const toStory = (r: StoryRow): Story => ({
   firstSeenAt: r.first_seen_at,
   writtenAt: r.written_at,
   importance: r.importance,
+  correction: r.correction_note && r.corrected_at ? { note: r.correction_note, at: r.corrected_at } : null,
 });
+
+/** Records the editor's correction note on a story; the story's text is fixed separately (a rewrite, or removal). */
+export async function setCorrection(db: D1Database, storyId: string, note: string, now: number): Promise<boolean> {
+  const r = await db.prepare("UPDATE stories SET correction_note = ?, corrected_at = ? WHERE id = ?").bind(note, now, storyId).run();
+  return (r.meta.changes ?? 0) > 0;
+}
 
 export const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 

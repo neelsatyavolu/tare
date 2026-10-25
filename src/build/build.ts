@@ -144,10 +144,11 @@ export async function standIn(group: { members: readonly Member[]; topic: TopicI
   };
 }
 
-async function writeUp(ai: AiRunner, group: Picked, date: string, now: number): Promise<LineupStory | null> {
+async function writeUp(ai: AiRunner, group: Picked, date: string, now: number, previous?: LineupStory | null): Promise<LineupStory | null> {
   const sources = onePerOutlet(group.members);
   try {
-    const w = await summarize(ai, sources, now);
+    const published = previous && previous.writeupVersion > 0 ? `${previous.headline}. ${previous.summary.map((s) => s.text).join(" ")}` : undefined;
+    const w = await summarize(ai, sources, now, published);
     if (!w) return standIn(group, date, now);
     const kept = sources.filter((s) => !w.offTopic.includes(s.id));
     const coverage = coverageOf(kept.map((s) => s.outletId));
@@ -299,7 +300,7 @@ export async function buildEdition(db: D1Database, ai: AiRunner, now = Date.now(
       const rewrite = !carried || opts.force || outdated || needsRewrite(carried.writtenTotal, carried.coverage.total);
       if (!rewrite || budget <= 0 || Date.now() - startedAt > WRITE_DEADLINE_MS) return carried && checkBlindspot(carried, group, members);
       budget -= 1;
-      const written = await writeUp(ai, group, date, now);
+      const written = await writeUp(ai, group, date, now, carried);
       // A story the editor flagged on both tries, with nothing published yet, runs as an attributed stand-in instead.
       const fresh = written?.flagged && !carried ? await standIn(group, date, now) : written;
       // A rewrite keeps the story's id and first-seen time, so its link and "new" marker don't change. Its sources

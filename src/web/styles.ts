@@ -84,6 +84,7 @@ nav.jump a:hover{color:var(--ink);border-bottom-color:var(--ink)}
 .report form{display:grid;gap:8px;margin-top:10px;max-width:60ch}
 .report textarea{font:16px/1.5 var(--font-serif);color:var(--ink);background:var(--sheet);border:1px solid var(--rule);padding:8px}
 .report button{justify-self:start}
+.correction{margin:16px 0 0;padding:10px 12px;border-left:2px solid var(--brass);background:var(--brass-wash)}
 .read-first{margin:6px 0 0}
 .named{font:400 15px/1.5 var(--font-serif);color:var(--ink-2);margin:6px 0 0}
 .no-center{margin:6px 0 0;font:400 12px/1.4 var(--font-mono);color:var(--ink-3)}

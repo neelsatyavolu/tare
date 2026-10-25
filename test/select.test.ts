@@ -196,6 +196,13 @@ describe("frontPage", () => {
     expect(ids).toEqual(["a", "b", "protests"]);
   });
 
+  it("always picks importance-5 stories, however narrow, over wider minor ones", () => {
+    const wideMinor = (id: string) => ({ id, topic: "world" as const, importance: 2, blindspot: null, latest: 0, members: [], coverage: coverageOf([...L.slice(0, 3), ...C.slice(0, 3), ...R.slice(0, 3)]) });
+    const attack = { id: "attack", topic: "world" as const, importance: 5, blindspot: null, latest: 0, members: [], coverage: coverageOf([L[0]!, R[0]!, R[1]!]) };
+    const picked = pickBalanced([wideMinor("a"), wideMinor("b"), wideMinor("c"), wideMinor("d"), attack], { front: 0, perSection: 3, blindspots: 0, max: 30 });
+    expect(picked.map((c) => c.id)).toContain("attack");
+  });
+
   it("lets a very important story one side skipped lead, as a possible blindspot", () => {
     const skipped = { id: "s", importance: 4, blindspot: "right" as const, coverage: coverageOf([...L.slice(0, 4), C[0]!, C[1]!]) };
     const minorSkipped = { ...skipped, id: "m", importance: 3 };

@@ -99,6 +99,7 @@ Rules:
 - Stop at the event: no motive or purpose tails ("aimed at deepening ties", "using the jab to attack", "ahead of the midterms") unless a source states that purpose.
 - Lead with the newest development the sources report. When you include an older fact (a poll, an earlier statement), say when it is from ("a poll released Saturday").
 - Words that state a death, a confirmation or a cause ("deadly", "fatal", "killed", "confirmed", "caused") only when a cited source states it.
+- If a story turns on something old (a past allegation, an essay from years ago), say when it dates from and what happened now to bring it back.
 - Use the tense the sources use. For something still underway (voting, a trial, a rescue), say it is underway; never state a result or outcome the sources don't report. If an allegation or document is old, say when it dates from.
 - In any text you write, name outlets ("The Guardian"), never source numbers.
 - Neutral wording. No loaded, emotive or judging words, no speculation, no predictions, no "critics say" unless a source says it. Attribute claims and quotes to whoever made them.
@@ -326,7 +327,8 @@ async function attempt(ai: AiRunner, items: readonly SourceItem[], today: string
  * Writes and checks one story. A second attempt runs when the first fails, or when the check removed part
  * of it (a summary with a sentence cut out can stop reading as a whole); the more complete result wins.
  */
-export async function summarize(ai: AiRunner, unordered: readonly SourceItem[], now = Date.now()): Promise<Writeup | null> {
+/** `previous` is the published version's headline and summary, so the editor can catch a rewrite that loses a settled fact. */
+export async function summarize(ai: AiRunner, unordered: readonly SourceItem[], now = Date.now(), previous?: string): Promise<Writeup | null> {
   // Oldest first, so the model can tell an earlier report from a later update.
   const items = [...unordered].sort((a, b) => (a.publishedAt ?? 0) - (b.publishedAt ?? 0));
   const today = new Date(now).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
@@ -337,7 +339,7 @@ export async function summarize(ai: AiRunner, unordered: readonly SourceItem[], 
   for (const settings of ATTEMPTS) {
     const raw = await attempt(ai, items, today, settings);
     if (!raw) continue;
-    const w = await edit(ai, headless(raw) ? withHeadline(raw) : raw, items);
+    const w = await edit(ai, headless(raw) ? withHeadline(raw) : raw, items, previous);
     if (!best || score(w) > score(best)) best = w;
     if (w.edited !== false && !weak(raw, items)) return w;
   }
@@ -345,8 +347,8 @@ export async function summarize(ai: AiRunner, unordered: readonly SourceItem[], 
 }
 
 /** The editor's read of the whole story: bad differences are dropped; a flagged story is marked, not published over a good one. */
-async function edit(ai: AiRunner, w: Writeup, items: readonly SourceItem[]): Promise<Writeup> {
-  const r = await review(ai, w, items);
+async function edit(ai: AiRunner, w: Writeup, items: readonly SourceItem[], previous?: string): Promise<Writeup> {
+  const r = await review(ai, w, items, previous);
   return { ...w, differences: w.differences.filter((_, i) => !r.badDifferences.includes(i)), edited: r.ok };
 }
 

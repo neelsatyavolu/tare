@@ -5,7 +5,7 @@ import { connectedProvider, deleteConnection, saveConnection } from "./ai/vault"
 import { loadBriefing, requestBriefing, runBriefing, type BriefingJob } from "./briefing";
 import { AiPaste } from "./web/ai";
 import type { Child } from "hono/jsx";
-import { editionByDate, latestEdition, listEditions, sourcesFor, storiesFor, storyById } from "./editions";
+import { editionByDate, latestEdition, listEditions, setCorrection, sourcesFor, storiesFor, storyById } from "./editions";
 import type { Env } from "./env";
 import { JOBS, runCron, type JobName } from "./jobs";
 import { signExpiring, signLink, verifyExpiring, verifyLink } from "./links";
@@ -436,6 +436,16 @@ app.get("/admin/reports", async (c) => {
   const given = (c.req.header("authorization") ?? "").replace(/^Bearer /, "");
   if (!token || !timingSafeEqual(given, token)) return c.json({ error: "unauthorized" }, 401);
   return c.json(await recentReports(c.env.DB));
+});
+
+// A dated correction note on a story: POST /admin/stories/<id>/correction with {"note": "..."} and the admin token.
+app.post("/admin/stories/:id/correction", async (c) => {
+  const token = c.env.ADMIN_TOKEN;
+  const given = (c.req.header("authorization") ?? "").replace(/^Bearer /, "");
+  if (!token || !timingSafeEqual(given, token)) return c.json({ error: "unauthorized" }, 401);
+  const note = ((await c.req.json().catch(() => ({}))) as { note?: unknown }).note;
+  if (typeof note !== "string" || note.trim().length < 5 || note.length > 500) return c.json({ error: "note must be 5-500 characters" }, 400);
+  return (await setCorrection(c.env.DB, c.req.param("id"), note.trim(), Date.now())) ? c.json({ ok: true }) : c.json({ error: "no such story" }, 404);
 });
 
 // Model comparison: POST /admin/debug/rewrite?story=<id>&model=<workers ai model> with the admin token. Nothing is saved.
