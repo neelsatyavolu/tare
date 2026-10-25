@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extractJson, replyText, sourceBlock, speculative, splitInline, summarize, validateWriteup, type AiRunner, type SourceItem } from "../src/build/summarize";
+import { extractJson, repeats, replyText, sourceBlock, speculative, splitInline, summarize, validateWriteup, type AiRunner, type SourceItem } from "../src/build/summarize";
 
 const items: SourceItem[] = [
   { id: "i1", outletId: "vox", title: "Senate passes funding bill", snippet: "The vote was 52-48." },
@@ -62,6 +62,13 @@ describe("speculative", () => {
     expect(speculative({ text: "It could influence voters ahead of the midterms.", cites: ["a"] }, src)).toBe(true);
     expect(speculative({ text: "The plant may add about 4,500 jobs.", cites: ["a"] }, src)).toBe(false);
     expect(speculative({ text: "About 4,500 people will work there.", cites: ["a"] }, src)).toBe(false);
+  });
+});
+
+describe("repeats", () => {
+  it("catches a why-line that restates a summary sentence", () => {
+    expect(repeats("The runoff could reshape Latin American politics and U.S. influence.", ["The runoff could reshape politics in Latin America and U.S. influence there."])).toBe(true);
+    expect(repeats("About 4,500 people would work at the plant.", ["Audi will build a factory in Georgia."])).toBe(false);
   });
 });
 

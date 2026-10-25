@@ -108,6 +108,7 @@ export const Scale: FC<{ c: Coverage }> = ({ c }) => {
       </div>
       <div class="ruler" aria-hidden="true">{read.key === "thin" ? null : <span class="needle" style={`left:${(read.key === "even" ? 50 : needle).toFixed(1)}%`} />}</div>
       <div class="reading" aria-hidden="true"><span>← Left</span><b>{read.sentence}</b><span>Right →</span></div>
+      {c.center === 0 && c.left > 0 && c.right > 0 ? <p class="no-center">No center outlets in Tare's list covered it.</p> : null}
     </div>
   );
 };

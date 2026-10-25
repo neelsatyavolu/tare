@@ -6,7 +6,7 @@ import { outletById, sideOf } from "../outlets";
 import { decodeVector, embedPending } from "./embed";
 import { matchStories, needsRewrite } from "./match";
 import { pickImage } from "./photos";
-import { blindspotOf, byWeight, coverageOf, frontPage, pickBalanced, rankGroups, SECTION_MIN_OUTLETS, type Blindspot, type Candidate, type Coverage } from "./select";
+import { blindspotOf, coverageOf, frontOrder, frontPage, pickBalanced, rankGroups, SECTION_MIN_OUTLETS, sectionOrder, type Blindspot, type Candidate, type Coverage } from "./select";
 import { summarize, WRITEUP_VERSION, type AiRunner, type Cited, type Difference, type SourceItem } from "./summarize";
 
 export { pickImage } from "./photos";
@@ -309,7 +309,8 @@ export async function buildEdition(db: D1Database, ai: AiRunner, now = Date.now(
     if (stories.length === 0) throw new Error("no story this hour; keeping the previous lineup");
 
     const front = frontPage(stories, FRONT_SIZE);
-    const ordered = [...stories].sort((a, b) => Number(front.has(b)) - Number(front.has(a)) || byWeight(a, b));
+    // Front page first in its own order, then the rest by breadth (sections list them in this order).
+    const ordered = [...stories].sort((a, b) => Number(front.has(b)) - Number(front.has(a)) || (front.has(a) ? frontOrder(a, b) : sectionOrder(a, b)));
     const upsert = db.prepare(
       `INSERT INTO stories (id, edition_date, rank, front, topic, headline, summary, differences, coverage, blindspot, item_ids, image_item_id,
                             active, first_seen_at, updated_at, written_total, importance, writeup_version, dek, why, written_at)

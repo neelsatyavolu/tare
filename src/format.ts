@@ -22,6 +22,6 @@ export function easternTime(ms: number): string {
     .replace("PM", "p.m.") + " ET";
 }
 
-export function coverageLine(c: { total: number; left: number; center: number; right: number }): string {
-  return `Covered by ${c.total} outlets · L ${c.left} · C ${c.center} · R ${c.right}`;
+export function coverageLine(c: { total: number; left: number; center: number; right: number; unrated?: number }): string {
+  return `Covered by ${c.total} outlets · L ${c.left} · C ${c.center} · R ${c.right}${c.unrated ? ` · ${c.unrated} not rated` : ""}`;
 }

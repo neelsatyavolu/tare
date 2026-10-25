@@ -11,8 +11,9 @@ export const SUMMARY_MODEL = "@cf/openai/gpt-oss-120b";
  * 4: decks carry the central claim of responsibility; "why" may not predict effects the sources don't state.
  * 5: a code rule drops "why" lines whose hedges (could, may, likely...) no cited source uses.
  * 6: standalone sentences, checked headlines, stricter difference checks, a retry when the check trims.
+ * 7: no single figure where outlets disagree (headline included); tense and status rules; specific "why" lines.
  */
-export const WRITEUP_VERSION = 6;
+export const WRITEUP_VERSION = 7;
 
 export type SourceItem = { id: string; outletId: string; title: string; snippet: string };
 export type Cited = { text: string; cites: string[] };
@@ -68,12 +69,13 @@ Rules:
 - Use only facts the sources state. Every summary sentence lists the source numbers it relies on, like ["s1","s4"]. A fact that only one or two outlets report is attributed in the sentence ("Fox News reported that...").
 - Never add a date, year, place, office, title or number that the cited sources don't state. Use a person's title or office only if a cited source states it; otherwise use just the name. Don't combine details from different sources into one claim neither makes (if one outlet mentions France and another Milan, don't say French soldiers were in Milan).
 - If the sources report a dispute, an accusation or who is responsible (who did it, who blames whom, what they said), the summary must say so: that is usually the most important part.
-- When sources give different numbers or facts, don't pick one: give the range or attribute each ("11 or 12 people, depending on the outlet"), and add a "fact" difference.
+- When sources give different numbers or facts, don't pick one anywhere, including the headline and dek: give the range or attribute each ("11 or 12 people, depending on the outlet"), and add a "fact" difference.
+- Use the tense the sources use. For something still underway (voting, a trial, a rescue), say it is underway; never state a result or outcome the sources don't report. If an allegation or document is old, say when it dates from.
 - In any text you write, name outlets ("The Guardian"), never source numbers.
 - Neutral wording. No loaded, emotive or judging words, no speculation, no predictions, no "critics say" unless a source says it. Attribute claims and quotes to whoever made them.
 - headline: what happened, in plain words, under 100 characters, sentence case, no colon subtitle, no clickbait, no quote marks unless quoting.
 - dek: one sentence for the home page, under 30 words: what happened and, if there is one, the central dispute, accusation or claim of responsibility (for example, who said they caused it and why). With its sources.
-- why: one sentence on why it matters (who is affected, what changes, what's at stake), stating only consequences the sources themselves state. No "could", "may" or "might" unless a source says exactly that. If the sources don't say, give an empty text and no sources.
+- why: one sentence on a specific consequence the sources state (a policy that would change, a number of people affected, a decision now due), not general significance and not a repeat of the summary. No "could", "may" or "might" unless a source says exactly that. If the sources don't give one, give an empty text and no sources.
 - summary: 2 to 4 sentences, under 90 words in total, about the event itself. Each sentence must make sense on its own: name the person or body ("Ukraine's defense ministry"), never refer back with "the ministry" or "he". The first sentence states what the headline says happened; the rest give the most important context. Don't describe how outlets covered it or quote labels one outlet used; that belongs in differences.
 - differences: at most 2, each listing sources from every side of the difference. Include one only if the accounts differ on who did it, whether it is confirmed or alleged, who is to blame, or how many/how much. kind is "fact" (claims that cannot both be true: 11 vs 12 injured, yes, but "14 years" vs "over a decade" is not) or "framing" (the same event described so that a reader would come away believing something different; quote the words). Different aspects of the same event, wording nits, rounding and one outlet adding a detail are not differences. Leave the list empty when the accounts don't really differ: that is common and fine. Never invent a disagreement and never say which outlet is right.
 - off_topic: numbers of any sources that are about a different event than most of the others.
@@ -124,6 +126,18 @@ export function extractJson(text: string): unknown {
 }
 
 const clean = (s: string) => s.replace(/\s+/g, " ").trim();
+
+const contentWords = (s: string) => new Set(s.toLowerCase().match(/[a-z0-9']{4,}/g) ?? []);
+
+/** A "why it matters" line that mostly repeats a summary sentence adds nothing; drop it. */
+export function repeats(why: string, sentences: readonly string[]): boolean {
+  const w = contentWords(why);
+  if (w.size === 0) return true;
+  return sentences.some((s) => {
+    const sw = contentWords(s);
+    return [...w].filter((x) => sw.has(x)).length / w.size >= 0.6;
+  });
+}
 
 const HEDGES = /\b(could|may|might|likely|expected to|poised to|set to)\b/gi;
 
@@ -203,7 +217,9 @@ export function validateWriteup(raw: unknown, items: readonly SourceItem[]): Wri
     return cites && text && !leaksLabels(text) ? { text: text.slice(0, 300), cites } : null;
   };
   const topic = TOPIC_IDS.find((t) => t === r.topic) ?? "world";
-  return { topic, headline, dek: one(r.dek), why: speculative(one(r.why), items) ? null : one(r.why), summary: summary.slice(0, 4), differences, offTopic: [...offTopic].map((l) => byLabel.get(l)!.id) };
+  const why = one(r.why);
+  const keptWhy = why && !speculative(why, items) && !repeats(why.text, summary.map((s) => s.text)) ? why : null;
+  return { topic, headline, dek: one(r.dek), why: keptWhy, summary: summary.slice(0, 4), differences, offTopic: [...offTopic].map((l) => byLabel.get(l)!.id) };
 }
 
 /** One model call per story. Throws on transport errors; returns null when the reply can't be used. */

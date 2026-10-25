@@ -56,23 +56,26 @@ export type LeanReading = { key: "thin" | "even" | "more-left" | "more-right" | 
  * plainly when there's too little to compare. It describes coverage, never the story.
  */
 export function leanReading(c: Coverage): LeanReading {
-  if (c.left + c.right < 3) return { key: "thin", sentence: "Too few left- or right-leaning outlets to compare", tag: "Too few to compare" };
-  const ls = c.left / SIDE_SIZE.left;
-  const rs = c.right / SIDE_SIZE.right;
+  const thin: LeanReading = { key: "thin", sentence: "Too few left- or right-leaning outlets to compare", tag: "Too few to compare" };
+  if (c.left < 3 && c.right < 3) return thin;
   // With no center coverage either, it's one side's story rather than something the other side skipped.
   if (c.right >= 3 && c.left === 0 && c.center === 0) return { key: "only-right", sentence: "Only right-leaning outlets in Tare's list covered it", tag: "Right-leaning outlets only" };
   if (c.left >= 3 && c.right === 0 && c.center === 0) return { key: "only-left", sentence: "Only left-leaning outlets in Tare's list covered it", tag: "Left-leaning outlets only" };
-  if (c.right >= 3 && c.left === 0) return { key: "no-left", sentence: "No left-leaning outlets in Tare's list covered it", tag: "No left coverage" };
-  if (c.left >= 3 && c.right === 0) return { key: "no-right", sentence: "No right-leaning outlets in Tare's list covered it", tag: "No right coverage" };
-  if (c.right >= 3 && c.right >= 2 * c.left && rs >= 2 * ls) return { key: "more-right", sentence: "More right- than left-leaning coverage", tag: "More right coverage" };
-  if (c.left >= 3 && c.left >= 2 * c.right && ls >= 2 * rs) return { key: "more-left", sentence: "More left- than right-leaning coverage", tag: "More left coverage" };
-  return { key: "even", sentence: "Similar left and right coverage", tag: "Similar left and right" };
+  if (c.right >= 3 && c.left === 0) return { key: "no-left", sentence: "No left-leaning outlets in Tare's list covered it", tag: "No left-leaning coverage" };
+  if (c.left >= 3 && c.right === 0) return { key: "no-right", sentence: "No right-leaning outlets in Tare's list covered it", tag: "No right-leaning coverage" };
+  const ls = c.left / SIDE_SIZE.left;
+  const rs = c.right / SIDE_SIZE.right;
+  if (c.right >= 3 && c.right >= 2 * c.left && rs >= 2 * ls) return { key: "more-right", sentence: "More right- than left-leaning coverage", tag: "More right-leaning coverage" };
+  if (c.left >= 3 && c.left >= 2 * c.right && ls >= 2 * rs) return { key: "more-left", sentence: "More left- than right-leaning coverage", tag: "More left-leaning coverage" };
+  // "Similar" needs a real sample on both sides; otherwise there's too little to say.
+  if (c.left >= 3 && c.right >= 3) return { key: "even", sentence: "Similar left and right coverage", tag: "Similar left and right" };
+  return thin;
 }
 
 /** Plain-English reason a story made the edition. Deterministic, so readers can check it. */
 export function whyText(c: Coverage, blindspot: Blindspot): string {
   const unrated = c.unrated ? `, ${c.unrated} not rated` : "";
-  const base = `Covered by ${c.total} of ${OUTLETS.length} outlets: ${c.left} left, ${c.center} center, ${c.right} right${unrated}.`;
+  const base = `Covered by ${c.total} outlets: ${c.left} left, ${c.center} center, ${c.right} right${unrated}.`;
   if (blindspot === "left") return `${base} A possible blindspot: ${c.left} of ${SIDE_SIZE.left} left-leaning outlets covered it, and Tare found no matching headline from the others in the last 24 hours.`;
   if (blindspot === "right") return `${base} A possible blindspot: ${c.right} of ${SIDE_SIZE.right} right-leaning outlets covered it, and Tare found no matching headline from the others in the last 24 hours.`;
   return base;
@@ -111,10 +114,10 @@ export function pickBalanced<C extends Candidate<unknown> & { topic: TopicId | n
   const ranked = all.filter((c) => c.importance !== 1);
   const wide = ranked.filter((c) => c.coverage.total >= MIN_OUTLETS);
 
-  wide.filter(frontEligible).sort(byWeight).slice(0, opts.front).forEach((c) => chosen.add(c));
+  wide.filter(frontEligible).sort(frontOrder).slice(0, opts.front).forEach((c) => chosen.add(c));
 
   for (const topic of TOPIC_IDS) {
-    const inSection = ranked.filter((c) => c.topic === topic && !chosen.has(c)).sort(byWeight);
+    const inSection = ranked.filter((c) => c.topic === topic && !chosen.has(c)).sort(sectionOrder);
     // Only stories with enough coverage; a section with nothing that clears the bar is left out.
     inSection.filter((c) => c.coverage.total >= MIN_OUTLETS).slice(0, opts.perSection).forEach((c) => chosen.add(c));
   }
@@ -144,8 +147,12 @@ export const LEAD_ANYWAY_IMPORTANCE = 4;
 /** The most consequential stories (importance 5: deadly attacks, elections, wars) need only this many outlets. */
 export const FRONT_MIN_OUTLETS_MAJOR = 3;
 
+/** A story this widely covered, by both sides, is front-page news even if rated minor. */
+export const FRONT_BY_BREADTH = 15;
+
 const frontEligible = (s: Weighed & { blindspot?: Blindspot }) => {
   const importance = s.importance ?? 0;
+  if (importance >= 2 && s.coverage.total >= FRONT_BY_BREADTH && s.coverage.left > 0 && s.coverage.right > 0) return true;
   const minOutlets = importance >= 5 ? FRONT_MIN_OUTLETS_MAJOR : FRONT_MIN_OUTLETS;
   if (s.coverage.total < minOutlets || importance < MIN_IMPORTANCE) return false;
   return (s.coverage.left > 0 && s.coverage.right > 0) || (importance >= LEAD_ANYWAY_IMPORTANCE && !!s.blindspot);
@@ -156,5 +163,12 @@ const frontEligible = (s: Weighed & { blindspot?: Blindspot }) => {
  * right reported, plus very important ones one side skipped; widest first on ties.
  */
 export function frontPage<T extends Weighed & { blindspot?: Blindspot }>(stories: readonly T[], size: number): Set<T> {
-  return new Set([...stories].filter(frontEligible).sort(byWeight).slice(0, size));
+  return new Set([...stories].filter(frontEligible).sort(frontOrder).slice(0, size));
 }
+
+/** Front-page order: the most consequential stories (importance 5) first, then whatever the most outlets covered. */
+export const frontOrder = (a: Weighed, b: Weighed) =>
+  Number((b.importance ?? 0) >= 5) - Number((a.importance ?? 0) >= 5) || b.coverage.total - a.coverage.total;
+
+/** Section order: what the most outlets covered first, then importance on ties. */
+export const sectionOrder = (a: Weighed, b: Weighed) => b.coverage.total - a.coverage.total || (b.importance ?? 2) - (a.importance ?? 2);

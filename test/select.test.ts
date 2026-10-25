@@ -63,9 +63,11 @@ describe("leanReading", () => {
   });
 
   it("only names a side with 3+ outlets and twice the other side's, in counts and shares", () => {
-    expect(leanReading(coverageOf([L[0]!, L[1]!, R[0]!, R[1]!])).key).toBe("even");
-    // 3 right vs 2 left isn't twice as many.
-    expect(leanReading(coverageOf([L[0]!, L[1]!, R[0]!, R[1]!, R[2]!])).key).toBe("even");
+    // "Similar" needs at least 3 on each side; 2 vs 2 is too little to say anything.
+    expect(leanReading(coverageOf([L[0]!, L[1]!, R[0]!, R[1]!])).key).toBe("thin");
+    expect(leanReading(coverageOf([L[0]!, L[1]!, L[2]!, R[0]!, R[1]!, R[2]!])).key).toBe("even");
+    // 3 right vs 2 left: not twice as many, and too few on the left to call it similar.
+    expect(leanReading(coverageOf([L[0]!, L[1]!, R[0]!, R[1]!, R[2]!])).key).toBe("thin");
     // The review's case: 1 left, 3 center, 3 right reads as more right, never "mostly".
     expect(leanReading(coverageOf([L[0]!, C[0]!, C[1]!, C[2]!, R[0]!, R[1]!, R[2]!])).sentence).toBe("More right- than left-leaning coverage");
     expect(leanReading(coverageOf([L[0]!, L[1]!, L[2]!, C[0]!])).sentence).toBe("No right-leaning outlets in Tare's list covered it");
@@ -78,7 +80,7 @@ describe("whyText", () => {
   it("states the counts and the blindspot", () => {
     const c = coverageOf([...R.slice(0, 6), C[0]!, UNRATED[0]!]);
     expect(whyText(c, "left")).toBe(
-      `Covered by 8 of ${OUTLETS.length} outlets: 0 left, 1 center, 6 right, 1 not rated. A possible blindspot: 0 of ${SIDE_SIZE.left} left-leaning outlets covered it, and Tare found no matching headline from the others in the last 24 hours.`,
+      `Covered by 8 outlets: 0 left, 1 center, 6 right, 1 not rated. A possible blindspot: 0 of ${SIDE_SIZE.left} left-leaning outlets covered it, and Tare found no matching headline from the others in the last 24 hours.`,
     );
   });
 });
@@ -161,6 +163,13 @@ describe("frontPage", () => {
     const thin = { id: "thin", importance: 5, blindspot: null, coverage: coverageOf([L[0]!, R[0]!, C[0]!]) };
     // The thin one is importance 5, which needs only 3 outlets; b (importance 3) lacks a left-leaning outlet.
     expect([...frontPage([thin, b, a, c], 5)].map((s) => s.id)).toEqual(["c", "thin", "a"]);
+  });
+
+  it("puts importance-5 stories first, then fills by breadth, including very wide minor stories", () => {
+    const rally = { id: "rally", importance: 2, blindspot: null, coverage: coverageOf([...L.slice(0, 6), ...C.slice(0, 6), ...R.slice(0, 5)]) };
+    const attack = { id: "attack", importance: 5, blindspot: null, coverage: coverageOf([L[0]!, R[0]!, C[0]!]) };
+    const letter = { id: "letter", importance: 4, blindspot: null, coverage: coverageOf([L[0]!, L[1]!, R[0]!, C[0]!, C[1]!, C[2]!]) };
+    expect([...frontPage([letter, rally, attack], 2)].map((s) => s.id)).toEqual(["attack", "rally"]);
   });
 
   it("lets a very important story one side skipped lead, as a possible blindspot", () => {
