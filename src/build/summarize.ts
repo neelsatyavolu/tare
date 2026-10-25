@@ -15,7 +15,7 @@ export const SUMMARY_MODEL = "@cf/openai/gpt-oss-120b";
  * 8: no hedged ("could", "may", "likely") why-lines at all.
  * 9: current officeholders in the prompt, so titles stay consistent across stories.
  */
-export const WRITEUP_VERSION = 17;
+export const WRITEUP_VERSION = 18;
 
 /**
  * Facts that change rarely but that the model, trained earlier, tends to get wrong. Keep current: they go
@@ -153,7 +153,7 @@ export function repeats(why: string, sentences: readonly string[]): boolean {
   });
 }
 
-const HEDGE = /\b(could|may|might|likely|expected to|poised to|set to|(?:is|are|was|were) seen as|seen as a|will (?:shape|affect|influence|determine|decide|define|reshape|test|signal))\b/i;
+const HEDGE = /\b(could|may|might|likely|expected to|poised to|set to|(?:is|are|was|were) (?:seen|viewed|regarded) as|seen as a|will (?:shape|affect|influence|determine|decide|define|reshape|test|signal))\b/i;
 
 /**
  * A "why it matters" line that forecasts ("could influence voters"). Readers took even sourced forecasts as

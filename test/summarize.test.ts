@@ -93,6 +93,7 @@ describe("speculative", () => {
     expect(speculative({ text: "The plant may add about 4,500 jobs.", cites: ["a"] })).toBe(true);
     expect(speculative({ text: "About 4,500 people will work there.", cites: ["a"] })).toBe(false);
     expect(speculative({ text: "The result will shape U.S. influence in Latin America.", cites: ["a"] })).toBe(true);
+    expect(speculative({ text: "The tight outcome is viewed as significant for U.S. influence.", cites: ["a"] })).toBe(true);
     // Vague significance reads as a hedge too.
     expect(speculative({ text: "The outcome is seen as influencing U.S. influence in Latin America.", cites: ["a"] })).toBe(true);
     expect(speculative(null)).toBe(false);
