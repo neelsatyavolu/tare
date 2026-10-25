@@ -22,10 +22,12 @@ const MIN_ITEMS = 40;
 /** Groups sent to the section classifier; the rest are too thinly covered to make the edition. */
 const CLASSIFY_LIMIT = 120;
 const FRONT_SIZE = 6;
-const CONCURRENCY = 4;
+const CONCURRENCY = 6;
 /** New write-ups per run. The first run of the day uses most of it; later runs only write up new events. */
 const WRITE_BUDGET = 32;
 const LOCK_MS = 14 * 60_000;
+/** No new rewrites start after this long, so a build finishes inside the 15-minute cron limit; the rest wait an hour. */
+const WRITE_DEADLINE_MS = 10 * 60_000;
 
 type ItemRow = { id: string; outlet_id: string; title: string; snippet: string; published_at: number; image_url: string | null; embedding: unknown; topic: string | null; importance: number | null; classify_version: number };
 type Member = Embedded & SourceItem & { imageUrl: string | null; topic: string | null; importance: number | null };
@@ -254,6 +256,7 @@ async function lock(db: D1Database, date: string, now: number): Promise<boolean>
  */
 export async function buildEdition(db: D1Database, ai: AiRunner, now = Date.now(), opts: { force?: boolean } = {}): Promise<BuildReport> {
   const date = utcDate(now);
+  const startedAt = Date.now();
   const empty = { date, items: 0, candidates: 0, stories: 0, written: 0, kept: 0 };
   if (!(await lock(db, date, now))) return { ...empty, status: "skipped", error: "another build is running" };
 
@@ -294,7 +297,7 @@ export async function buildEdition(db: D1Database, ai: AiRunner, now = Date.now(
       const carried = ex ? carryOver(ex, group, outletOf, now) : null;
       const outdated = !!ex && ex.writeup_version < WRITEUP_VERSION;
       const rewrite = !carried || opts.force || outdated || needsRewrite(carried.writtenTotal, carried.coverage.total);
-      if (!rewrite || budget <= 0) return carried && checkBlindspot(carried, group, members);
+      if (!rewrite || budget <= 0 || Date.now() - startedAt > WRITE_DEADLINE_MS) return carried && checkBlindspot(carried, group, members);
       budget -= 1;
       const written = await writeUp(ai, group, date, now);
       // A story the editor flagged on both tries, with nothing published yet, runs as an attributed stand-in instead.

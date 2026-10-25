@@ -1,7 +1,10 @@
 import { TOPIC_IDS, TOPICS, type TopicId } from "../topics";
-import { extractJson, replyText, SUMMARY_MODEL, type AiRunner } from "./summarize";
+import { extractJson, replyText, type AiRunner } from "./summarize";
 
 const PER_CALL = 40;
+
+/** Sorting and rating is simple and runs on every new group, so it stays on the cheaper model. */
+const CLASSIFY_MODEL = "@cf/openai/gpt-oss-120b";
 
 /** Bump when the sections or IMPORTANCE_RUBRIC change, so remembered ratings are redone. 2: royals and celebrities at 1, attacks at 5. */
 export const CLASSIFY_VERSION = 2;
@@ -48,7 +51,7 @@ export async function classifyGroups(ai: AiRunner, groups: readonly { title: str
       .map((g, i) => `g${i + 1}: ${g.slice(0, HEADLINES_PER_GROUP).map((m) => m.title).join(" | ")}`)
       .join("\n");
     try {
-      const reply = await ai.run(SUMMARY_MODEL, {
+      const reply = await ai.run(CLASSIFY_MODEL, {
         messages: [
           { role: "system", content: CLASSIFY_INSTRUCTIONS },
           { role: "user", content: listing },

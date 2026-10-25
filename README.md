@@ -14,7 +14,7 @@ Not by Tare. Each outlet's left/center/right label comes from Eady, Bonneau, Tuc
 |---|---|---|
 | Pull every feed: headline, feed description, link and photo (never article text) | hourly at :07 | `src/ingest/` |
 | Embed new headlines once (`@cf/baai/bge-base-en-v1.5`), group by event, sort groups into sections | hourly | `src/build/embed.ts`, `cluster.ts`, `classify.ts` |
-| Pick stories by rule; keep continuing stories (same id and link), write up new ones (`@cf/openai/gpt-oss-120b`), drop uncited sentences, double-check blindspots | hourly | `src/build/select.ts`, `build.ts`, `summarize.ts`, `match.ts` |
+| Pick stories by rule; keep continuing stories (same id and link), write up new ones (`@cf/zai-org/glm-5.3`; sorting uses `@cf/openai/gpt-oss-120b`), check each claim and then the whole story, drop uncited sentences, double-check blindspots | hourly | `src/build/select.ts`, `build.ts`, `summarize.ts`, `match.ts` |
 | Email confirmed subscribers | 11:00, retry 13:00 | `src/mail/` |
 | Detailed briefing on request, written with the reader's own Grok or ChatGPT (shared-ai-auth) from the full articles, then shown to everyone | on demand (queue) | `src/briefing.ts`, `src/ai/` |
 

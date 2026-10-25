@@ -3,7 +3,11 @@ import { LEAN_LABEL, outletById, sideOf } from "../outlets";
 import { TOPIC_IDS, TOPICS, type TopicId } from "../topics";
 import { review } from "./editor";
 
-export const SUMMARY_MODEL = "@cf/openai/gpt-oss-120b";
+/**
+ * Write-ups, the claim check and the editor read. GLM 5.3 replaced gpt-oss-120b (2026-10-25): on the same clusters
+ * it attributed claims, kept actors right and gave stakes where gpt-oss compressed them into errors.
+ */
+export const SUMMARY_MODEL = "@cf/zai-org/glm-5.3";
 
 /**
  * Bump when the write-up rules change: hourly builds rewrite stories written under an older version.
@@ -16,7 +20,7 @@ export const SUMMARY_MODEL = "@cf/openai/gpt-oss-120b";
  * 8: no hedged ("could", "may", "likely") why-lines at all.
  * 9: current officeholders in the prompt, so titles stay consistent across stories.
  */
-export const WRITEUP_VERSION = 28;
+export const WRITEUP_VERSION = 29;
 
 /**
  * Facts that change rarely but that the model, trained earlier, tends to get wrong. Keep current: they go

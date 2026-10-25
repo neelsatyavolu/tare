@@ -25,6 +25,7 @@ import {
 } from "./web/pages";
 import { CSS } from "./web/styles";
 import { readFirst } from "./read-first";
+import { rewriteSample } from "./admin-debug";
 
 type App = { Bindings: Env; Variables: { viewer: Subscriber | null } };
 const app = new Hono<App>();
@@ -412,6 +413,19 @@ app.post("/unsubscribe/:token", async (c) => {
 });
 
 // ── Operations ──────────────────────────────────────────────────────────
+
+// Model comparison: POST /admin/debug/rewrite?story=<id>&model=<workers ai model> with the admin token. Nothing is saved.
+app.post("/admin/debug/rewrite", async (c) => {
+  c.header("cache-control", "no-store");
+  const token = c.env.ADMIN_TOKEN;
+  const given = (c.req.header("authorization") ?? "").replace(/^Bearer /, "");
+  if (!token || !timingSafeEqual(given, token)) return c.json({ error: "unauthorized" }, 401);
+  const story = c.req.query("story") ?? "";
+  const model = c.req.query("model") ?? "";
+  if (!/^@cf\/[\w.\/-]+$/.test(model)) return c.json({ error: "bad model" }, 400);
+  const result = await rewriteSample(c.env, story, model);
+  return result ? c.json(result) : c.json({ error: "no such story" }, 404);
+});
 
 // Manual runs: POST /admin/run/build?force=1 with the admin token.
 app.post("/admin/run/:job", async (c) => {
