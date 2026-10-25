@@ -112,16 +112,13 @@ details.differ ul.quoted .outlet{display:block;font:500 11px/1.4 var(--font-mono
 .story h3 a:hover{text-decoration:underline;text-decoration-thickness:1px}
 .story.lead{padding:28px 0 32px;border-bottom:1px solid var(--rule);display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:40px}
 .lead-side{border-left:1px solid var(--rule);padding-left:32px;padding-top:30px}
-.story.lead.solo{grid-template-columns:1fr;gap:0}
-.story.lead.solo .lead-side{border-left:0;padding:8px 0 0}
-/* With nothing in the sidebar, the photo takes the left column and the story the right, so the photo stays the size
-   it is in the two-column lead instead of stretching (and blurring) across the page. */
-@media (min-width:761px){
-.story.lead.solo .lead-main{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);column-gap:36px;align-items:start}
-.story.lead.solo .lead-main>.photo{grid-column:1;grid-row:1 / span 12;margin:0}
-.story.lead.solo .lead-main>:not(.photo){grid-column:2}
-.story.lead.solo .lead-main h3{font-size:36px}
-}
+/* Nothing to weigh: photo and the coverage line on the left, the story on the right (photo stays its normal size). */
+.story.lead.solo{grid-template-columns:minmax(0,1.15fr) minmax(0,1fr);gap:36px;align-items:start}
+.story.lead.solo .lead-media .photo{margin:0 0 12px}
+.story.lead.solo .lead-side{border-left:0;padding:0}
+.story.lead.solo h3{font-size:36px}
+.summary+.summary{margin-top:12px}
+.more{margin:10px 0 0;font:500 13px/1.6 var(--font-mono);letter-spacing:.06em}
 .lead-side .scale{margin-top:0}
 .lead-side details.differ{border-top:0}
 .story.lead h3{font-size:44px;line-height:1.08;max-width:22ch}
@@ -240,6 +237,8 @@ footer a{color:var(--ink-3)}
 .masthead{margin-top:12px;padding:10px 0 8px}.masthead .tagline{display:none}
 .intro-strip{display:none}/* news first on phones; Subscribe is in the nav */
 nav.jump{flex-wrap:nowrap;overflow-x:auto;white-space:nowrap;padding-bottom:4px;scrollbar-width:none}
+.story.lead.solo{display:flex;flex-direction:column}.story.lead.solo .lead-media{display:contents}.story.lead.solo .lead-main{display:contents}
+.story.lead.solo .lead-media>.photo{order:3;margin-top:8px}.story.lead.solo .lead-side{order:5}
 .lead-main{display:flex;flex-direction:column}.lead-main>*{order:4}.lead-main>.kicker{order:0}.lead-main>h3,.lead-main>h1{order:1}.lead-main>.summary{order:2}.lead-main>.photo{order:3;margin-top:8px}
 
   .wrap{padding:0 16px}

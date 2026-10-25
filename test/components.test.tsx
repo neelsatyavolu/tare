@@ -153,3 +153,21 @@ describe("shownSummary", () => {
     expect(shownSummary({ ...story, summary: [{ text: "Something happened.", cites: ["i0"] }] })).toHaveLength(1);
   });
 });
+
+describe("article text", () => {
+  const long: Story = {
+    ...story,
+    summary: Array.from({ length: 6 }, (_, i) => ({ text: `Sentence ${i + 1}.`, cites: ["i0"] })),
+  };
+
+  it("shows the lead's opening with a link to the rest, and the whole article in paragraphs on its page", async () => {
+    const lead = await render(<StoryCard story={long} sources={sources} lead />);
+    expect(lead).toContain("Sentence 4.");
+    expect(lead).not.toContain("Sentence 5.");
+    expect(lead).toContain("Continue reading");
+    const page = await render(<StoryCard story={long} sources={sources} page />);
+    expect(page).toContain("Sentence 6.");
+    expect(page.match(/<p class="summary">/g)).toHaveLength(2);
+    expect(page).not.toContain("Continue reading");
+  });
+});

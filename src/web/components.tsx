@@ -173,6 +173,20 @@ const Photo: FC<{ source: Source; href?: string; eager?: boolean }> = ({ source,
   );
 };
 
+/** Sentences of the lead shown on the front page; the rest is a click away. */
+const LEAD_SENTENCES = 4;
+
+/** Short paragraphs, easier to read than one block: two or three sentences each. */
+function paragraphs<T>(sentences: readonly T[]): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < sentences.length; ) {
+    const size = sentences.length - i === 4 ? 2 : Math.min(3, sentences.length - i);
+    out.push(sentences.slice(i, i + size));
+    i += size;
+  }
+  return out;
+}
+
 export const StoryCard: FC<{ story: Story; sources: Map<string, Source>; lead?: boolean; page?: boolean }> = ({ story, sources, lead = false, page = false }) => {
   const ordered = orderedSources(story, sources);
   const numbers = new Map(ordered.map((s, i) => [s.id, i + 1]));
@@ -181,21 +195,32 @@ export const StoryCard: FC<{ story: Story; sources: Map<string, Source>; lead?: 
   const Heading = page ? "h1" : "h3";
   const photoSource = story.imageItemId ? sources.get(story.imageItemId) : undefined;
   const photo = photoSource?.imageUrl ? <Photo source={photoSource} href={page ? undefined : href} eager={lead || page} /> : null;
-  const main = (
+  const sentences = shownSummary(story);
+  // The front page's lead gives the opening of the article; the story page gives all of it.
+  const shown = page ? sentences : sentences.slice(0, LEAD_SENTENCES);
+  const text = (
     <>
-      {photo}
       <Kicker story={story} />
       <Heading>{page ? story.headline : <a href={href}>{story.headline}</a>}</Heading>
-      <p class="summary">
-        {shownSummary(story).map((s) => (
-          <>{s.text}<Cites cites={s.cites} numbers={numbers} base={base} />{" "}</>
-        ))}
-      </p>
+      {paragraphs(shown).map((para) => (
+        <p class="summary">
+          {para.map((s) => (
+            <>{s.text}<Cites cites={s.cites} numbers={numbers} base={base} />{" "}</>
+          ))}
+        </p>
+      ))}
+      {!page && sentences.length > shown.length ? <p class="more"><a href={href}>Continue reading →</a></p> : null}
       {story.why && (lead || page) ? (
         <p class="why-matters"><span class="why-label">Why it matters</span> {story.why.text}<Cites cites={story.why.cites} numbers={numbers} base={base} /></p>
       ) : null}
       {lead || page ? <p class="named">Covered by {namedOutlets(story, sources)}</p> : null}
       {lead || page ? <ReadFirst story={story} sources={sources} /> : null}
+    </>
+  );
+  const main = (
+    <>
+      {photo}
+      {text}
     </>
   );
   const differences = story.differences.length === 0 ? (
@@ -239,10 +264,17 @@ export const StoryCard: FC<{ story: Story; sources: Map<string, Source>; lead?: 
       {differences}
     </>
   );
-  // The lead runs across the page: story on the left, the weighing on the right.
-  return lead ? (
-    // Nothing to weigh (thin coverage, no differences): one column, so an empty sidebar doesn't outweigh the story.
-    <article class={`story lead${leanReading(story.coverage).key === "thin" && story.differences.length === 0 ? " solo" : ""}`}><div class="lead-main">{main}</div><aside class="lead-side" aria-label="Coverage">{evidence}</aside></article>
+  // The lead runs across the page: story on the left, the weighing on the right. With nothing to weigh (thin
+  // coverage, no differences) the photo and the short coverage line take the left column and the story the right,
+  // so neither leaves a large empty area.
+  const solo = leanReading(story.coverage).key === "thin" && story.differences.length === 0;
+  return lead && solo ? (
+    <article class="story lead solo">
+      <div class="lead-media">{photo}<aside class="lead-side" aria-label="Coverage">{evidence}</aside></div>
+      <div class="lead-main">{text}</div>
+    </article>
+  ) : lead ? (
+    <article class="story lead"><div class="lead-main">{main}</div><aside class="lead-side" aria-label="Coverage">{evidence}</aside></article>
   ) : (
     <article class="story">{main}{evidence}</article>
   );
