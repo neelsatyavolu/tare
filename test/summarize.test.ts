@@ -220,6 +220,9 @@ describe("clean", () => {
   it("collapses whitespace and rewrites an 'at least X to Y' range", () => {
     expect(clean("  A shooting   injured at least 11 to 12 people. ")).toBe("A shooting injured 11 or 12 people.");
     expect(clean("At least 11 people were hurt.")).toBe("At least 11 people were hurt.");
+    expect(clean("President Barack Obama condemned the ad.")).toBe("Former President Barack Obama condemned the ad.");
+    expect(clean("It drew in President Joe Biden and President Donald Trump.")).toBe("It drew in former President Joe Biden and President Donald Trump.");
+    expect(clean("Former President Barack Obama spoke.")).toBe("Former President Barack Obama spoke.");
   });
 });
 

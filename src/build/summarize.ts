@@ -15,13 +15,17 @@ export const SUMMARY_MODEL = "@cf/openai/gpt-oss-120b";
  * 8: no hedged ("could", "may", "likely") why-lines at all.
  * 9: current officeholders in the prompt, so titles stay consistent across stories.
  */
-export const WRITEUP_VERSION = 19;
+export const WRITEUP_VERSION = 20;
 
 /**
  * Facts that change rarely but that the model, trained earlier, tends to get wrong. Keep current: they go
  * into every write-up prompt as background, never as a source to cite.
  */
-export const CURRENT_FACTS = "Donald Trump is the president of the United States and JD Vance is the vice president; call them that, not \"former\".";
+export const CURRENT_FACTS =
+  "Donald Trump is the president of the United States and JD Vance is the vice president; call them that, not \"former\". Barack Obama, Joe Biden, George W. Bush and Bill Clinton are former presidents; never call them \"President\" without \"former\".";
+
+/** Former presidents the model sometimes promotes back to office ("President Barack Obama"). */
+const FORMER = /(^|[^\w])(?:(former|Former) )?President (Barack Obama|Joe Biden|George W\. Bush|Bill Clinton)\b/g;
 
 export type SourceItem = { id: string; outletId: string; title: string; snippet: string; publishedAt?: number };
 export type Cited = { text: string; cites: string[] };
@@ -137,9 +141,13 @@ export function extractJson(text: string): unknown {
   }
 }
 
-/** Collapses whitespace, and turns the model's habit "at least 11 to 12" into the plain range "11 or 12". */
+/** Collapses whitespace, turns "at least 11 to 12" into "11 or 12", and keeps former presidents former. */
 export const clean = (s: string) =>
-  s.replace(/\s+/g, " ").trim().replace(/\bat least (\d[\d,]*) to (\d[\d,]*)\b/gi, "$1 or $2");
+  s
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\bat least (\d[\d,]*) to (\d[\d,]*)\b/gi, "$1 or $2")
+    .replace(FORMER, (_m, pre: string, former: string | undefined, name: string) => `${pre}${former ?? (pre === "" ? "Former" : "former")} President ${name}`);
 
 const contentWords = (s: string) => new Set(s.toLowerCase().match(/[a-z0-9']{4,}/g) ?? []);
 
