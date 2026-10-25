@@ -180,6 +180,15 @@ describe("summarize", () => {
     expect(calls).toHaveLength(2);
   });
 
+  it("lists sources oldest first, with their publish times", async () => {
+    const { ai, calls } = fakeModel(good);
+    const timed = items.map((it, i) => ({ ...it, publishedAt: Date.parse("2026-10-25T12:00:00Z") - i * 3600_000 }));
+    await summarize(ai, timed, Date.parse("2026-10-25T13:00:00Z"));
+    const prompt = JSON.stringify(calls[0]);
+    // The last item is the oldest, so it becomes s1.
+    expect(prompt).toContain("[s1] New York Post (leans right)\\nPublished: 2026-10-25 09:00 UTC");
+  });
+
   it("drops sentences the check pass finds unsupported", async () => {
     const { ai } = fakeModel(good, (n) => Array.from({ length: n }, (_, i) => i !== 1));
     const w = await summarize(ai, items);

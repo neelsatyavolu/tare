@@ -81,7 +81,6 @@ nav.jump a:hover{color:var(--ink);border-bottom-color:var(--ink)}
 .scale.thin .reading-thin{margin:0;font:13px/1.5 var(--font-mono);color:var(--ink-3)}
 .lead.solo{grid-template-columns:1fr;gap:0}
 .lead.solo .lead-side{border-left:0;padding:8px 0 0}
-.intro-more{display:none}
 .read-first{margin:6px 0 0}
 .named{font:400 15px/1.5 var(--font-serif);color:var(--ink-2);margin:6px 0 0}
 .no-center{margin:6px 0 0;font:400 12px/1.4 var(--font-mono);color:var(--ink-3)}
@@ -222,9 +221,9 @@ footer a{color:var(--ink-3)}
 @media (max-width:1000px){.howto-body{grid-template-columns:1fr 1fr}}
 @media (max-width:760px){
 .masthead{margin-top:12px;padding:10px 0 8px}.masthead .tagline{display:none}
-.intro-strip{gap:8px}.intro-strip p{font-size:15px}.intro-strip .inline-subscribe{display:none}.intro-more{display:inline;font:500 12px/1.6 var(--font-mono);letter-spacing:.06em;text-transform:uppercase;color:var(--brass)}
+.intro-strip{display:none}/* news first on phones; Subscribe is in the nav */
 nav.jump{flex-wrap:nowrap;overflow-x:auto;white-space:nowrap;padding-bottom:4px;scrollbar-width:none}
-.lead-main{display:flex;flex-direction:column}.lead-main>*{order:3}.lead-main>.kicker{order:0}.lead-main>h3,.lead-main>h1{order:1}.lead-main>.photo{order:2;margin-top:8px}
+.lead-main{display:flex;flex-direction:column}.lead-main>*{order:4}.lead-main>.kicker{order:0}.lead-main>h3,.lead-main>h1{order:1}.lead-main>.summary{order:2}.lead-main>.photo{order:3;margin-top:8px}
 
   .wrap{padding:0 16px}
   .masthead a.wordmark{font-size:52px}

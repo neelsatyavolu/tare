@@ -322,7 +322,7 @@ export const CompactStory: FC<{ story: Story; sources: Map<string, Source> }> = 
 const ReadFirst: FC<{ story: Story; sources: Map<string, Source> }> = ({ story, sources }) => {
   const s = readFirst(story, sources);
   return s ? (
-    <p class="read-first"><span class="why-label">Read first</span> <a href={s.url} rel="noopener noreferrer nofollow" target="_blank">{s.title}</a> <span class="meta">· {s.outlet.name}</span></p>
+    <p class="read-first"><span class="why-label">{EXPLAINER.test(s.title) ? "Background" : "Read first"}</span> <a href={s.url} rel="noopener noreferrer nofollow" target="_blank">{s.title}</a> <span class="meta">· {s.outlet.name}</span></p>
   ) : null;
 };
 
@@ -338,7 +338,7 @@ export const SourceList: FC<{ story: Story; sources: Map<string, Source> }> = ({
             <ol>
               {ordered.map((s, i) => sideOf(s.outlet.lean) === side ? (
                 <li id={`src-${i + 1}`}>
-                  <span class="outlet"><span class="n">{i + 1}</span> {s.outlet.name} · {LEAN_LABEL[s.outlet.lean]}</span>
+                  <span class="outlet"><span class="n">{i + 1}</span> {s.outlet.name} · {LEAN_LABEL[s.outlet.lean]}{s.publishedAt ? ` · ${easternTime(s.publishedAt)}` : ""}</span>
                   <a href={s.url} rel="noopener noreferrer nofollow" target="_blank">{s.title}</a>
                 </li>
               ) : null)}
@@ -364,8 +364,6 @@ export const IntroStrip: FC = () => {
         <button class="primary" type="submit">Email me the edition</button>
         <a class="meta" href="/sample-email">See a sample</a>
       </form>
-      {/* On phones the form waits at the end of the edition, so the news comes first. */}
-      <a class="intro-more" href="#subscribe">Get it by email</a>
     </div>
   );
 };
