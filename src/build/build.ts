@@ -51,11 +51,11 @@ export type BuiltStory = {
 type ExistingRow = {
   id: string; topic: TopicId; headline: string; summary: string; differences: string; item_ids: string; dek: string | null; why: string | null;
   image_item_id: string | null; written_total: number | null; first_seen_at: number | null; importance: number | null;
-  writeup_version: number;
+  writeup_version: number; written_at: number | null;
 };
 
 /** One row to save: a story in this hour's lineup. */
-type LineupStory = Omit<BuiltStory, "rank" | "front"> & { writtenTotal: number; firstSeenAt: number; writeupVersion: number };
+type LineupStory = Omit<BuiltStory, "rank" | "front"> & { writtenTotal: number; firstSeenAt: number; writeupVersion: number; writtenAt: number | null };
 
 export type BuildReport = {
   date: string; status: "ready" | "failed" | "skipped"; items: number; candidates: number; stories: number;
@@ -104,11 +104,49 @@ async function sections(db: D1Database, ai: AiRunner, groups: readonly Candidate
   return known;
 }
 
+/** A story this widely covered always appears, even when its write-up fails; see `standIn`. */
+export const ALWAYS_PUBLISH = 8;
+
+/**
+ * Stands in for a write-up that failed on a widely covered story: a center (else unrated) outlet's own
+ * headline and description, attributed, until the next hour's retry (writeupVersion 0 forces one).
+ */
+export async function standIn(group: { members: readonly Member[]; topic: TopicId | null; importance: number | null }, date: string, now: number): Promise<LineupStory | null> {
+  const sources = onePerOutlet(group.members);
+  const coverage = coverageOf(sources.map((s) => s.outletId));
+  if (coverage.total < ALWAYS_PUBLISH) return null;
+  const rank = (s: Member) => {
+    const o = outletById(s.outletId);
+    const side = o ? sideOf(o.lean) : null;
+    return (side === "center" ? 0 : side === null ? 1 : 2) + (s.snippet ? 0 : 0.5);
+  };
+  const pick = [...sources].sort((a, b) => rank(a) - rank(b) || a.outletId.localeCompare(b.outletId))[0]!;
+  const outlet = outletById(pick.outletId)?.name ?? pick.outletId;
+  return {
+    id: await sha256Hex(`${date}:${sources.map((s) => s.id).join(",")}`),
+    topic: group.topic ?? "world",
+    headline: pick.title,
+    dek: null,
+    why: null,
+    summary: [{ text: `${outlet} reports: ${pick.snippet || pick.title}`, cites: [pick.id] }],
+    differences: [],
+    coverage,
+    blindspot: blindspotOf(coverage),
+    itemIds: sources.map((s) => s.id),
+    imageItemId: pickImage(sources),
+    importance: group.importance,
+    writtenTotal: 0,
+    writeupVersion: 0,
+    firstSeenAt: now,
+    writtenAt: null,
+  };
+}
+
 async function writeUp(ai: AiRunner, group: Picked, date: string, now: number): Promise<LineupStory | null> {
   const sources = onePerOutlet(group.members);
   try {
     const w = await summarize(ai, sources, now);
-    if (!w) return null;
+    if (!w) return standIn(group, date, now);
     const kept = sources.filter((s) => !w.offTopic.includes(s.id));
     const coverage = coverageOf(kept.map((s) => s.outletId));
     if (coverage.total < SECTION_MIN_OUTLETS) return null;
@@ -128,11 +166,12 @@ async function writeUp(ai: AiRunner, group: Picked, date: string, now: number): 
       importance: group.importance,
       writtenTotal: coverage.total,
       writeupVersion: WRITEUP_VERSION,
+      writtenAt: now,
       firstSeenAt: now,
     };
   } catch (err) {
     console.error(`summary failed: ${err instanceof Error ? err.message : String(err)}`);
-    return null;
+    return standIn(group, date, now);
   }
 }
 
@@ -156,6 +195,7 @@ function carryOver(ex: ExistingRow, group: Picked, outletOf: ReadonlyMap<string,
     imageItemId: ex.image_item_id ?? pickImage(onePerOutlet(group.members)),
     importance: group.importance ?? ex.importance,
     writeupVersion: ex.writeup_version,
+    writtenAt: ex.written_at,
     writtenTotal: ex.written_total ?? coverage.total,
     firstSeenAt: ex.first_seen_at ?? now,
   };
@@ -241,7 +281,7 @@ export async function buildEdition(db: D1Database, ai: AiRunner, now = Date.now(
     report = { ...report, candidates: picked.length };
 
     const { results: existing } = await db
-      .prepare("SELECT id, topic, headline, summary, differences, item_ids, dek, why, image_item_id, written_total, first_seen_at, importance, writeup_version FROM stories WHERE edition_date = ?")
+      .prepare("SELECT id, topic, headline, summary, differences, item_ids, dek, why, image_item_id, written_total, first_seen_at, importance, writeup_version, written_at FROM stories WHERE edition_date = ?")
       .bind(date)
       .all<ExistingRow>();
     const outletOf = await outletsOf(db, results, existing);
@@ -258,7 +298,9 @@ export async function buildEdition(db: D1Database, ai: AiRunner, now = Date.now(
       const fresh = await writeUp(ai, group, date, now);
       // A rewrite keeps the story's id and first-seen time, so its link and "new" marker don't change. Its sources
       // are the fresh write-up's, so the source list always matches the counts.
-      const story = fresh && carried ? { ...fresh, id: carried.id, firstSeenAt: carried.firstSeenAt } : (fresh ?? carried);
+      // A failed rewrite (stand-in, version 0) never replaces an existing write-up.
+      const usable = fresh && !(carried && fresh.writeupVersion === 0) ? fresh : null;
+      const story = usable && carried ? { ...usable, id: carried.id, firstSeenAt: carried.firstSeenAt } : (usable ?? carried);
       return story && checkBlindspot(story, group, members);
     });
 
@@ -270,13 +312,13 @@ export async function buildEdition(db: D1Database, ai: AiRunner, now = Date.now(
     const ordered = [...stories].sort((a, b) => Number(front.has(b)) - Number(front.has(a)) || byWeight(a, b));
     const upsert = db.prepare(
       `INSERT INTO stories (id, edition_date, rank, front, topic, headline, summary, differences, coverage, blindspot, item_ids, image_item_id,
-                            active, first_seen_at, updated_at, written_total, importance, writeup_version, dek, why)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
+                            active, first_seen_at, updated_at, written_total, importance, writeup_version, dek, why, written_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET rank = excluded.rank, front = excluded.front, topic = excluded.topic, headline = excluded.headline,
          summary = excluded.summary, differences = excluded.differences, coverage = excluded.coverage, blindspot = excluded.blindspot,
          item_ids = excluded.item_ids, image_item_id = excluded.image_item_id, active = 1, updated_at = excluded.updated_at,
          written_total = excluded.written_total, importance = excluded.importance, writeup_version = excluded.writeup_version,
-         dek = excluded.dek, why = excluded.why`,
+         dek = excluded.dek, why = excluded.why, written_at = excluded.written_at`,
     );
     const live = new Set(ordered.map((s) => s.id));
     const retire = db.prepare("UPDATE stories SET active = 0, front = 0 WHERE id = ?");
@@ -285,7 +327,7 @@ export async function buildEdition(db: D1Database, ai: AiRunner, now = Date.now(
         upsert.bind(
           s.id, date, rank, front.has(s) ? 1 : 0, s.topic, s.headline, JSON.stringify(s.summary), JSON.stringify(s.differences),
           JSON.stringify(s.coverage), s.blindspot, JSON.stringify(s.itemIds), s.imageItemId, s.firstSeenAt, now, s.writtenTotal, s.importance, s.writeupVersion,
-          s.dek ? JSON.stringify(s.dek) : null, s.why ? JSON.stringify(s.why) : null,
+          s.dek ? JSON.stringify(s.dek) : null, s.why ? JSON.stringify(s.why) : null, s.writtenAt,
         ),
       ),
       ...existing.filter((e) => !live.has(e.id)).map((e) => retire.bind(e.id)),

@@ -28,6 +28,7 @@ const story: Story = {
   importance: 4,
   dek: null,
   why: null,
+  writtenAt: null,
 };
 
 const render = async (node: unknown) => String(await Promise.resolve(node));
@@ -74,7 +75,7 @@ describe("Scale", () => {
   it("places the needle by balance and describes it for screen readers", async () => {
     const html = await render(<Scale c={coverageOf(["fox", "nypost", "breitbart", "axios"])} />);
     expect(html).toContain("left:100.0%");
-    expect(html).toContain("No left-leaning outlets covered it");
+    expect(html).toContain("No left-leaning outlets in Tare&#39;s list covered it");
     expect(html).toContain(`0 of ${SIDE_SIZE.left} left outlets`);
   });
 });

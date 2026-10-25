@@ -106,7 +106,7 @@ export const Scale: FC<{ c: Coverage }> = ({ c }) => {
           </div>
         ))}
       </div>
-      <div class="ruler" aria-hidden="true">{read.key === "thin" ? null : <span class="needle" style={`left:${needle.toFixed(1)}%`} />}</div>
+      <div class="ruler" aria-hidden="true">{read.key === "thin" ? null : <span class="needle" style={`left:${(read.key === "even" ? 50 : needle).toFixed(1)}%`} />}</div>
       <div class="reading" aria-hidden="true"><span>← Left</span><b>{read.sentence}</b><span>Right →</span></div>
     </div>
   );
@@ -223,7 +223,8 @@ const Kicker: FC<{ story: Story; tag?: boolean }> = ({ story, tag = false }) => 
     <p class="kicker">
       {story.firstSeenAt && Date.now() - story.firstSeenAt < NEW_FOR_MS ? <b class="new">New · </b> : null}
       {story.blindspot ? <b>Possible blindspot · </b> : null}
-      {topicName(story.topic)} · {c.total} outlets <span class="counts">(L {c.left} · C {c.center} · R {c.right})</span>
+      {story.writtenAt && story.firstSeenAt && story.writtenAt - story.firstSeenAt > 3600_000 && Date.now() - story.writtenAt < NEW_FOR_MS ? <b class="new">Updated · </b> : null}
+      {topicName(story.topic)} · {c.total} outlets <span class="counts">(L {c.left} · C {c.center} · R {c.right}{c.unrated ? ` · ${c.unrated} not rated` : ""})</span>
       {sideWord ? <> · <span class={`tag ${read.key}`}>{read.tag}</span></> : null}
     </p>
   );

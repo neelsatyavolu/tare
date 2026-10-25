@@ -48,7 +48,7 @@ export function blindspotOf(c: Coverage): Blindspot {
   return null;
 }
 
-export type LeanReading = { key: "thin" | "even" | "more-left" | "more-right" | "no-left" | "no-right"; sentence: string; tag: string };
+export type LeanReading = { key: "thin" | "even" | "more-left" | "more-right" | "no-left" | "no-right" | "only-left" | "only-right"; sentence: string; tag: string };
 
 /**
  * What the coverage scale says, in words a reader can check against the counts. It names a side only when
@@ -59,8 +59,11 @@ export function leanReading(c: Coverage): LeanReading {
   if (c.left + c.right < 3) return { key: "thin", sentence: "Too few left- or right-leaning outlets to compare", tag: "Too few to compare" };
   const ls = c.left / SIDE_SIZE.left;
   const rs = c.right / SIDE_SIZE.right;
-  if (c.right >= 3 && c.left === 0) return { key: "no-left", sentence: "No left-leaning outlets covered it", tag: "No left coverage" };
-  if (c.left >= 3 && c.right === 0) return { key: "no-right", sentence: "No right-leaning outlets covered it", tag: "No right coverage" };
+  // With no center coverage either, it's one side's story rather than something the other side skipped.
+  if (c.right >= 3 && c.left === 0 && c.center === 0) return { key: "only-right", sentence: "Only right-leaning outlets in Tare's list covered it", tag: "Right-leaning outlets only" };
+  if (c.left >= 3 && c.right === 0 && c.center === 0) return { key: "only-left", sentence: "Only left-leaning outlets in Tare's list covered it", tag: "Left-leaning outlets only" };
+  if (c.right >= 3 && c.left === 0) return { key: "no-left", sentence: "No left-leaning outlets in Tare's list covered it", tag: "No left coverage" };
+  if (c.left >= 3 && c.right === 0) return { key: "no-right", sentence: "No right-leaning outlets in Tare's list covered it", tag: "No right coverage" };
   if (c.right >= 3 && c.right >= 2 * c.left && rs >= 2 * ls) return { key: "more-right", sentence: "More right- than left-leaning coverage", tag: "More right coverage" };
   if (c.left >= 3 && c.left >= 2 * c.right && ls >= 2 * rs) return { key: "more-left", sentence: "More left- than right-leaning coverage", tag: "More left coverage" };
   return { key: "even", sentence: "Similar left and right coverage", tag: "Similar left and right" };
@@ -138,9 +141,13 @@ export const FRONT_MIN_OUTLETS = 6;
 /** At this importance a story can lead even if one side skipped it; it shows as a possible blindspot. */
 export const LEAD_ANYWAY_IMPORTANCE = 4;
 
+/** The most consequential stories (importance 5: deadly attacks, elections, wars) need only this many outlets. */
+export const FRONT_MIN_OUTLETS_MAJOR = 3;
+
 const frontEligible = (s: Weighed & { blindspot?: Blindspot }) => {
   const importance = s.importance ?? 0;
-  if (s.coverage.total < FRONT_MIN_OUTLETS || importance < MIN_IMPORTANCE) return false;
+  const minOutlets = importance >= 5 ? FRONT_MIN_OUTLETS_MAJOR : FRONT_MIN_OUTLETS;
+  if (s.coverage.total < minOutlets || importance < MIN_IMPORTANCE) return false;
   return (s.coverage.left > 0 && s.coverage.right > 0) || (importance >= LEAD_ANYWAY_IMPORTANCE && !!s.blindspot);
 };
 

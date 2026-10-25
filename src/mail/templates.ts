@@ -112,13 +112,13 @@ export function digestEmail(
   const parts: [string, Story[]][] = [["Front page", d.front], ["Your topics", d.yours], ["Blindspots", d.blindspots]];
   const shown = parts.filter(([, list]) => list.length > 0);
 
-  const body = `<tr><td style="padding:10px 0 0;text-align:center;font:12px/1.4 ${MONO};letter-spacing:.08em;text-transform:uppercase;color:${C.ink3}">${esc(longDate(edition.date))} · No. ${edition.number}</td></tr>
+  const body = `<tr><td style="padding:10px 0 0;text-align:center;font:12px/1.4 ${MONO};letter-spacing:.08em;text-transform:uppercase;color:${C.ink3}">${esc(longDate(edition.date))}</td></tr>
 ${shown.map(([title, list]) => section(title) + list.map((s) => storyHtml(s, appUrl, s.front ? photos.get(s.id) : undefined)).join("")).join("")}
 <tr><td style="padding:24px 0;font:17px/1.55 ${SERIF};color:${C.ink2}">That's the edition. <a href="${esc(`${appUrl}/e/${edition.date}`)}" style="color:${C.brass}">Read it on the web</a> with every source.</td></tr>`;
   const footer = `You get this because you subscribed to Tare. <a href="${esc(manageUrl)}" style="color:${C.ink3}">Change topics or unsubscribe</a>. Summaries are written by AI from headlines and descriptions only; <a href="${esc(`${appUrl}/method`)}" style="color:${C.ink3}">how it works</a>.`;
 
   const text = [
-    `TARE · ${longDate(edition.date)} · No. ${edition.number}`,
+    `TARE · ${longDate(edition.date)}`,
     ...shown.map(([title, list]) => `\n${title.toUpperCase()}\n\n${list.map((s) => storyText(s, appUrl)).join("\n\n")}`),
     `\nThat's the edition. Read it with every source: ${appUrl}/e/${edition.date}`,
     `\nChange topics or unsubscribe: ${manageUrl}`,

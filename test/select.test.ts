@@ -68,7 +68,9 @@ describe("leanReading", () => {
     expect(leanReading(coverageOf([L[0]!, L[1]!, R[0]!, R[1]!, R[2]!])).key).toBe("even");
     // The review's case: 1 left, 3 center, 3 right reads as more right, never "mostly".
     expect(leanReading(coverageOf([L[0]!, C[0]!, C[1]!, C[2]!, R[0]!, R[1]!, R[2]!])).sentence).toBe("More right- than left-leaning coverage");
-    expect(leanReading(coverageOf([L[0]!, L[1]!, L[2]!])).sentence).toBe("No right-leaning outlets covered it");
+    expect(leanReading(coverageOf([L[0]!, L[1]!, L[2]!, C[0]!])).sentence).toBe("No right-leaning outlets in Tare's list covered it");
+    // With no center coverage either, it's one side's story.
+    expect(leanReading(coverageOf([L[0]!, L[1]!, L[2]!])).key).toBe("only-left");
   });
 });
 
@@ -157,7 +159,8 @@ describe("frontPage", () => {
     const b = { id: "b", importance: 3, blindspot: null, coverage: coverageOf([R[0]!, R[1]!, R[2]!, R[3]!, C[0]!, C[1]!]) };
     const c = { id: "c", importance: 5, blindspot: null, coverage: coverageOf([L[0]!, R[0]!, C[0]!, C[1]!, C[2]!, C[3]!]) };
     const thin = { id: "thin", importance: 5, blindspot: null, coverage: coverageOf([L[0]!, R[0]!, C[0]!]) };
-    expect([...frontPage([thin, b, a, c], 5)].map((s) => s.id)).toEqual(["c", "a"]);
+    // The thin one is importance 5, which needs only 3 outlets; b (importance 3) lacks a left-leaning outlet.
+    expect([...frontPage([thin, b, a, c], 5)].map((s) => s.id)).toEqual(["c", "thin", "a"]);
   });
 
   it("lets a very important story one side skipped lead, as a possible blindspot", () => {

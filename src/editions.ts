@@ -4,14 +4,14 @@ import { outletById, sideOf, type Outlet, type Side } from "./outlets";
 import { isTopicId } from "./topics";
 
 export type Edition = { date: string; number: number; status: "building" | "ready" | "failed"; itemCount: number; builtAt: number | null; sentAt: number | null };
-export type Story = Omit<BuiltStory, "coverage"> & { editionDate: string; coverage: Coverage; firstSeenAt: number | null };
+export type Story = Omit<BuiltStory, "coverage"> & { editionDate: string; coverage: Coverage; firstSeenAt: number | null; writtenAt: number | null };
 export type Source = { id: string; outlet: Outlet; title: string; url: string; publishedAt: number; imageUrl: string | null };
 
 type EditionRow = { date: string; number: number; status: Edition["status"]; item_count: number; built_at: number | null; sent_at: number | null };
 type StoryRow = {
   id: string; edition_date: string; rank: number; front: number; topic: string; headline: string;
   summary: string; differences: string; coverage: string; blindspot: "left" | "right" | null; item_ids: string; image_item_id: string | null; first_seen_at: number | null; importance: number | null;
-  dek: string | null; why: string | null;
+  dek: string | null; why: string | null; written_at: number | null;
 };
 
 const toEdition = (r: EditionRow): Edition => ({ date: r.date, number: r.number, status: r.status, itemCount: r.item_count, builtAt: r.built_at, sentAt: r.sent_at });
@@ -32,6 +32,7 @@ const toStory = (r: StoryRow): Story => ({
   itemIds: JSON.parse(r.item_ids),
   imageItemId: r.image_item_id,
   firstSeenAt: r.first_seen_at,
+  writtenAt: r.written_at,
   importance: r.importance,
 });
 

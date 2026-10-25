@@ -19,6 +19,12 @@ const Section: FC<{ title: string; id?: string; children?: Child }> = ({ title, 
   </section>
 );
 
+/** Stories only one side covered (with no center coverage) go after the section's main stories. */
+const oneSidedLast = (list: Story[]) => {
+  const oneSided = (s: Story) => s.coverage.center === 0 && (s.coverage.left === 0 || s.coverage.right === 0);
+  return [...list.filter((s) => !oneSided(s)), ...list.filter(oneSided)];
+};
+
 export const EditionPage: FC<{ edition: Edition; stories: Story[]; sources: Sources; isToday: boolean }> = ({ edition, stories, sources, isToday }) => {
   const front = stories.filter((s) => s.front);
   const [lead, ...restFront] = front;
@@ -55,7 +61,7 @@ export const EditionPage: FC<{ edition: Edition; stories: Story[]; sources: Sour
       ) : null}
       {byTopic.map((g) => (
         <Section title={g.followed ? `${g.topic.name} · Following` : g.topic.name} id={g.topic.id}>
-          <div class="compact-grid">{g.list.map((s) => <CompactStory story={s} sources={sources} />)}</div>
+          <div class="compact-grid">{oneSidedLast(g.list).map((s) => <CompactStory story={s} sources={sources} />)}</div>
         </Section>
       ))}
       <p class="end">That's the edition.</p>

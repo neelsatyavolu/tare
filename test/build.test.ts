@@ -196,14 +196,26 @@ describe("buildEdition", () => {
     expect((await buildEdition(env.DB, fakeAi(), NOW + HOUR)).status).toBe("skipped");
   });
 
-  it("marks the edition failed when the model fails, and keeps a ready one readable", async () => {
-    const failed = await buildEdition(env.DB, fakeAi({ failSummaries: true }), NOW);
-    expect(failed.status).toBe("failed");
-    expect(await env.DB.prepare("SELECT status FROM editions").first("status")).toBe("failed");
+  it("still publishes widely covered stories when the model fails, as attributed stand-ins retried next hour", async () => {
+    const r = await buildEdition(env.DB, fakeAi({ failSummaries: true }), NOW);
+    expect(r.status).toBe("ready");
+    const rows = (await env.DB.prepare("SELECT headline, summary, writeup_version FROM stories ORDER BY headline").all<{ headline: string; summary: string; writeup_version: number }>()).results;
+    // Senate (8 outlets) and merger (11) stand in; quake (6) waits for a real write-up.
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      expect(row.writeup_version).toBe(0);
+      expect(JSON.parse(row.summary)[0].text).toMatch(/ reports: /);
+    }
+    summaryCalls = 0;
+    await buildEdition(env.DB, fakeAi(), NOW + HOUR);
+    expect(summaryCalls).toBe(3);
+  });
 
-    await buildEdition(env.DB, fakeAi(), NOW, { force: true });
-    await buildEdition(env.DB, fakeAi({ failSummaries: true }), NOW, { force: true });
-    expect(await env.DB.prepare("SELECT status FROM editions").first("status")).toBe("ready");
+  it("never replaces a real write-up with a stand-in when a rewrite fails", async () => {
+    await buildEdition(env.DB, fakeAi(), NOW);
+    await buildEdition(env.DB, fakeAi({ failSummaries: true }), NOW + HOUR, { force: true });
+    const summaries = (await env.DB.prepare("SELECT summary FROM stories").all<{ summary: string }>()).results.map((r) => JSON.parse(r.summary)[0].text);
+    expect(summaries.every((t) => !/ reports: /.test(t))).toBe(true);
   });
 
   it("fails cleanly when there are too few headlines", async () => {
