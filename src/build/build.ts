@@ -37,6 +37,8 @@ export type BuiltStory = {
   front: boolean;
   topic: TopicId;
   headline: string;
+  dek: Cited | null;
+  why: Cited | null;
   summary: Cited[];
   differences: Difference[];
   coverage: Coverage;
@@ -47,7 +49,7 @@ export type BuiltStory = {
 };
 
 type ExistingRow = {
-  id: string; topic: TopicId; headline: string; summary: string; differences: string; item_ids: string;
+  id: string; topic: TopicId; headline: string; summary: string; differences: string; item_ids: string; dek: string | null; why: string | null;
   image_item_id: string | null; written_total: number | null; first_seen_at: number | null; importance: number | null;
   writeup_version: number;
 };
@@ -115,6 +117,8 @@ async function writeUp(ai: AiRunner, group: Picked, date: string, now: number): 
       // The section decided before selection wins, so a story stays in the section it was picked for.
       topic: group.topic ?? w.topic,
       headline: w.headline,
+      dek: w.dek,
+      why: w.why,
       summary: w.summary,
       differences: w.differences,
       coverage,
@@ -142,6 +146,8 @@ function carryOver(ex: ExistingRow, group: Picked, outletOf: ReadonlyMap<string,
     id: ex.id,
     topic: ex.topic,
     headline: ex.headline,
+    dek: ex.dek ? JSON.parse(ex.dek) : null,
+    why: ex.why ? JSON.parse(ex.why) : null,
     summary: JSON.parse(ex.summary),
     differences: JSON.parse(ex.differences),
     coverage,
@@ -233,7 +239,7 @@ export async function buildEdition(db: D1Database, ai: AiRunner, now = Date.now(
     report = { ...report, candidates: picked.length };
 
     const { results: existing } = await db
-      .prepare("SELECT id, topic, headline, summary, differences, item_ids, image_item_id, written_total, first_seen_at, importance, writeup_version FROM stories WHERE edition_date = ?")
+      .prepare("SELECT id, topic, headline, summary, differences, item_ids, dek, why, image_item_id, written_total, first_seen_at, importance, writeup_version FROM stories WHERE edition_date = ?")
       .bind(date)
       .all<ExistingRow>();
     const outletOf = await outletsOf(db, results, existing);
@@ -248,8 +254,9 @@ export async function buildEdition(db: D1Database, ai: AiRunner, now = Date.now(
       if (!rewrite || budget <= 0) return carried && checkBlindspot(carried, group, members);
       budget -= 1;
       const fresh = await writeUp(ai, group, date, now);
-      // A rewrite keeps the story's id and first-seen time, so its link and "new" marker don't change.
-      const story = fresh && carried ? { ...fresh, id: carried.id, firstSeenAt: carried.firstSeenAt, itemIds: [...new Set([...carried.itemIds, ...fresh.itemIds])] } : (fresh ?? carried);
+      // A rewrite keeps the story's id and first-seen time, so its link and "new" marker don't change. Its sources
+      // are the fresh write-up's, so the source list always matches the counts.
+      const story = fresh && carried ? { ...fresh, id: carried.id, firstSeenAt: carried.firstSeenAt } : (fresh ?? carried);
       return story && checkBlindspot(story, group, members);
     });
 
@@ -261,12 +268,13 @@ export async function buildEdition(db: D1Database, ai: AiRunner, now = Date.now(
     const ordered = [...stories].sort((a, b) => Number(front.has(b)) - Number(front.has(a)) || byWeight(a, b));
     const upsert = db.prepare(
       `INSERT INTO stories (id, edition_date, rank, front, topic, headline, summary, differences, coverage, blindspot, item_ids, image_item_id,
-                            active, first_seen_at, updated_at, written_total, importance, writeup_version)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?)
+                            active, first_seen_at, updated_at, written_total, importance, writeup_version, dek, why)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET rank = excluded.rank, front = excluded.front, topic = excluded.topic, headline = excluded.headline,
          summary = excluded.summary, differences = excluded.differences, coverage = excluded.coverage, blindspot = excluded.blindspot,
          item_ids = excluded.item_ids, image_item_id = excluded.image_item_id, active = 1, updated_at = excluded.updated_at,
-         written_total = excluded.written_total, importance = excluded.importance, writeup_version = excluded.writeup_version`,
+         written_total = excluded.written_total, importance = excluded.importance, writeup_version = excluded.writeup_version,
+         dek = excluded.dek, why = excluded.why`,
     );
     const live = new Set(ordered.map((s) => s.id));
     const retire = db.prepare("UPDATE stories SET active = 0, front = 0 WHERE id = ?");
@@ -275,6 +283,7 @@ export async function buildEdition(db: D1Database, ai: AiRunner, now = Date.now(
         upsert.bind(
           s.id, date, rank, front.has(s) ? 1 : 0, s.topic, s.headline, JSON.stringify(s.summary), JSON.stringify(s.differences),
           JSON.stringify(s.coverage), s.blindspot, JSON.stringify(s.itemIds), s.imageItemId, s.firstSeenAt, now, s.writtenTotal, s.importance, s.writeupVersion,
+          s.dek ? JSON.stringify(s.dek) : null, s.why ? JSON.stringify(s.why) : null,
         ),
       ),
       ...existing.filter((e) => !live.has(e.id)).map((e) => retire.bind(e.id)),

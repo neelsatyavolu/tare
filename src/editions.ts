@@ -11,6 +11,7 @@ type EditionRow = { date: string; number: number; status: Edition["status"]; ite
 type StoryRow = {
   id: string; edition_date: string; rank: number; front: number; topic: string; headline: string;
   summary: string; differences: string; coverage: string; blindspot: "left" | "right" | null; item_ids: string; image_item_id: string | null; first_seen_at: number | null; importance: number | null;
+  dek: string | null; why: string | null;
 };
 
 const toEdition = (r: EditionRow): Edition => ({ date: r.date, number: r.number, status: r.status, itemCount: r.item_count, builtAt: r.built_at, sentAt: r.sent_at });
@@ -22,6 +23,8 @@ const toStory = (r: StoryRow): Story => ({
   front: r.front === 1,
   topic: isTopicId(r.topic) ? r.topic : "world",
   headline: r.headline,
+  dek: r.dek ? JSON.parse(r.dek) : null,
+  why: r.why ? JSON.parse(r.why) : null,
   summary: JSON.parse(r.summary),
   differences: JSON.parse(r.differences),
   coverage: JSON.parse(r.coverage),

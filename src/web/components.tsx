@@ -70,9 +70,18 @@ export const Layout: FC<{ title: string; description?: string; nav?: Nav; editio
   );
 };
 
-export function editionLine(date: string, number: number, stories: number, updatedAt?: number | null): string {
-  const updated = updatedAt ? ` · Updated ${easternTime(updatedAt)}` : "";
-  return `${longDate(date)} · No. ${number} · ${stories} ${stories === 1 ? "story" : "stories"}${updated}`;
+export function editionLine(date: string, _number: number, stories: number, updatedAt?: number | null): string {
+  const updated = updatedAt ? ` · Updated ${ago(updatedAt)}` : "";
+  return `${longDate(date)} · ${stories} ${stories === 1 ? "story" : "stories"}${updated}`;
+}
+
+/** "12 minutes ago", "2 hours ago"; past a day, the Eastern time. */
+function ago(ms: number): string {
+  const minutes = Math.max(0, Math.round((Date.now() - ms) / 60_000));
+  if (minutes < 1) return "just now";
+  if (minutes < 60) return `${minutes} minute${minutes === 1 ? "" : "s"} ago`;
+  const hours = Math.round(minutes / 60);
+  return hours < 24 ? `${hours} hour${hours === 1 ? "" : "s"} ago` : easternTime(ms);
 }
 
 /** Stories first seen this recently are marked New. */
@@ -156,9 +165,15 @@ export const StoryCard: FC<{ story: Story; sources: Map<string, Source>; lead?: 
           <>{s.text}<Cites cites={s.cites} numbers={numbers} base={base} />{" "}</>
         ))}
       </p>
+      {story.why && (lead || page) ? (
+        <p class="why-matters"><span class="why-label">Why it matters</span> {story.why.text}<Cites cites={story.why.cites} numbers={numbers} base={base} /></p>
+      ) : null}
+      {lead || page ? <p class="named">Covered by {namedOutlets(story, sources)}</p> : null}
     </>
   );
-  const differences = story.differences.length > 0 ? (
+  const differences = story.differences.length === 0 ? (
+    page ? <p class="no-differ">No real disagreement found: the outlets' headlines and descriptions tell the same story.</p> : null
+  ) : (
     <details class="differ" open={page || lead}>
       <summary>Where accounts differ ({story.differences.length})</summary>
       <ul>
@@ -177,7 +192,7 @@ export const StoryCard: FC<{ story: Story; sources: Map<string, Source>; lead?: 
         ))}
       </ul>
     </details>
-  ) : null;
+  );
   // On the story page the disagreement comes first: it's the part a reader can't get from one outlet.
   const evidence = page ? (
     <>
@@ -199,17 +214,39 @@ export const StoryCard: FC<{ story: Story; sources: Map<string, Source>; lead?: 
   );
 };
 
+/** Kicker: markers, section, and the coverage counts themselves, plus a side word only when the counts justify one. */
 const Kicker: FC<{ story: Story; tag?: boolean }> = ({ story, tag = false }) => {
   const read = leanReading(story.coverage);
+  const c = story.coverage;
+  const sideWord = tag && read.key !== "even" && read.key !== "thin";
   return (
     <p class="kicker">
       {story.firstSeenAt && Date.now() - story.firstSeenAt < NEW_FOR_MS ? <b class="new">New · </b> : null}
-      {story.blindspot ? <b>Blindspot · </b> : null}
-      {topicName(story.topic)} · {story.coverage.total} outlets
-      {tag ? <> · <span class={`tag ${read.key}`}>{read.tag}</span></> : null}
+      {story.blindspot ? <b>Possible blindspot · </b> : null}
+      {topicName(story.topic)} · {c.total} outlets <span class="counts">(L {c.left} · C {c.center} · R {c.right})</span>
+      {sideWord ? <> · <span class={`tag ${read.key}`}>{read.tag}</span></> : null}
     </p>
   );
 };
+
+/** Outlets readers know, shown by name so "8 outlets" doesn't read as fringe. Order is display priority. */
+const WELL_KNOWN = ["nyt", "wsj", "fox", "nbc", "cbs", "abc", "npr", "pbs", "bbc", "politico", "thehill", "axios", "bloomberg", "cnbc", "guardian", "nypost", "washtimes", "newsweek", "atlantic", "usnews", "economist", "breitbart", "dailywire", "vox", "time"];
+
+/** "NBC News, PBS NewsHour, Fox News and 5 more": up to three, at most one per side first, well-known outlets first. */
+export function namedOutlets(story: Story, sources: Map<string, Source>): string {
+  const outlets = [...new Map(story.itemIds.map((id) => sources.get(id)).filter((s): s is Source => !!s).map((s) => [s.outlet.id, s.outlet])).values()];
+  const rank = (id: string) => (WELL_KNOWN.indexOf(id) + 1 || 99);
+  const sorted = [...outlets].sort((a, b) => rank(a.id) - rank(b.id) || a.name.localeCompare(b.name));
+  const picked: typeof outlets = [];
+  for (const side of ["left", "center", "right", null] as const) {
+    const first = sorted.find((o) => sideOf(o.lean) === side && !picked.includes(o));
+    if (first && picked.length < 3) picked.push(first);
+  }
+  for (const o of sorted) if (picked.length < 3 && !picked.includes(o)) picked.push(o);
+  const rest = outlets.length - picked.length;
+  const names = picked.map((o) => o.name);
+  return rest > 0 ? `${names.join(", ")} and ${rest} more` : names.length > 1 ? `${names.slice(0, -1).join(", ")} and ${names.at(-1)}` : names.join("");
+}
 
 /** A home-page row: thumbnail, kicker with a one-word coverage tag, headline and the first sentence. The rest is on the story page. */
 export const CompactStory: FC<{ story: Story; sources: Map<string, Source> }> = ({ story, sources }) => {
@@ -225,7 +262,7 @@ export const CompactStory: FC<{ story: Story; sources: Map<string, Source> }> = 
       <div class="compact-body">
         <Kicker story={story} tag />
         <h3><a href={href}>{story.headline}</a></h3>
-        {story.summary[0] ? <p class="dek">{story.summary[0].text}</p> : null}
+        {(story.dek ?? story.summary[0]) ? <p class="dek">{(story.dek ?? story.summary[0])!.text}</p> : null}
       </div>
     </article>
   );

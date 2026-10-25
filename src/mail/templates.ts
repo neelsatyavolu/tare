@@ -79,19 +79,22 @@ function photoHtml(p: EmailPhoto, href: string): string {
 <p style="margin:4px 0 12px;font:11px/1.4 ${MONO};color:${C.ink3}">Photo: ${esc(p.credit)}</p>`;
 }
 
+/** The checked one-line dek, or the summary for stories written before decks existed. */
+const lineOf = (s: Story) => s.dek?.text ?? s.summary.map((x) => x.text).join(" ");
+
 function storyHtml(s: Story, appUrl: string, photo?: EmailPhoto): string {
   const url = `${appUrl}/s/${s.id}`;
-  const label = s.blindspot ? `Blindspot · ${topicName(s.topic)}` : topicName(s.topic);
+  const label = s.blindspot ? `Possible blindspot · ${topicName(s.topic)}` : topicName(s.topic);
   return `<tr><td style="padding:20px 0;border-bottom:1px solid ${C.rule}">
 ${photo ? photoHtml(photo, url) : ""}${kicker(label)}
 <a href="${esc(url)}" style="font:400 24px/1.2 ${SERIF};color:${C.ink};text-decoration:none">${esc(s.headline)}</a>
-<p style="margin:10px 0 10px;font:17px/1.55 ${SERIF};color:${C.ink}">${esc(s.summary.map((x) => x.text).join(" "))}</p>
+<p style="margin:10px 0 10px;font:17px/1.55 ${SERIF};color:${C.ink}">${esc(lineOf(s))}</p>
 <p style="margin:0;font:12px/1.5 ${MONO};color:${C.ink3}">${esc(coverageLine(s.coverage))}${s.differences.length ? ` · <a href="${esc(url)}" style="color:${C.brass}">How accounts differ</a>` : ""}</p>
 </td></tr>`;
 }
 
 function storyText(s: Story, appUrl: string): string {
-  return `${s.blindspot ? "[Blindspot] " : ""}${s.headline}\n${s.summary.map((x) => x.text).join(" ")}\n${coverageLine(s.coverage)}\n${appUrl}/s/${s.id}`;
+  return `${s.blindspot ? "[Possible blindspot] " : ""}${s.headline}\n${lineOf(s)}\n${coverageLine(s.coverage)}\n${appUrl}/s/${s.id}`;
 }
 
 const section = (title: string) => `<tr><td style="padding:28px 0 0">${kicker(title)}<div style="border-top:1px solid ${C.ink}"></div></td></tr>`;

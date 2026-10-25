@@ -41,6 +41,7 @@ export const EditionPage: FC<{ edition: Edition; stories: Story[]; sources: Sour
         {blindspots.length > 0 ? <a href="#blindspots">Blindspots</a> : null}
         {byTopic.map((g) => <a href={`#${g.topic.id}`}>{g.topic.name}</a>)}
       </nav>
+      <HowToRead />
       {lead ? (
         <Section title="Front page" id="front">
           <StoryCard story={lead} sources={sources} lead />
@@ -57,7 +58,6 @@ export const EditionPage: FC<{ edition: Edition; stories: Story[]; sources: Sour
           <div class="compact-grid">{g.list.map((s) => <CompactStory story={s} sources={sources} />)}</div>
         </Section>
       ))}
-      <HowToRead />
       <p class="end">That's the edition.</p>
       <SubscribeForm />
     </Layout>

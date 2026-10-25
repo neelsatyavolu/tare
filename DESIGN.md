@@ -56,12 +56,15 @@ All from Google Fonts. Scale (px): 12 · 13 · 15 · 18 · 22 · 30 · 44 · 72.
 
 ## 5. The coverage scale (signature)
 
-A horizontal beam with three labeled pans: `L 5/12 · C 4/10 · R 1/12`. Below it, a tick ruler from left to right with a brass needle at the coverage balance: (right share − left share) ÷ (right share + left share), from −1 to 1, where a share is the fraction of that side's outlets that covered the story. A centered needle reads "Balanced coverage"; at or past ±0.5 it reads "Mostly covered by the left" / "…the right". If that story had at least four outlets and the other side had one or none, it gets a **Blindspot** kicker.
+A horizontal beam with three labeled pans: `L 5/12 · C 4/10 · R 1/12`. Below it, a tick ruler from left to right with a brass needle at the coverage balance: (right share − left share) ÷ (right share + left share), from −1 to 1, where a share is the fraction of that side's outlets that covered the story. The words under the ruler only name a side when both the shares and the raw counts agree: "Covered about equally by left and right", "More right-leaning outlets covered it", "Mostly right-leaning outlets covered it" (|balance| ≥ 0.5), or "Too few left- or right-leaning outlets to compare" (fewer than 3 rated left or right outlets; no needle). If that story had at least four outlets and the other side had one or none, it gets a **Blindspot** kicker.
 
 Shares, not raw counts, so a side with more outlets in the source list can't tip the scale.
 
 ## 6. Components
 
+- **Home page:** only the lead story is a full card. Everything else is a compact row: 96px square thumbnail, kicker (topic · outlet count · one-word coverage tag: Even, Leans left/right, Left-/Right-heavy, Thin coverage), headline, first summary sentence. Section jump links sit under the intro strip. The scale and "where accounts differ" live on the story page.
+- **Intro strip (signed-out only):** one sentence on what Tare is, an inline email field and "See a sample".
+- **Story page order:** headline, photo, summary, where accounts differ (with the differing headlines quoted), scale, why it's here, detailed briefing, sources.
 - **Story card:** kicker (topic · outlet count) → headline → 2–4 summary sentences, each followed by small superscript source markers → coverage scale → "Where accounts differ" (collapsible `<details>`) → "Why it's here" one-liner in mono.
 - **Source list:** grouped L / C / R, each row `OUTLET` in mono + headline as a link, opening the outlet's page.
 - **Buttons:** mono 13 uppercase, 1px ink border, transparent fill; primary is ink fill on paper text. Hover swaps fill. Focus: 2px brass outline, 2px offset.

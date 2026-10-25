@@ -46,8 +46,8 @@ describe("pages", () => {
     expect(res.status).toBe(200);
     const html = await res.text();
     expect(html).toContain("Senate passes bill");
-    expect(html).toContain("No. 3");
-    expect(html).toContain("Covered about equally by left and right");
+    expect(html).toContain("Covered by Vox and Fox News");
+    expect(html).toContain("Similar left and right coverage");
     expect(html).toContain(`href="/s/${STORY_ID}#src-1"`);
     expect(html).toContain("That&#39;s the edition.");
     expect(res.headers.get("content-security-policy")).toContain("script-src 'none'");

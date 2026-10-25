@@ -1,7 +1,7 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import { buildEdition, checkBlindspot, EMBED_MODEL, pickImage } from "../src/build/build";
-import type { AiRunner } from "../src/build/summarize";
+import { WRITEUP_VERSION, type AiRunner } from "../src/build/summarize";
 
 const NOW = Date.parse("2026-10-24T10:15:00Z");
 
@@ -126,11 +126,12 @@ describe("buildEdition", () => {
     const { results } = await env.DB.prepare("SELECT headline, front, topic, blindspot, coverage FROM stories ORDER BY rank").all<{
       headline: string; front: number; topic: string; blindspot: string | null; coverage: string;
     }>();
-    expect(results.map((r) => r.headline)).toEqual(["senate headline", "quake headline", "merger headline"]);
-    expect(results.map((r) => r.front)).toEqual([1, 1, 0]);
-    // The merger was covered by four right-side outlets and no left-side ones.
-    expect(results[2]).toMatchObject({ topic: "business", blindspot: "left" });
-    expect(JSON.parse(results[0]!.coverage)).toMatchObject({ left: 3, center: 1, right: 3, unrated: 1, total: 8 });
+    // All three are important (4). The merger had the most outlets but none on the left: important enough to
+    // lead anyway, marked as a possible blindspot.
+    expect(results.map((r) => r.headline)).toEqual(["merger headline", "senate headline", "quake headline"]);
+    expect(results.map((r) => r.front)).toEqual([1, 1, 1]);
+    expect(results[0]).toMatchObject({ topic: "business", blindspot: "left" });
+    expect(JSON.parse(results[1]!.coverage)).toMatchObject({ left: 3, center: 1, right: 3, unrated: 1, total: 8 });
 
     const edition = await env.DB.prepare("SELECT number, status FROM editions WHERE date = ?").bind("2026-10-24").first();
     expect(edition).toEqual({ number: 1, status: "ready" });
@@ -186,7 +187,7 @@ describe("buildEdition", () => {
     await buildEdition(env.DB, fakeAi(), NOW + HOUR);
     expect(summaryCalls).toBe(3);
     expect((await lineup()).map((s) => s.id)).toEqual(before.map((s) => s.id));
-    expect(await env.DB.prepare("SELECT MIN(writeup_version) AS v FROM stories").first("v")).toBe(2);
+    expect(await env.DB.prepare("SELECT MIN(writeup_version) AS v FROM stories").first("v")).toBe(WRITEUP_VERSION);
   });
 
   it("skips while another run holds the edition", async () => {

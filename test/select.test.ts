@@ -62,11 +62,13 @@ describe("leanReading", () => {
     expect(leanReading(coverageOf([L[0]!, C[0]!, C[1]!, C[2]!, UNRATED[0]!])).key).toBe("thin");
   });
 
-  it("only names a side when both counts and shares agree, by a clear margin", () => {
+  it("only names a side with 3+ outlets and twice the other side's, in counts and shares", () => {
     expect(leanReading(coverageOf([L[0]!, L[1]!, R[0]!, R[1]!])).key).toBe("even");
-    expect(leanReading(coverageOf([L[0]!, L[1]!, R[0]!, R[1]!, R[2]!])).key).toBe("lean-right");
-    expect(leanReading(coverageOf([R[0]!, R[1]!, R[2]!, R[3]!, R[4]!, L[0]!])).key).toBe("right-heavy");
-    expect(leanReading(coverageOf([L[0]!, L[1]!, L[2]!])).sentence).toBe("Mostly left-leaning outlets covered it");
+    // 3 right vs 2 left isn't twice as many.
+    expect(leanReading(coverageOf([L[0]!, L[1]!, R[0]!, R[1]!, R[2]!])).key).toBe("even");
+    // The review's case: 1 left, 3 center, 3 right reads as more right, never "mostly".
+    expect(leanReading(coverageOf([L[0]!, C[0]!, C[1]!, C[2]!, R[0]!, R[1]!, R[2]!])).sentence).toBe("More right- than left-leaning coverage");
+    expect(leanReading(coverageOf([L[0]!, L[1]!, L[2]!])).sentence).toBe("No right-leaning outlets covered it");
   });
 });
 
@@ -102,12 +104,12 @@ describe("pickBalanced", () => {
   it("gives every section its share instead of letting one topic fill the edition", () => {
     const politics = [10, 9, 9, 8, 8, 7].map((n) => group(n, "politics"));
     const tech = group(3, "tech");
-    const sports = group(2, "sports");
-    const picked = pickBalanced([...politics, tech, sports], opts);
-    // Two front-page stories plus two more politics, then tech's 3-outlet story and sports' best 2-outlet one.
+    const thinSports = group(2, "sports");
+    const picked = pickBalanced([...politics, tech, thinSports], opts);
+    // Two front-page stories plus two more politics, then tech's 3-outlet story. A 2-outlet story doesn't clear the bar.
     expect(picked.filter((p) => p.topic === "politics")).toHaveLength(4);
     expect(picked).toContain(tech);
-    expect(picked).toContain(sports);
+    expect(picked).not.toContain(thinSports);
   });
 
   it("only falls back to a 2-outlet story when a section has nothing wider", () => {
@@ -150,10 +152,17 @@ describe("pickBalanced", () => {
 });
 
 describe("frontPage", () => {
-  it("only takes stories both sides covered, widest first", () => {
-    const a = { id: "a", importance: 4, coverage: coverageOf([L[0]!, R[0]!, C[0]!, C[1]!]) };
-    const b = { id: "b", importance: 4, coverage: coverageOf([R[0]!, R[1]!, R[2]!, R[3]!, C[0]!]) };
-    const c = { id: "c", importance: 4, coverage: coverageOf([L[0]!, R[0]!, C[0]!]) };
-    expect([...frontPage([c, b, a], 5)].map((s) => s.id)).toEqual(["a", "c"]);
+  it("takes stories both sides covered with enough outlets, most important then widest first", () => {
+    const a = { id: "a", importance: 4, blindspot: null, coverage: coverageOf([L[0]!, R[0]!, C[0]!, C[1]!, C[2]!, C[3]!, C[4]!]) };
+    const b = { id: "b", importance: 3, blindspot: null, coverage: coverageOf([R[0]!, R[1]!, R[2]!, R[3]!, C[0]!, C[1]!]) };
+    const c = { id: "c", importance: 5, blindspot: null, coverage: coverageOf([L[0]!, R[0]!, C[0]!, C[1]!, C[2]!, C[3]!]) };
+    const thin = { id: "thin", importance: 5, blindspot: null, coverage: coverageOf([L[0]!, R[0]!, C[0]!]) };
+    expect([...frontPage([thin, b, a, c], 5)].map((s) => s.id)).toEqual(["c", "a"]);
+  });
+
+  it("lets a very important story one side skipped lead, as a possible blindspot", () => {
+    const skipped = { id: "s", importance: 4, blindspot: "right" as const, coverage: coverageOf([...L.slice(0, 4), C[0]!, C[1]!]) };
+    const minorSkipped = { ...skipped, id: "m", importance: 3 };
+    expect([...frontPage([skipped, minorSkipped], 5)].map((s) => s.id)).toEqual(["s"]);
   });
 });

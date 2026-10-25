@@ -75,6 +75,10 @@ nav.jump a:hover{color:var(--ink);border-bottom-color:var(--ink)}
 .compact h3 a:hover{text-decoration:underline;text-decoration-thickness:1px}
 .compact .dek{margin:0;font-size:16px;line-height:1.45;color:var(--ink-2)}
 .tag{color:var(--ink)}
+.kicker .counts{font-weight:400;letter-spacing:.04em;color:var(--ink-3)}
+.why-matters{max-width:66ch;border-left:2px solid var(--brass);padding-left:12px;color:var(--ink)}
+.named{font:400 15px/1.5 var(--font-serif);color:var(--ink-2);margin:6px 0 0}
+.no-differ{margin-top:14px;font-size:16px;color:var(--ink-2)}
 .tag.thin{color:var(--ink-3)}
 details.differ ul.quoted{margin:8px 0 0;padding:0;border:0}
 details.differ ul.quoted li{border-left:0;padding-left:0;margin:0 0 6px;font-size:15px;line-height:1.4}
@@ -222,9 +226,11 @@ footer a{color:var(--ink-3)}
   .story.lead .summary,.article .summary{font-size:18px}
   .sources .cols{grid-template-columns:1fr}
   .compact-grid{grid-template-columns:1fr}
-  .compact{grid-template-columns:76px 1fr;gap:12px}
-  .compact .thumb img{width:76px;height:76px}
-  .compact h3{font-size:19px}
+  .compact{grid-template-columns:1fr 72px;gap:12px}
+  .compact .thumb{order:2}
+  .compact .thumb img{width:72px;height:72px}
+  .compact h3{font-size:20px}
+  .compact .kicker .counts{display:block}
   .intro-strip{padding:12px}
   .inline-subscribe input[type=email]{width:100%}
   .howto-body{grid-template-columns:1fr}

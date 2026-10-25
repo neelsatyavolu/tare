@@ -9,11 +9,11 @@ const HEADLINES_PER_GROUP = 3;
  * so a widely shared joke can't outrank a fight over an election result.
  */
 export const IMPORTANCE_RUBRIC = [
-  { level: 5, meaning: "Major consequences for many people: wars and attacks, disasters with many deaths, major laws, rulings or government actions, national elections, economy-wide moves." },
-  { level: 4, meaning: "Significant national or international news: notable policy fights, legal actions by governments, major company or market news, deadly incidents." },
-  { level: 3, meaning: "Notable but narrower: regional events, important trials, major sports finals, significant science or health findings." },
-  { level: 2, meaning: "Minor news: routine sports results, small business deals, local incidents with limited impact." },
-  { level: 1, meaning: "Celebrity, gossip, viral moments, old social media posts, entertainment personalities." },
+  { level: 5, meaning: "Major consequences for many people: wars, terrorist attacks and other attacks that kill people, disasters with many deaths, national elections and their results, major laws, court rulings and government actions, economy-wide moves." },
+  { level: 4, meaning: "Significant national or international news: policy fights, legal actions by governments, threats to public safety, deadly accidents, major market moves." },
+  { level: 3, meaning: "Notable but narrower: a single company's announcement, regional events, important trials, major sports finals, significant science or health findings." },
+  { level: 2, meaning: "Minor news: routine sports results, small business deals, local incidents, weather without major damage." },
+  { level: 1, meaning: "Celebrity and royal news (including their families), gossip, viral moments, old social media posts, puzzles and listicles." },
 ] as const;
 
 export const CLASSIFY_INSTRUCTIONS = `Sort news story groups into sections and rate how much each matters. Each group is a few headlines about one event, from different outlets.
