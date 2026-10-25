@@ -170,12 +170,14 @@ export const StoryCard: FC<{ story: Story; sources: Map<string, Source>; lead?: 
         <p class="why-matters"><span class="why-label">Why it matters</span> {story.why.text}<Cites cites={story.why.cites} numbers={numbers} base={base} /></p>
       ) : null}
       {lead || page ? <p class="named">Covered by {namedOutlets(story, sources)}</p> : null}
+      {lead || page ? <ReadFirst story={story} sources={sources} /> : null}
     </>
   );
   const differences = story.differences.length === 0 ? (
     page ? <p class="no-differ">No real disagreement found: the outlets' headlines and descriptions tell the same story.</p> : null
   ) : (
-    <details class="differ" open={page || lead}>
+    // On the front, open only when the accounts can't both be true; framing differences stay a click away.
+    <details class="differ" open={page || (lead && story.differences.some((d) => d.kind === "fact"))}>
       <summary>Where accounts differ ({story.differences.length})</summary>
       <ul>
         {story.differences.map((d) => (
@@ -184,7 +186,7 @@ export const StoryCard: FC<{ story: Story; sources: Map<string, Source>; lead?: 
             {/* On the story page, show the headlines that differ, so readers can see it for themselves. */}
             {page ? (
               <ul class="quoted">
-                {d.cites.map((id) => sources.get(id)).filter((s): s is Source => !!s).map((s) => (
+                {strongest(d.cites, sources).map((s) => (
                   <li><span class="outlet">{s.outlet.name} · {LEAN_LABEL[s.outlet.lean]}</span> <a href={s.url} rel="noopener noreferrer nofollow" target="_blank">{s.title}</a></li>
                 ))}
               </ul>
@@ -222,14 +224,36 @@ const Kicker: FC<{ story: Story; tag?: boolean }> = ({ story, tag = false }) => 
   const sideWord = tag && read.key !== "even" && read.key !== "thin";
   return (
     <p class="kicker">
-      {story.firstSeenAt && Date.now() - story.firstSeenAt < NEW_FOR_MS ? <b class="new">New · </b> : null}
+      {badge(story) ? <b class="new">{badge(story)} · </b> : null}
       {story.blindspot ? <b>Possible blindspot · </b> : null}
-      {story.writtenAt && story.firstSeenAt && story.writtenAt - story.firstSeenAt > 3600_000 && Date.now() - story.writtenAt < NEW_FOR_MS ? <b class="new">Updated · </b> : null}
       {topicName(story.topic)} · {c.total} outlets <span class="counts">(L {c.left} · C {c.center} · R {c.right}{c.unrated ? ` · ${c.unrated} not rated` : ""})</span>
       {sideWord ? <> · <span class={`tag ${read.key}`}>{read.tag}</span></> : null}
     </p>
   );
 };
+
+/** One marker per card: "Updated" when the write-up was redone later in the day, else "New" for the first hours. */
+export function badge(story: Story, now = Date.now()): "New" | "Updated" | null {
+  if (story.writtenAt && story.firstSeenAt && story.writtenAt - story.firstSeenAt > 3600_000 && now - story.writtenAt < NEW_FOR_MS) return "Updated";
+  if (story.firstSeenAt && now - story.firstSeenAt < NEW_FOR_MS) return "New";
+  return null;
+}
+
+/** At most two headlines per difference: one from each side when both sides are cited. */
+export function strongest(cites: readonly string[], sources: Map<string, Source>): Source[] {
+  const cited = cites.map((id) => sources.get(id)).filter((s): s is Source => !!s);
+  const left = cited.find((s) => sideOf(s.outlet.lean) === "left");
+  const right = cited.find((s) => sideOf(s.outlet.lean) === "right");
+  return (left && right ? [left, right] : cited).slice(0, 2);
+}
+
+/** The single article to start with: a center outlet first, then unrated, then a side; well-known names first within each. */
+export function readFirst(story: Story, sources: Map<string, Source>): Source | null {
+  const group = (s: Source) => ({ center: 0, left: 2, right: 2 } as const)[sideOf(s.outlet.lean) ?? "center"] + (sideOf(s.outlet.lean) === null ? 1 : 0);
+  const fame = (s: Source) => (WELL_KNOWN.indexOf(s.outlet.id) + 1) || WELL_KNOWN.length + 1;
+  const list = story.itemIds.map((id) => sources.get(id)).filter((s): s is Source => !!s);
+  return [...list].sort((a, b) => group(a) - group(b) || fame(a) - fame(b))[0] ?? null;
+}
 
 /** Outlets readers know, shown by name so "8 outlets" doesn't read as fringe. Order is display priority. */
 const WELL_KNOWN = ["nyt", "wsj", "fox", "nbc", "cbs", "abc", "npr", "pbs", "bbc", "politico", "thehill", "axios", "bloomberg", "cnbc", "guardian", "nypost", "washtimes", "newsweek", "atlantic", "usnews", "economist", "breitbart", "dailywire", "vox", "time"];
@@ -268,6 +292,13 @@ export const CompactStory: FC<{ story: Story; sources: Map<string, Source> }> = 
       </div>
     </article>
   );
+};
+
+const ReadFirst: FC<{ story: Story; sources: Map<string, Source> }> = ({ story, sources }) => {
+  const s = readFirst(story, sources);
+  return s ? (
+    <p class="read-first"><span class="why-label">Read first</span> <a href={s.url} rel="noopener noreferrer nofollow" target="_blank">{s.title}</a> <span class="meta">· {s.outlet.name}</span></p>
+  ) : null;
 };
 
 export const SourceList: FC<{ story: Story; sources: Map<string, Source> }> = ({ story, sources }) => {

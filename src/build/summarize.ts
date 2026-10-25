@@ -13,8 +13,15 @@ export const SUMMARY_MODEL = "@cf/openai/gpt-oss-120b";
  * 6: standalone sentences, checked headlines, stricter difference checks, a retry when the check trims.
  * 7: no single figure where outlets disagree (headline included); tense and status rules; specific "why" lines.
  * 8: no hedged ("could", "may", "likely") why-lines at all.
+ * 9: current officeholders in the prompt, so titles stay consistent across stories.
  */
-export const WRITEUP_VERSION = 8;
+export const WRITEUP_VERSION = 9;
+
+/**
+ * Facts that change rarely but that the model, trained earlier, tends to get wrong. Keep current: they go
+ * into every write-up prompt as background, never as a source to cite.
+ */
+export const CURRENT_FACTS = "Donald Trump is the president of the United States and JD Vance is the vice president; call them that, not \"former\".";
 
 export type SourceItem = { id: string; outletId: string; title: string; snippet: string };
 export type Cited = { text: string; cites: string[] };
@@ -229,7 +236,7 @@ const ATTEMPTS = [
 async function attempt(ai: AiRunner, items: readonly SourceItem[], today: string, settings: (typeof ATTEMPTS)[number]): Promise<Writeup | null> {
   const reply = await ai.run(SUMMARY_MODEL, {
     messages: [
-      { role: "system", content: `${INSTRUCTIONS}\n\nToday is ${today}. Every source was published in the last day.` },
+      { role: "system", content: `${INSTRUCTIONS}\n\nToday is ${today}. Every source was published in the last day. ${CURRENT_FACTS}` },
       { role: "user", content: sourceBlock(items) },
     ],
     ...settings,

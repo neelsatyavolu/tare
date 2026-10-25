@@ -48,7 +48,11 @@ export function blindspotOf(c: Coverage): Blindspot {
   return null;
 }
 
-export type LeanReading = { key: "thin" | "even" | "more-left" | "more-right" | "no-left" | "no-right" | "only-left" | "only-right"; sentence: string; tag: string };
+export type LeanReading = {
+  key: "thin" | "even" | "center-led" | "more-left" | "more-right" | "no-left" | "no-right" | "only-left" | "only-right";
+  sentence: string;
+  tag: string;
+};
 
 /**
  * What the coverage scale says, in words a reader can check against the counts. It names a side only when
@@ -65,6 +69,10 @@ export function leanReading(c: Coverage): LeanReading {
   if (c.left >= 3 && c.right === 0) return { key: "no-right", sentence: "No right-leaning outlets in Tare's list covered it", tag: "No right-leaning coverage" };
   const ls = c.left / SIDE_SIZE.left;
   const rs = c.right / SIDE_SIZE.right;
+  // When center outlets covered it more than either side, that's the honest headline about its coverage.
+  if (c.center > c.left && c.center > c.right && c.left > 0 && c.right > 0) {
+    return { key: "center-led", sentence: `Center outlets covered it most (C ${c.center} · L ${c.left} · R ${c.right})`, tag: "Center led" };
+  }
   if (c.right >= 3 && c.right >= 2 * c.left && rs >= 2 * ls) return { key: "more-right", sentence: "More right- than left-leaning coverage", tag: "More right-leaning coverage" };
   if (c.left >= 3 && c.left >= 2 * c.right && ls >= 2 * rs) return { key: "more-left", sentence: "More left- than right-leaning coverage", tag: "More left-leaning coverage" };
   // "Similar" needs a real sample on both sides; otherwise there's too little to say.
@@ -166,9 +174,12 @@ export function frontPage<T extends Weighed & { blindspot?: Blindspot }>(stories
   return new Set([...stories].filter(frontEligible).sort(frontOrder).slice(0, size));
 }
 
-/** Front-page order: the most consequential stories (importance 5) first, then whatever the most outlets covered. */
-export const frontOrder = (a: Weighed, b: Weighed) =>
-  Number((b.importance ?? 0) >= 5) - Number((a.importance ?? 0) >= 5) || b.coverage.total - a.coverage.total;
+/**
+ * Front-page score: importance, plus a bonus for breadth that is capped at 1.5, so consequence leads and
+ * wide coverage breaks ties without letting attention outrank a more important story by more than a step.
+ */
+export const frontScore = (s: Weighed) => (s.importance ?? 2) + Math.min(1.5, Math.log2(Math.max(1, s.coverage.total)) / 3);
+export const frontOrder = (a: Weighed, b: Weighed) => frontScore(b) - frontScore(a) || b.coverage.total - a.coverage.total;
 
 /** Section order: what the most outlets covered first, then importance on ties. */
 export const sectionOrder = (a: Weighed, b: Weighed) => b.coverage.total - a.coverage.total || (b.importance ?? 2) - (a.importance ?? 2);

@@ -61,15 +61,19 @@ export function manageEmail(manageUrl: string): { subject: string; html: string;
   };
 }
 
-export type Digest = { front: Story[]; yours: Story[]; blindspots: Story[] };
+export type Digest = { front: Story[]; yours: Story[]; blindspots: Story[]; also: Story[] };
 
-/** Everyone gets the front page; then up to 8 stories from their topics; then up to 2 blindspots. */
+/**
+ * Everyone gets the front page; then up to 8 stories from their topics; then up to 2 blindspots; then, as
+ * one-line "Also today" links, the 3 most widely covered stories none of those included.
+ */
 export function digestFor(stories: readonly Story[], topics: readonly TopicId[]): Digest {
   const front = stories.filter((s) => s.front);
   const yours = stories.filter((s) => !s.front && topics.includes(s.topic)).slice(0, 8);
-  const taken = new Set([...front, ...yours]);
-  const blindspots = stories.filter((s) => s.blindspot && !taken.has(s)).slice(0, 2);
-  return { front, yours, blindspots };
+  const blindspots = stories.filter((s) => s.blindspot && !front.includes(s) && !yours.includes(s)).slice(0, 2);
+  const taken = new Set([...front, ...yours, ...blindspots]);
+  const also = stories.filter((s) => !taken.has(s)).sort((a, b) => b.coverage.total - a.coverage.total).slice(0, 3);
+  return { front, yours, blindspots, also };
 }
 
 export type EmailPhoto = { url: string; credit: string };
@@ -97,6 +101,9 @@ function storyText(s: Story, appUrl: string): string {
   return `${s.blindspot ? "[Possible blindspot] " : ""}${s.headline}\n${lineOf(s)}\n${coverageLine(s.coverage)}\n${appUrl}/s/${s.id}`;
 }
 
+const alsoHtml = (s: Story, appUrl: string) =>
+  `<tr><td style="padding:10px 0;border-bottom:1px solid ${C.rule};font:17px/1.4 ${SERIF}"><a href="${esc(`${appUrl}/s/${s.id}`)}" style="color:${C.ink};text-decoration:none">${esc(s.headline)}</a> <span style="font:12px ${MONO};color:${C.ink3}">${s.coverage.total} outlets</span></td></tr>`;
+
 const section = (title: string) => `<tr><td style="padding:28px 0 0">${kicker(title)}<div style="border-top:1px solid ${C.ink}"></div></td></tr>`;
 
 /** `photos` (story id → photo) are shown on front-page stories only, to keep the email light. */
@@ -114,12 +121,14 @@ export function digestEmail(
 
   const body = `<tr><td style="padding:10px 0 0;text-align:center;font:12px/1.4 ${MONO};letter-spacing:.08em;text-transform:uppercase;color:${C.ink3}">${esc(longDate(edition.date))}</td></tr>
 ${shown.map(([title, list]) => section(title) + list.map((s) => storyHtml(s, appUrl, s.front ? photos.get(s.id) : undefined)).join("")).join("")}
+${d.also.length ? section("Also today") + d.also.map((s) => alsoHtml(s, appUrl)).join("") : ""}
 <tr><td style="padding:24px 0;font:17px/1.55 ${SERIF};color:${C.ink2}">That's the edition. <a href="${esc(`${appUrl}/e/${edition.date}`)}" style="color:${C.brass}">Read it on the web</a> with every source.</td></tr>`;
   const footer = `You get this because you subscribed to Tare. <a href="${esc(manageUrl)}" style="color:${C.ink3}">Change topics or unsubscribe</a>. Summaries are written by AI from headlines and descriptions only; <a href="${esc(`${appUrl}/method`)}" style="color:${C.ink3}">how it works</a>.`;
 
   const text = [
     `TARE · ${longDate(edition.date)}`,
     ...shown.map(([title, list]) => `\n${title.toUpperCase()}\n\n${list.map((s) => storyText(s, appUrl)).join("\n\n")}`),
+    ...(d.also.length ? [`\nALSO TODAY\n\n${d.also.map((s) => `${s.headline} (${s.coverage.total} outlets)\n${appUrl}/s/${s.id}`).join("\n\n")}`] : []),
     `\nThat's the edition. Read it with every source: ${appUrl}/e/${edition.date}`,
     `\nChange topics or unsubscribe: ${manageUrl}`,
   ].join("\n");

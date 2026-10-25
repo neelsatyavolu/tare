@@ -77,6 +77,7 @@ nav.jump a:hover{color:var(--ink);border-bottom-color:var(--ink)}
 .tag{color:var(--ink)}
 .kicker .counts{font-weight:400;letter-spacing:.04em;color:var(--ink-3)}
 .why-matters{max-width:66ch;border-left:2px solid var(--brass);padding-left:12px;color:var(--ink)}
+.read-first{margin:6px 0 0}
 .named{font:400 15px/1.5 var(--font-serif);color:var(--ink-2);margin:6px 0 0}
 .no-center{margin:6px 0 0;font:400 12px/1.4 var(--font-mono);color:var(--ink-3)}
 .no-differ{margin-top:14px;font-size:16px;color:var(--ink-2)}

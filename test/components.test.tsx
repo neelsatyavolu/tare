@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { coverageOf } from "../src/build/select";
 import type { Source, Story } from "../src/editions";
 import { outletById, SIDE_SIZE } from "../src/outlets";
-import { orderedSources, Scale, StoryCard } from "../src/web/components";
+import { badge, orderedSources, readFirst, Scale, StoryCard, strongest } from "../src/web/components";
 
 const OUTLET_IDS = ["fox", "vox", "axios", "nyt", "nypost", "pbs"];
 const sources = new Map<string, Source>(
@@ -77,5 +77,27 @@ describe("Scale", () => {
     expect(html).toContain("left:100.0%");
     expect(html).toContain("No left-leaning outlets in Tare&#39;s list covered it");
     expect(html).toContain(`0 of ${SIDE_SIZE.left} left outlets`);
+  });
+});
+
+describe("card helpers", () => {
+  it("shows one badge: Updated over New", () => {
+    const now = 10 * 3600_000;
+    expect(badge({ ...story, firstSeenAt: now - 600_000 }, now)).toBe("New");
+    expect(badge({ ...story, firstSeenAt: now - 2 * 3600_000, writtenAt: now - 600_000 }, now)).toBe("Updated");
+    expect(badge({ ...story, firstSeenAt: now - 9 * 3600_000 }, now)).toBeNull();
+  });
+
+  it("quotes at most two headlines per difference, one from each side when it can", () => {
+    // i0 Fox (right), i1 Vox (left), i2 Axios (center).
+    expect(strongest(["i2", "i0", "i1"], sources).map((s) => s.outlet.id)).toEqual(["vox", "fox"]);
+    expect(strongest(["i2", "i3", "i5"], sources)).toHaveLength(2);
+  });
+
+  it("starts readers at a well-known center outlet", async () => {
+    expect(readFirst(story, sources)?.outlet.id).toBe("pbs");
+    const html = await render(<StoryCard story={story} sources={sources} page />);
+    expect(html).toContain("Read first");
+    expect(html).toContain("https://pbs.test/a");
   });
 });

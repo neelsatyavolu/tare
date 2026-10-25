@@ -52,6 +52,9 @@ describe("digestFor", () => {
     expect(d.front.map((s) => s.headline)).toEqual(["Headline a", "Headline b"]);
     expect(d.yours.map((s) => s.headline)).toEqual(["Headline c"]);
     expect(d.blindspots.map((s) => s.headline)).toEqual(["Headline e"]);
+    // Everything else, widest first, as one-line links.
+    expect(d.also.every((s) => !d.front.includes(s) && !d.yours.includes(s) && !d.blindspots.includes(s))).toBe(true);
+    expect(d.also.length).toBeLessThanOrEqual(3);
   });
 });
 
@@ -73,7 +76,9 @@ describe("sendEdition", () => {
     expect(mail.to).toEqual(["a@ex.com"]);
     expect(mail.subject).toBe("Tare · Saturday, October 24: Headline a");
     expect(mail.html).toContain("Headline d");
-    expect(mail.html).not.toContain("Headline c");
+    // The tech story isn't one of this reader's topics, so it only gets a one-line "Also today" link.
+    expect(mail.html.split("Also today")[0]).not.toContain("Headline c");
+    expect(mail.html.split("Also today")[1]).toContain("Headline c");
     expect(mail.html).toContain("Summary a &lt;b&gt;");
     expect(mail.text).toContain("That's the edition.");
     expect(mail.headers["List-Unsubscribe-Post"]).toBe("List-Unsubscribe=One-Click");

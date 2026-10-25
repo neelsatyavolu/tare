@@ -74,6 +74,13 @@ describe("leanReading", () => {
     // With no center coverage either, it's one side's story.
     expect(leanReading(coverageOf([L[0]!, L[1]!, L[2]!])).key).toBe("only-left");
   });
+
+  it("says the center led when center outlets outnumber each side", () => {
+    // The review's California ballots case: L 3 · C 4 · R 1 is not "more left".
+    const r = leanReading(coverageOf([L[0]!, L[1]!, L[2]!, C[0]!, C[1]!, C[2]!, C[3]!, R[0]!]));
+    expect(r.key).toBe("center-led");
+    expect(r.sentence).toBe("Center outlets covered it most (C 4 · L 3 · R 1)");
+  });
 });
 
 describe("whyText", () => {
@@ -165,11 +172,13 @@ describe("frontPage", () => {
     expect([...frontPage([thin, b, a, c], 5)].map((s) => s.id)).toEqual(["c", "thin", "a"]);
   });
 
-  it("puts importance-5 stories first, then fills by breadth, including very wide minor stories", () => {
+  it("orders by consequence, with breadth as a capped bonus", () => {
     const rally = { id: "rally", importance: 2, blindspot: null, coverage: coverageOf([...L.slice(0, 6), ...C.slice(0, 6), ...R.slice(0, 5)]) };
     const attack = { id: "attack", importance: 5, blindspot: null, coverage: coverageOf([L[0]!, R[0]!, C[0]!]) };
     const letter = { id: "letter", importance: 4, blindspot: null, coverage: coverageOf([L[0]!, L[1]!, R[0]!, C[0]!, C[1]!, C[2]!]) };
-    expect([...frontPage([letter, rally, attack], 2)].map((s) => s.id)).toEqual(["attack", "rally"]);
+    // The minor rally has the most outlets, but breadth can't lift it past two importance steps.
+    expect([...frontPage([letter, rally, attack], 2)].map((s) => s.id)).toEqual(["attack", "letter"]);
+    expect([...frontPage([letter, rally, attack], 3)].map((s) => s.id)).toEqual(["attack", "letter", "rally"]);
   });
 
   it("lets a very important story one side skipped lead, as a possible blindspot", () => {
