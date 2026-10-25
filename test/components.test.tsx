@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { coverageOf } from "../src/build/select";
-import type { Source, Story } from "../src/editions";
+import { cardLine, type Source, type Story } from "../src/editions";
 import { outletById, SIDE_SIZE } from "../src/outlets";
 import { badge, kindLabel, orderedSources, readFirst, Scale, StoryCard, strongest } from "../src/web/components";
 
@@ -131,5 +131,13 @@ describe("card helpers", () => {
     const html = await render(<StoryCard story={story} sources={sources} page />);
     expect(html).toContain("Read first");
     expect(html).toContain("https://pbs.test/a");
+  });
+});
+
+describe("cardLine", () => {
+  it("skips a line that only restates the headline", () => {
+    const echo: Story = { ...story, dek: { text: "Something happened.", cites: ["i0"] } };
+    expect(cardLine(echo)).toBe("Everyone reported it.");
+    expect(cardLine({ ...story, dek: { text: "A fresh detail.", cites: ["i0"] } })).toBe("A fresh detail.");
   });
 });

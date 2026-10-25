@@ -91,8 +91,16 @@ export async function sourcesFor(db: D1Database, stories: readonly Story[]): Pro
   return out;
 }
 
-/** The one line a story card shows, on the site and in the email alike: the checked dek, or the first summary sentence. */
-export const cardLine = (s: Story): string => (s.dek ?? s.summary[0])?.text ?? "";
+/**
+ * The one line a story card shows, on the site and in the email alike: the checked dek, or the first summary
+ * sentence. When that line only restates the headline (the write-up's fallback), the next sentence adds more.
+ */
+export function cardLine(s: Story): string {
+  const line = (s.dek ?? s.summary[0])?.text ?? "";
+  const same = (a: string) => a.toLowerCase().replace(/[^a-z0-9]/g, "");
+  if (same(line) === same(s.headline)) return s.summary.find((x) => same(x.text) !== same(s.headline))?.text ?? line;
+  return line;
+}
 
 /** A story's sources in display order (left, center, right, then by outlet), which fixes the citation numbers. */
 export function orderedSources(story: Story, sources: Map<string, Source>): Source[] {
