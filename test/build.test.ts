@@ -1,6 +1,6 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
-import { buildEdition, checkBlindspot, EMBED_MODEL, pickImage } from "../src/build/build";
+import { buildEdition, checkBlindspot, EMBED_MODEL, pickImage, WINDOW_PAGE, windowItems } from "../src/build/build";
 import { displayImage, weakImage } from "../src/build/photos";
 import { WRITEUP_VERSION, type AiRunner } from "../src/build/summarize";
 import { watchBreaking } from "../src/push/watch";
@@ -318,5 +318,22 @@ describe("photo URLs", () => {
     const bbc = "https://ichef.bbci.co.uk/ace/standard/240/cpsprodpb/7561/live/photo.jpg";
     expect(weakImage(bbc)).toBe(false);
     expect(displayImage(bbc)).toBe("https://ichef.bbci.co.uk/ace/standard/976/cpsprodpb/7561/live/photo.jpg");
+  });
+});
+
+describe("windowItems", () => {
+  it("reads a window bigger than one page, without keeping the raw vectors", async () => {
+    await env.DB.prepare("DELETE FROM items").run();
+    const count = WINDOW_PAGE * 2 + 7;
+    const rows = Array.from({ length: count }, (_, i) =>
+      env.DB.prepare("INSERT INTO items (id, outlet_id, title, snippet, published_at, url, fetched_at) VALUES (?, 'axios', ?, '', ?, ?, ?)")
+        // Pairs share a time, so paging has to break ties by id.
+        .bind(`w-${i}`, `filler ${i}`, NOW - 3600_000 + Math.floor(i / 2), `https://x.test/w-${i}`, NOW),
+    );
+    for (let i = 0; i < rows.length; i += 100) await env.DB.batch(rows.slice(i, i + 100));
+    const { results, members } = await windowItems(env.DB, fakeAi(), NOW);
+    expect(new Set(results.map((r) => r.id)).size).toBe(count);
+    expect(members).toHaveLength(count);
+    expect(results.every((r) => !("embedding" in r))).toBe(true);
   });
 });

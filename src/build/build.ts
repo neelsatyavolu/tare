@@ -40,6 +40,7 @@ const LAST_START_BEFORE_MS = 6 * 60_000;
 const HARD_STOP_BEFORE_MS = 90_000;
 
 type ItemRow = { id: string; outlet_id: string; title: string; snippet: string; published_at: number; image_url: string | null; embedding: unknown; topic: string | null; subtopic: string | null; importance: number | null; classify_version: number };
+type WindowRow = Omit<ItemRow, "embedding">;
 export type Member = Embedded & SourceItem & { imageUrl: string | null; topic: string | null; subtopic: string | null; importance: number | null };
 type Picked = Candidate<Member> & { topic: TopicId | null; subtopic: SubtopicId | null; importance: number | null };
 
@@ -277,7 +278,7 @@ export function checkBlindspot<S extends { blindspot: Blindspot }>(story: S, gro
 }
 
 /** Outlet of every item this run touches: this window's items plus older ones existing stories still cite. */
-async function outletsOf(db: D1Database, window: readonly ItemRow[], existing: readonly ExistingRow[]): Promise<Map<string, string>> {
+async function outletsOf(db: D1Database, window: readonly WindowRow[], existing: readonly ExistingRow[]): Promise<Map<string, string>> {
   const map = new Map(window.map((r) => [r.id, r.outlet_id]));
   const missing = [...new Set(existing.flatMap((e) => JSON.parse(e.item_ids) as string[]))].filter((id) => !map.has(id));
   for (let i = 0; i < missing.length; i += 90) {
@@ -291,23 +292,37 @@ async function outletsOf(db: D1Database, window: readonly ItemRow[], existing: r
   return map;
 }
 
+/**
+ * Rows per read of the window. D1 hands each vector back as an array of bytes, so a whole day of them in one
+ * read (4,000+ headlines) ran the build out of memory.
+ */
+export const WINDOW_PAGE = 500;
+
 /** The last 24 hours of headlines with their vectors. Only headlines new since the last run are embedded. */
-export async function windowItems(db: D1Database, ai: AiRunner, now: number): Promise<{ results: ItemRow[]; members: Member[] }> {
+export async function windowItems(db: D1Database, ai: AiRunner, now: number): Promise<{ results: WindowRow[]; members: Member[] }> {
   await embedPending(db, ai, now - WINDOW_MS);
-  const { results } = await db
-    .prepare(
-      `SELECT id, outlet_id, title, snippet, published_at, image_url, embedding, topic, subtopic, importance, classify_version FROM items
-       WHERE published_at > ? AND published_at <= ? AND embedding IS NOT NULL`,
-    )
-    .bind(now - WINDOW_MS, now)
-    .all<ItemRow>();
-  const members: Member[] = results.flatMap((r) => {
-    const vec = decodeVector(r.embedding);
-    // Ratings made under older rules are forgotten, so the group is classified again.
-    const current = r.classify_version >= CLASSIFY_VERSION;
-    return vec ? [{ id: r.id, outletId: r.outlet_id, publishedAt: r.published_at, title: r.title, snippet: r.snippet, imageUrl: r.image_url, topic: current ? r.topic : null, subtopic: current ? r.subtopic : null, importance: current ? r.importance : null, vec }] : [];
-  });
-  return { results, members };
+  const results: WindowRow[] = [];
+  const members: Member[] = [];
+  // Paged by (published_at, id), so headlines ingested during the read can't shift a page.
+  for (let after = { at: now - WINDOW_MS, id: "" }; ; ) {
+    const { results: page } = await db
+      .prepare(
+        `SELECT id, outlet_id, title, snippet, published_at, image_url, embedding, topic, subtopic, importance, classify_version FROM items
+         WHERE (published_at, id) > (?, ?) AND published_at <= ? AND embedding IS NOT NULL ORDER BY published_at, id LIMIT ?`,
+      )
+      .bind(after.at, after.id, now, WINDOW_PAGE)
+      .all<ItemRow>();
+    for (const { embedding, ...r } of page) {
+      results.push(r);
+      const vec = decodeVector(embedding);
+      // Ratings made under older rules are forgotten, so the group is classified again.
+      const current = r.classify_version >= CLASSIFY_VERSION;
+      if (vec) members.push({ id: r.id, outletId: r.outlet_id, publishedAt: r.published_at, title: r.title, snippet: r.snippet, imageUrl: r.image_url, topic: current ? r.topic : null, subtopic: current ? r.subtopic : null, importance: current ? r.importance : null, vec });
+    }
+    if (page.length < WINDOW_PAGE) return { results, members };
+    const last = page[page.length - 1]!;
+    after = { at: last.published_at, id: last.id };
+  }
 }
 
 /** Claims the edition for this run. Returns false while another run holds it. */
