@@ -345,6 +345,14 @@ export async function buildEdition(db: D1Database, rawAi: AiRunner, now = Date.n
       .all<ExistingRow>();
     const outletOf = await outletsOf(db, results, existing);
     const matches = matchStories(picked.map((p) => p.members.map((m) => m.id)), existing.map((e) => JSON.parse(e.item_ids) as string[]));
+    // A story still running when the UTC date turns keeps when it was first seen in yesterday's edition,
+    // so it isn't "new" (or breaking news) again just because a new edition started.
+    const { results: yesterday } = await db
+      .prepare("SELECT item_ids, first_seen_at FROM stories WHERE edition_date = ?")
+      .bind(utcDate(now - 24 * 3600_000))
+      .all<{ item_ids: string; first_seen_at: number | null }>();
+    const seenYesterday = matchStories(picked.map((p) => p.members.map((m) => m.id)), yesterday.map((y) => JSON.parse(y.item_ids) as string[]))
+      .map((y) => (y >= 0 ? yesterday[y]!.first_seen_at : null));
 
     let budget = WRITE_BUDGET;
     const lineup = await mapLimit(picked, CONCURRENCY, async (group, i) => {
@@ -368,7 +376,7 @@ export async function buildEdition(db: D1Database, rawAi: AiRunner, now = Date.n
     });
 
     // How new each story's latest report is decides which important story leads; it's used for ordering, not stored.
-    const timed = lineup.map((s, i) => s && { ...s, fresh: freshness(s.importance, picked[i]!.latest, now) });
+    const timed = lineup.map((s, i) => s && { ...s, firstSeenAt: Math.min(s.firstSeenAt, seenYesterday[i] ?? Infinity), fresh: freshness(s.importance, picked[i]!.latest, now) });
     const stories = [...new Map(timed.filter((s): s is LineupStory & { fresh: number } => s !== null).map((s) => [s.id, s])).values()];
     if (stories.length === 0 && existing.length === 0) throw new Error("no story survived the write-up checks");
     if (stories.length === 0) throw new Error("no story this hour; keeping the previous lineup");

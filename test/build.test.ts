@@ -193,6 +193,23 @@ describe("buildEdition", () => {
     expect(after.find((s) => s.id === merger.id)?.active).toBe(0);
   });
 
+  it("keeps when a story was first seen across the UTC date change, so it isn't new again in the next edition", async () => {
+    await buildEdition(env.DB, fakeAi(), NOW);
+    const nextDay = Date.parse("2026-10-25T00:07:00Z");
+    await addItems("storm", EVENTS.storm!.outlets, nextDay);
+    const r = await buildEdition(env.DB, fakeAi(), nextDay);
+    expect(r).toMatchObject({ date: "2026-10-25", status: "ready" });
+
+    const { results } = await env.DB.prepare("SELECT headline, first_seen_at FROM stories WHERE edition_date = '2026-10-25' ORDER BY headline")
+      .all<{ headline: string; first_seen_at: number }>();
+    expect(results).toEqual([
+      { headline: "merger headline", first_seen_at: NOW },
+      { headline: "quake headline", first_seen_at: NOW },
+      { headline: "senate headline", first_seen_at: NOW },
+      { headline: "storm headline", first_seen_at: nextDay },
+    ]);
+  });
+
   it("widens coverage on a continuing story and rewrites it when coverage jumps, keeping the id", async () => {
     await buildEdition(env.DB, fakeAi(), NOW);
     const quake = (await lineup()).find((s) => s.headline === "quake headline")!;
