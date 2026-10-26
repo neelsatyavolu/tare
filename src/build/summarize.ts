@@ -7,8 +7,10 @@ import { CONTINUATION, DOUBLED } from "../editions";
 /**
  * Write-ups, the claim check and the editor read. GLM 5.3 replaced gpt-oss-120b (2026-10-25): on the same clusters
  * it attributed claims, kept actors right and gave stakes where gpt-oss compressed them into errors.
+ * GLM 5.3 Flash replaced it (2026-10-26) at about a ninth of the price: on four live stories it passed the editor
+ * with the same facts and attribution, but wrote no differences where GLM 5.3 found two.
  */
-export const SUMMARY_MODEL = "@cf/zai-org/glm-5.3";
+export const SUMMARY_MODEL = "@cf/zai-org/glm-5.3-flash";
 
 /**
  * Bump when the write-up rules change: hourly builds rewrite stories written under an older version.
