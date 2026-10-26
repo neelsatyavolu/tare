@@ -10,7 +10,8 @@ import { signinCodeEmail } from "../mail/templates";
 import { autoBriefingsOn, setAutoBriefings } from "../auto-briefings";
 import { createSession, endSession, sessionSubscriber } from "../sessions";
 import { newCode, redeemCode, saveCode } from "../signin-codes";
-import { findByEmail, parseEmail, releaseEmailClaim, requestSignin, verifyEmail } from "../subscribers";
+import { deleteAccount, findByEmail, parseEmail, releaseEmailClaim, requestSignin, verifyEmail } from "../subscribers";
+import { timingSafeEqual } from "../util";
 
 /**
  * The app's account routes: sign in with an emailed code, then use the reader's account (and the Grok or
@@ -26,6 +27,9 @@ async function slowDown(c: Context<{ Bindings: Env }>) {
   return success ? null : c.json({ error: "Too many tries from here. Wait a minute and try again." }, 429);
 }
 
+/** App Review's demo account (REVIEW_EMAIL) signs in with a fixed code (REVIEW_CODE) instead of an emailed one. */
+const isReviewEmail = (env: Env, email: string) => !!env.REVIEW_EMAIL && !!env.REVIEW_CODE && email === env.REVIEW_EMAIL.toLowerCase();
+
 /** Emails a sign-in code. Answers the same whether or not the address has an account. */
 account.post("/signin", async (c) => {
   const limited = await slowDown(c);
@@ -33,7 +37,7 @@ account.post("/signin", async (c) => {
   const email = parseEmail(((await c.req.json().catch(() => null)) as { email?: unknown } | null)?.email);
   if (!email) return c.json({ error: "That doesn't look like an email address." }, 400);
   const outcome = await requestSignin(c.env.DB, email);
-  if (outcome.send) {
+  if (outcome.send && !isReviewEmail(c.env, email)) {
     const code = newCode();
     await saveCode(c.env.DB, outcome.id, code);
     try {
@@ -54,7 +58,8 @@ account.post("/signin/verify", async (c) => {
   const email = parseEmail(body?.email);
   const code = typeof body?.code === "string" ? body.code.replace(/\s+/g, "") : "";
   const sub = email ? await findByEmail(c.env.DB, email) : null;
-  if (!sub || !(await redeemCode(c.env.DB, sub.id, code))) return c.json({ error: "That code didn't work. Check it, or ask for a new one." }, 400);
+  const ok = sub && (isReviewEmail(c.env, sub.email) ? timingSafeEqual(code, c.env.REVIEW_CODE!) : await redeemCode(c.env.DB, sub.id, code));
+  if (!sub || !ok) return c.json({ error: "That code didn't work. Check it, or ask for a new one." }, 400);
   await verifyEmail(c.env.DB, sub.id);
   return c.json({ token: await createSession(c.env.DB, sub.id), email: sub.email });
 });
@@ -74,6 +79,14 @@ account.post("/me/auto-briefings", async (c) => {
   const on = ((await c.req.json().catch(() => null)) as { on?: unknown } | null)?.on === true;
   await setAutoBriefings(c.env.DB, sub.id, on);
   return c.json({ ok: true, autoBriefings: on });
+});
+
+/** Deletes the signed-in reader's account, its sessions and any connected AI account. */
+account.delete("/me", async (c) => {
+  const sub = await viewer(c);
+  if (!sub) return c.json({ error: "signed out" }, 401);
+  await deleteAccount(c.env.DB, sub.id);
+  return c.json({ ok: true });
 });
 
 account.post("/signout", async (c) => {

@@ -50,4 +50,6 @@ Same system as the site (`../DESIGN.md`): newsprint and night palettes, Libre Ca
 
 ## Account
 
-Reading needs no account. Settings > Sign in emails a six-digit code (`POST /api/v1/signin`, then `/signin/verify`), which returns a Tare session token kept in the Keychain. Signed in, a story's "Detailed briefing" section asks for one (`POST /api/v1/stories/:id/briefing`), written with the Grok or ChatGPT account the reader connected at tare.news/account.
+Reading needs no account. Settings > Sign in emails a six-digit code (`POST /api/v1/signin`, then `/signin/verify`), which returns a Tare session token kept in the Keychain. Settings > Delete account deletes it (`DELETE /api/v1/me`), as App Review requires of apps that make accounts.
+
+App Review signs in as `REVIEW_EMAIL` with the fixed code `REVIEW_CODE` (Worker secrets; no email is sent). `TareUITests/AccountDeletionUITests` signs in with it and deletes the account when run with `TEST_RUNNER_REVIEW_CODE=<code>`; without it the test is skipped. Signed in, a story's "Detailed briefing" section asks for one (`POST /api/v1/stories/:id/briefing`), written with the Grok or ChatGPT account the reader connected at tare.news/account.

@@ -72,6 +72,10 @@ struct TareAPI: Sendable {
         let _: OK = try await send("signout", token: token)
     }
 
+    func deleteAccount(token: String) async throws {
+        let _: OK = try await send("me", method: "DELETE", token: token)
+    }
+
     func briefing(storyId: String) async throws -> BriefingState {
         try await send("stories/\(storyId)/briefing", method: "GET")
     }

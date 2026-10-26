@@ -4,6 +4,8 @@ struct SettingsView: View {
     @Environment(NotificationSettings.self) private var notifications
     @Environment(Account.self) private var account
     @State private var signingIn = false
+    @State private var confirmingDelete = false
+    @State private var deleteError: String?
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
 
@@ -24,6 +26,10 @@ struct SettingsView: View {
                             Link("Connect Grok or ChatGPT on tare.news", destination: URL(string: "https://tare.news/account#ai")!)
                         }
                         Button("Sign out", role: .destructive) { Task { await account.signOut() } }
+                        Button("Delete account", role: .destructive) { confirmingDelete = true }
+                        if let deleteError {
+                            Text(deleteError).font(.footnote).foregroundStyle(.secondary)
+                        }
                     } else {
                         Button("Sign in") { signingIn = true }
                     }
@@ -55,6 +61,8 @@ struct SettingsView: View {
                     Link("How Tare works", destination: URL(string: "https://tare.news/method")!)
                     Link("Get the edition by email", destination: URL(string: "https://tare.news/#subscribe")!)
                     Link("Open source (MIT)", destination: URL(string: "https://github.com/neelsatyavolu/tare")!)
+                    Link("Privacy policy", destination: URL(string: "https://tare.news/privacy")!)
+                    Link("Support", destination: URL(string: "https://tare.news/support")!)
                 }
             }
             .scrollContentBackground(.hidden)
@@ -63,7 +71,17 @@ struct SettingsView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
             .sheet(isPresented: $signingIn) { SignInView() }
+            .confirmationDialog("Delete your Tare account?", isPresented: $confirmingDelete, titleVisibility: .visible) {
+                Button("Delete account", role: .destructive) { Task { await deleteAccount() } }
+            } message: {
+                Text("This removes your email address, topics, sign-ins and any connected Grok or ChatGPT account from Tare, on this app and on tare.news. It can't be undone. You can still read Tare without an account.")
+            }
             .task { await account.refresh() }
         }
+    }
+
+    private func deleteAccount() async {
+        deleteError = nil
+        do { try await account.deleteAccount() } catch { deleteError = error.localizedDescription }
     }
 }

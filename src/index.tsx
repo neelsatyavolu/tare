@@ -22,7 +22,7 @@ import { Layout, SubscribeForm, TimeZoneContext, ViewerContext } from "./web/com
 import { ICON } from "./web/icon";
 import { WelcomeDone, WelcomeEmail, WelcomeTopics } from "./web/welcome";
 import {
-  AccountPage, ArchivePage, EditionPage, EmptyPage, ManagePage, MessagePage, MethodPage, SignInPage, StoryPage, TopicPage, UnsubscribeConfirmPage,
+  AccountPage, ArchivePage, EditionPage, EmptyPage, ManagePage, MessagePage, MethodPage, PrivacyPage, SignInPage, StoryPage, SupportPage, TopicPage, UnsubscribeConfirmPage,
 } from "./web/pages";
 import { isInterestId } from "./topics";
 import { follows } from "./layout";
@@ -193,6 +193,8 @@ app.get("/sample-email", async (c) => {
   return c.html(mail.html);
 });
 app.get("/method", (c) => page(c, <MethodPage />));
+app.get("/privacy", (c) => page(c, <PrivacyPage />));
+app.get("/support", (c) => page(c, <SupportPage />));
 
 // ── Email out ───────────────────────────────────────────────────────────
 

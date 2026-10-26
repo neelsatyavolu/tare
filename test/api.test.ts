@@ -140,6 +140,28 @@ describe("/api/v1 sign-in and briefings", () => {
     expect((await req("/api/v1/signin/verify", json({ email: "guess@example.com", code }))).status).toBe(400);
   });
 
+  it("deletes the signed-in account", async () => {
+    const code = await signIn("leaving@example.com");
+    const { token } = (await (await req("/api/v1/signin/verify", json({ email: "leaving@example.com", code }))).json()) as { token: string };
+    expect((await req("/api/v1/me", { method: "DELETE" })).status).toBe(401);
+    expect((await req("/api/v1/me", { method: "DELETE", headers: { authorization: `Bearer ${token}` } })).status).toBe(200);
+    expect((await req("/api/v1/me", { headers: { authorization: `Bearer ${token}` } })).status).toBe(401);
+    expect(await env.DB.prepare("SELECT id FROM subscribers WHERE email = 'leaving@example.com'").first()).toBeNull();
+  });
+
+  it("signs App Review's demo account in with its fixed code, without email", async () => {
+    const reviewEnv = { ...env, REVIEW_EMAIL: "review@tare.news", REVIEW_CODE: "246810" };
+    const reviewReq = (path: string, init?: RequestInit) => app.request(path, init, reviewEnv);
+    expect((await reviewReq("/api/v1/signin", json({ email: "review@tare.news" }))).status).toBe(200);
+    expect(mails).toHaveLength(0);
+    expect((await reviewReq("/api/v1/signin/verify", json({ email: "review@tare.news", code: "000000" }))).status).toBe(400);
+    const ok = await reviewReq("/api/v1/signin/verify", json({ email: "Review@tare.news", code: "246810" }));
+    expect(ok.status).toBe(200);
+    // The fixed code only works for the review address.
+    await reviewReq("/api/v1/signin", json({ email: "other@example.com" }));
+    expect((await reviewReq("/api/v1/signin/verify", json({ email: "other@example.com", code: "246810" }))).status).toBe(400);
+  });
+
   it("needs a session to ask for a briefing, and reports none yet", async () => {
     expect((await req(`/api/v1/stories/${LEAD}/briefing`, { method: "POST" })).status).toBe(401);
     expect(await (await req(`/api/v1/stories/${LEAD}/briefing`)).json()).toEqual({ status: "none" });

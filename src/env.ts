@@ -19,6 +19,9 @@ export interface Env {
   APNS_KEY_ID?: string;
   APPLE_TEAM_ID?: string;
   APNS_TOPIC?: string;
+  /** App Review's demo account: its email and the fixed six-digit code it signs in with. */
+  REVIEW_EMAIL?: string;
+  REVIEW_CODE?: string;
 }
 
 declare global {
@@ -38,6 +41,8 @@ declare global {
       APNS_KEY_ID?: string;
       APPLE_TEAM_ID?: string;
       APNS_TOPIC?: string;
+      REVIEW_EMAIL?: string;
+      REVIEW_CODE?: string;
       TEST_MIGRATIONS: D1Migration[];
     }
   }

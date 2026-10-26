@@ -51,6 +51,13 @@ final class Account {
         forget()
     }
 
+    /// Deletes the account on Tare (email, sessions, connected AI account), then signs out here.
+    func deleteAccount() async throws {
+        guard let token else { return }
+        try await api.deleteAccount(token: token)
+        forget()
+    }
+
     private func forget() {
         Keychain.delete()
         token = nil

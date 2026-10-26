@@ -219,6 +219,51 @@ export const MethodPage: FC = () => (
   </Layout>
 );
 
+export const PrivacyPage: FC = () => (
+  <Layout title="Privacy · Tare">
+    <div class="prose">
+      <h1>Privacy</h1>
+      <p class="meta">Updated October 26, 2026. This covers tare.news, the Tare emails and the Tare app for iPhone and iPad.</p>
+      <p>You can read Tare without an account, on the site or in the app. Tare has no ads, no analytics, no tracking pixels and no tracking across other apps or sites. It doesn't sell or share your data with anyone for advertising.</p>
+
+      <h2>What Tare keeps</h2>
+      <ul>
+        <li><b>Your email address</b>, if you make an account or subscribe. It's used to sign you in and, if you ask for it, to send the edition. With it Tare keeps the topics and editions you chose, your time zone (so the edition arrives in the morning and evening where you are) and when you confirmed the address.</li>
+        <li><b>Sign-in sessions and codes.</b> A session is a random token kept in a cookie on the site, or in the Keychain in the app. Sign-in codes are stored only as a hash and expire after 15 minutes.</li>
+        <li><b>A connected Grok or ChatGPT account</b>, if you connect one. Tare keeps its access token, encrypted, and uses it only to write the detailed briefings you ask for (and, if you turn them on, automatic briefings, at most 6 a day). Briefings are written from the news articles, not from anything about you, and are then shown to every reader without your name.</li>
+        <li><b>Push notification settings</b>, if you turn notifications on in the app: your device's notification token, which editions you want, whether you want breaking news, and your time zone. These aren't tied to an account. Tare deletes a token once Apple reports it's no longer in use, for example after you delete the app.</li>
+        <li><b>Error reports</b> you send about a story: the story and the text you wrote, nothing else.</li>
+      </ul>
+
+      <h2>Who handles it</h2>
+      <p>Tare runs on Cloudflare, which hosts the site, the app's data and the database. Emails are sent through Resend. Push notifications go through Apple. If you connect Grok or ChatGPT, briefing requests go to xAI or OpenAI on your account. Opening an article takes you to the outlet that published it, which has its own privacy policy.</p>
+
+      <h2>Deleting your data</h2>
+      <p>Delete your account at any time from the account page on tare.news or from Settings in the app. That removes your email address, topics, sessions and any connected AI account straight away. Every email has a one-click unsubscribe. To stop notifications, turn them off in iOS Settings, or email us to have your device's token removed.</p>
+
+      <h2>Children</h2>
+      <p>Tare is a general news service and isn't directed at children under 13.</p>
+
+      <h2>Contact</h2>
+      <p>Questions or requests about your data: <a href="mailto:neel@xanom.co">neel@xanom.co</a>.</p>
+    </div>
+  </Layout>
+);
+
+export const SupportPage: FC = () => (
+  <Layout title="Support · Tare">
+    <div class="prose">
+      <h1>Support</h1>
+      <p>For help with Tare, the app or your account, or to report a problem, email <a href="mailto:neel@xanom.co">neel@xanom.co</a>. To flag a mistake in a story, use "Report an error" on the story's page on tare.news.</p>
+      <h2>Common questions</h2>
+      <p><b>Do I need an account?</b> No. Reading is free and needs no account. An account lets you get the edition by email and ask for detailed briefings.</p>
+      <p><b>How do I sign in?</b> Enter your email and Tare sends a sign-in link (on the site) or a six-digit code (in the app). There are no passwords.</p>
+      <p><b>How do I delete my account?</b> In the app, Settings &gt; Delete account. On the site, the account page.</p>
+      <p><b>How does Tare choose stories and label outlets?</b> See <a href="/method">how Tare works</a>. Our privacy policy is <a href="/privacy">here</a>.</p>
+    </div>
+  </Layout>
+);
+
 export const MessagePage: FC<{ title: string; children?: Child }> = ({ title, children }) => (
   <Layout title={`${title} · Tare`}>
     <div class="prose"><h1>{title}</h1>{children}</div>

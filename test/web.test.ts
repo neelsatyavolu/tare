@@ -101,6 +101,8 @@ describe("pages", () => {
   it("serves the archive, method page, stylesheet and icon", async () => {
     expect(await (await req("/archive")).text()).toContain("No. 3");
     expect(await (await req("/method")).text()).toContain("Washington Free Beacon");
+    expect(await (await req("/privacy")).text()).toContain("neel@xanom.co");
+    expect(await (await req("/support")).text()).toContain("neel@xanom.co");
     expect((await req("/styles.css")).headers.get("content-type")).toContain("text/css");
     expect((await req("/icon.svg")).status).toBe(200);
   });
