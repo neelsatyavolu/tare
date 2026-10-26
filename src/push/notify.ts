@@ -13,8 +13,8 @@ export const BREAKING_WINDOW_MS = 2 * 3600_000;
 export const BREAKING_MIN_OUTLETS = 3;
 /** Major (4) or historic (5) on Tare's importance scale. */
 export const BREAKING_MIN_IMPORTANCE = 4;
-/** A busy hour still sends only this many, so a news surge can't flood a phone. */
-const BREAKING_PER_BUILD = 3;
+/** A busy hour still sends only this many, so a news surge can't flood a phone (the app promises it). */
+const BREAKING_PER_HOUR = 3;
 
 /** The hourly edition push: each phone whose local clock is at 7 a.m. or 6 p.m. hears what leads the edition. */
 export async function notifyDue(env: Env, fetcher: typeof fetch = fetch, now = Date.now()): Promise<PushReport | null> {
@@ -51,9 +51,9 @@ export function establishedAt(reports: readonly { outletId: string; publishedAt:
 
 /**
  * The stories to push as breaking news now: major, on the front page, and established by several outlets within
- * the window (`established` maps story id to `establishedAt`). Most important first.
+ * the window (`established` maps story id to `establishedAt`). Most important first, at most `room` of them.
  */
-export function breakingStories(stories: readonly Story[], alreadyPushed: ReadonlySet<string>, established: ReadonlyMap<string, number>, now: number): Story[] {
+export function breakingStories(stories: readonly Story[], alreadyPushed: ReadonlySet<string>, established: ReadonlyMap<string, number>, now: number, room = BREAKING_PER_HOUR): Story[] {
   const fresh = stories.filter((s) => {
     const at = established.get(s.id);
     return s.front && (s.importance ?? 0) >= BREAKING_MIN_IMPORTANCE && s.coverage.total >= BREAKING_MIN_OUTLETS && at !== undefined &&
@@ -61,7 +61,7 @@ export function breakingStories(stories: readonly Story[], alreadyPushed: Readon
   });
   return fresh
     .sort((a, b) => (b.importance ?? 0) - (a.importance ?? 0) || established.get(b.id)! - established.get(a.id)!)
-    .slice(0, BREAKING_PER_BUILD);
+    .slice(0, Math.max(0, room));
 }
 
 /** `establishedAt` for each front-page story, from its reports' publication times. */
@@ -87,7 +87,11 @@ export async function notifyBreaking(env: Env, fetcher: typeof fetch = fetch, no
   const ids = stories.map((s) => s.id);
   if (ids.length === 0) return null;
   const { results } = await env.DB.prepare(`SELECT story_id FROM pushed_stories WHERE story_id IN (${ids.map(() => "?").join(",")})`).bind(...ids).all<{ story_id: string }>();
-  const breaking = breakingStories(stories, new Set(results.map((r) => r.story_id)), await establishedTimes(env.DB, stories), now);
+  // Checks run every few minutes, so the hourly cap counts what earlier runs this hour already sent.
+  const sent = await env.DB.prepare("SELECT COUNT(*) AS n FROM pushed_stories WHERE pushed_at > ?").bind(now - 3600_000).first<{ n: number }>();
+  const room = BREAKING_PER_HOUR - (sent?.n ?? 0);
+  if (room <= 0) return null;
+  const breaking = breakingStories(stories, new Set(results.map((r) => r.story_id)), await establishedTimes(env.DB, stories), now, room);
   if (breaking.length === 0) return null;
   const mark = env.DB.prepare("INSERT OR IGNORE INTO pushed_stories (story_id, pushed_at) VALUES (?, ?)");
   await env.DB.batch(breaking.map((s) => mark.bind(s.id, now)));

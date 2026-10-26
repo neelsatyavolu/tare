@@ -103,9 +103,11 @@ describe("breakingStories", () => {
     expect(ids(breakingStories([major, historic], new Set(["historic"]), recent([major, historic]), now))).toEqual(["major"]);
   });
 
-  it("caps a busy hour at three", () => {
+  it("caps a busy hour at three, counting what this hour's earlier checks sent", () => {
     const four = ["a", "b", "c", "d"].map((id) => story(id, {}));
     expect(breakingStories(four, new Set(), recent(four), now)).toHaveLength(3);
+    expect(breakingStories(four, new Set(), recent(four), now, 1)).toHaveLength(1);
+    expect(breakingStories(four, new Set(), recent(four), now, 0)).toEqual([]);
   });
 
   it("ignores minor, narrow or off-front stories", () => {
