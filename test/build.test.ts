@@ -297,6 +297,13 @@ describe("watchBreaking", () => {
     expect(classifyCalls).toBe(1);
   });
 
+  it("ignores a story outlets established hours ago, even as more pick it up", async () => {
+    await addItems("storm", EVENTS.storm!.outlets, NOW - 3 * 60 * MIN);
+    await addItems("storm", ["vox", "nypost", "pbs"], NOW + 10 * MIN);
+    expect(await watchBreaking(env.DB, fakeAi(), NOW + 15 * MIN, Date.now() + MIN)).toMatchObject({ fresh: 0, major: 0 });
+    expect(classifyCalls).toBe(0);
+  });
+
   it("ignores a story outlets established hours ago", async () => {
     await addItems("storm", EVENTS.storm!.outlets, NOW - 3 * 60 * MIN);
     expect(await watchBreaking(env.DB, fakeAi(), NOW + 15 * MIN, Date.now() + MIN)).toMatchObject({ fresh: 0, major: 0 });

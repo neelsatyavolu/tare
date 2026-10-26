@@ -291,11 +291,8 @@ async function outletsOf(db: D1Database, window: readonly ItemRow[], existing: r
   return map;
 }
 
-/**
- * The last 24 hours of headlines grouped by event, most widely covered first. Only headlines new since the
- * last run are embedded; the grouping itself uses stored vectors and no model.
- */
-export async function eventGroups(db: D1Database, ai: AiRunner, now: number): Promise<{ results: ItemRow[]; members: Member[]; groups: Candidate<Member>[] }> {
+/** The last 24 hours of headlines with their vectors. Only headlines new since the last run are embedded. */
+export async function windowItems(db: D1Database, ai: AiRunner, now: number): Promise<{ results: ItemRow[]; members: Member[] }> {
   await embedPending(db, ai, now - WINDOW_MS);
   const { results } = await db
     .prepare(
@@ -310,7 +307,7 @@ export async function eventGroups(db: D1Database, ai: AiRunner, now: number): Pr
     const current = r.classify_version >= CLASSIFY_VERSION;
     return vec ? [{ id: r.id, outletId: r.outlet_id, publishedAt: r.published_at, title: r.title, snippet: r.snippet, imageUrl: r.image_url, topic: current ? r.topic : null, subtopic: current ? r.subtopic : null, importance: current ? r.importance : null, vec }] : [];
   });
-  return { results, members, groups: rankGroups(clusterItems(members, SAME_EVENT)) };
+  return { results, members };
 }
 
 /** Claims the edition for this run. Returns false while another run holds it. */
@@ -339,11 +336,11 @@ export async function buildEdition(db: D1Database, rawAi: AiRunner, now = Date.n
 
   let report: BuildReport = { ...empty, status: "failed" };
   try {
-    const { results, members, groups } = await eventGroups(db, ai, now);
+    const { results, members } = await windowItems(db, ai, now);
     report = { ...report, items: results.length };
     if (results.length < MIN_ITEMS) throw new Error(`only ${results.length} headlines in the last 24 hours`);
 
-    const ranked = groups.slice(0, CLASSIFY_LIMIT);
+    const ranked = rankGroups(clusterItems(members, SAME_EVENT)).slice(0, CLASSIFY_LIMIT);
     const topics = await sections(db, ai, ranked, deadlineAt - CLASSIFY_STOP_BEFORE_MS);
     const picked: Picked[] = pickBalanced(ranked.map((c, i) => ({ ...c, topic: topics[i]?.topic ?? null, subtopic: topics[i]?.subtopic ?? null, importance: topics[i]?.importance ?? null })));
     report = { ...report, candidates: picked.length };
