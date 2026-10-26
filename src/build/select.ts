@@ -200,7 +200,7 @@ export const FRONT_MIN_OUTLETS_MAJOR = 3;
 /** A story this widely covered, by both sides, is front-page news even if rated minor. */
 export const FRONT_BY_BREADTH = 15;
 
-const frontEligible = (s: Weighed & { blindspot?: Blindspot }) => {
+export const frontEligible = (s: Weighed & { blindspot?: Blindspot }) => {
   const importance = s.importance ?? 0;
   if (importance >= 2 && s.coverage.total >= FRONT_BY_BREADTH && s.coverage.left > 0 && s.coverage.right > 0) return true;
   const minOutlets = importance >= 5 ? FRONT_MIN_OUTLETS_MAJOR : FRONT_MIN_OUTLETS;

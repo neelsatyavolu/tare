@@ -22,7 +22,9 @@
       // Hourly: pull every feed (most only hold their latest 20-50 items), then refresh today's edition.
       "7 * * * *",
       // Every hour: email and push the edition to readers whose local time is 7 a.m. or 6 p.m.
-      "0 * * * *"
+      "0 * * * *",
+      // Every 5 minutes outside the build's usual run: check for breaking news without rebuilding the edition.
+      "2,22,27,32,37,42,47,52,57 * * * *"
     ]
   },
   "limits": { "cpu_ms": 120000 },

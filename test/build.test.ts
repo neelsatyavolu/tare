@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { buildEdition, checkBlindspot, EMBED_MODEL, pickImage } from "../src/build/build";
 import { displayImage, weakImage } from "../src/build/photos";
 import { WRITEUP_VERSION, type AiRunner } from "../src/build/summarize";
+import { watchBreaking } from "../src/push/watch";
 
 const NOW = Date.parse("2026-10-24T10:15:00Z");
 
@@ -46,6 +47,7 @@ function vectorFor(text: string): number[] {
 }
 
 let summaryCalls = 0;
+let classifyCalls = 0;
 
 function fakeAi(opts: { failSummaries?: boolean } = {}): AiRunner {
   return {
@@ -53,6 +55,7 @@ function fakeAi(opts: { failSummaries?: boolean } = {}): AiRunner {
       if (model === EMBED_MODEL) return { data: (input.text as string[]).map(vectorFor) };
       const [system, user0] = (input.messages as { content: string }[]).map((m) => m.content);
       if (system!.startsWith("Sort news story groups")) {
+        classifyCalls += 1;
         // Classifier: put each group in its event's section.
         const map = Object.fromEntries(user0!.split("\n").map((line) => {
           const [label, rest] = line.split(": ");
@@ -266,6 +269,38 @@ describe("buildEdition", () => {
     await env.DB.exec("DELETE FROM items");
     const r = await buildEdition(env.DB, fakeAi(), NOW);
     expect(r).toMatchObject({ status: "failed", error: "only 0 headlines in the last 24 hours" });
+  });
+});
+
+describe("watchBreaking", () => {
+  const MIN = 60_000;
+  beforeEach(async () => {
+    await env.DB.batch([env.DB.prepare("DELETE FROM stories"), env.DB.prepare("DELETE FROM editions"), env.DB.prepare("DELETE FROM items")]);
+    await seed();
+    await buildEdition(env.DB, fakeAi(), NOW);
+    classifyCalls = 0;
+  });
+
+  it("asks no model when nothing new has broken: recent stories already in the edition don't count", async () => {
+    expect(await watchBreaking(env.DB, fakeAi(), NOW + 15 * MIN, Date.now() + MIN)).toMatchObject({ fresh: 0, major: 0 });
+    expect(classifyCalls).toBe(0);
+  });
+
+  it("rates a story several outlets just started reporting, once", async () => {
+    // Rated 4 by the fake model, so it needs FRONT_MIN_OUTLETS (6) to lead the edition and be pushed.
+    await addItems("storm", EVENTS.storm!.outlets, NOW + 20 * MIN);
+    expect(await watchBreaking(env.DB, fakeAi(), NOW + 30 * MIN, Date.now() + MIN)).toEqual({ groups: 4, fresh: 1, major: 0 });
+    expect(classifyCalls).toBe(1);
+    // Remembered on the items: the next check (and the next build) doesn't ask again.
+    await addItems("storm", ["vox", "nypost", "pbs"], NOW + 40 * MIN);
+    expect(await watchBreaking(env.DB, fakeAi(), NOW + 45 * MIN, Date.now() + MIN)).toMatchObject({ fresh: 1, major: 1 });
+    expect(classifyCalls).toBe(1);
+  });
+
+  it("ignores a story outlets established hours ago", async () => {
+    await addItems("storm", EVENTS.storm!.outlets, NOW - 3 * 60 * MIN);
+    expect(await watchBreaking(env.DB, fakeAi(), NOW + 15 * MIN, Date.now() + MIN)).toMatchObject({ fresh: 0, major: 0 });
+    expect(classifyCalls).toBe(0);
   });
 });
 

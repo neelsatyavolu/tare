@@ -26,7 +26,7 @@ In debug builds, launching with `-openStory <id>` opens a story directly. `tare:
 Devices register their APNs token and choices with `POST /api/v1/devices` (no account; the server keeps the token, the edition choice and whether to send breaking news). The Worker sends to APNs directly:
 
 - **Morning edition** at 7 a.m. and **evening edition** at 6 p.m. in the phone's time zone, which the app sends when it registers (the hourly :00 run).
-- **Breaking news** after an hourly build: each new front-page story rated major or historic (importance 4–5) and covered by 3+ outlets, at most three per build.
+- **Breaking news** within about 5 minutes of a feed pull: each front-page story rated major or historic (importance 4–5) whose third outlet reported it in the last 2 hours, at most three at a time. A check runs every 5 minutes between hourly builds; it groups new headlines without a model and rebuilds the edition only when a major story has just broken.
 
 The Worker needs these secrets (`wrangler secret put`), plus `APNS_TOPIC` and `APPLE_TEAM_ID`, which are already in `wrangler.jsonc`:
 

@@ -40,7 +40,7 @@ const LAST_START_BEFORE_MS = 6 * 60_000;
 const HARD_STOP_BEFORE_MS = 90_000;
 
 type ItemRow = { id: string; outlet_id: string; title: string; snippet: string; published_at: number; image_url: string | null; embedding: unknown; topic: string | null; subtopic: string | null; importance: number | null; classify_version: number };
-type Member = Embedded & SourceItem & { imageUrl: string | null; topic: string | null; subtopic: string | null; importance: number | null };
+export type Member = Embedded & SourceItem & { imageUrl: string | null; topic: string | null; subtopic: string | null; importance: number | null };
 type Picked = Candidate<Member> & { topic: TopicId | null; subtopic: SubtopicId | null; importance: number | null };
 
 export type BuiltStory = {
@@ -108,7 +108,7 @@ const CLASSIFY_CONCURRENCY = 4;
  * chunk by chunk, so a run that runs out of time keeps what it rated and the next hour carries on from there;
  * chunks not started by `stopAt` wait an hour (their groups rank as minor meanwhile).
  */
-async function sections(db: D1Database, ai: AiRunner, groups: readonly Candidate<Member>[], stopAt: number): Promise<Classification[]> {
+export async function sections(db: D1Database, ai: AiRunner, groups: readonly Candidate<Member>[], stopAt: number): Promise<Classification[]> {
   const known: Classification[] = groups.map((g) => {
     const topic = majority(g.members.map((m) => m.topic)) as TopicId | null;
     return { topic, subtopic: subtopicUnder(topic, majority(g.members.map((m) => m.subtopic))), importance: majority(g.members.map((m) => m.importance)) };
@@ -291,6 +291,28 @@ async function outletsOf(db: D1Database, window: readonly ItemRow[], existing: r
   return map;
 }
 
+/**
+ * The last 24 hours of headlines grouped by event, most widely covered first. Only headlines new since the
+ * last run are embedded; the grouping itself uses stored vectors and no model.
+ */
+export async function eventGroups(db: D1Database, ai: AiRunner, now: number): Promise<{ results: ItemRow[]; members: Member[]; groups: Candidate<Member>[] }> {
+  await embedPending(db, ai, now - WINDOW_MS);
+  const { results } = await db
+    .prepare(
+      `SELECT id, outlet_id, title, snippet, published_at, image_url, embedding, topic, subtopic, importance, classify_version FROM items
+       WHERE published_at > ? AND published_at <= ? AND embedding IS NOT NULL`,
+    )
+    .bind(now - WINDOW_MS, now)
+    .all<ItemRow>();
+  const members: Member[] = results.flatMap((r) => {
+    const vec = decodeVector(r.embedding);
+    // Ratings made under older rules are forgotten, so the group is classified again.
+    const current = r.classify_version >= CLASSIFY_VERSION;
+    return vec ? [{ id: r.id, outletId: r.outlet_id, publishedAt: r.published_at, title: r.title, snippet: r.snippet, imageUrl: r.image_url, topic: current ? r.topic : null, subtopic: current ? r.subtopic : null, importance: current ? r.importance : null, vec }] : [];
+  });
+  return { results, members, groups: rankGroups(clusterItems(members, SAME_EVENT)) };
+}
+
 /** Claims the edition for this run. Returns false while another run holds it. */
 async function lock(db: D1Database, date: string, now: number): Promise<boolean> {
   const number = ((await db.prepare("SELECT COUNT(*) AS n FROM editions").first<{ n: number }>())?.n ?? 0) + 1;
@@ -317,24 +339,11 @@ export async function buildEdition(db: D1Database, rawAi: AiRunner, now = Date.n
 
   let report: BuildReport = { ...empty, status: "failed" };
   try {
-    await embedPending(db, ai, now - WINDOW_MS);
-    const { results } = await db
-      .prepare(
-        `SELECT id, outlet_id, title, snippet, published_at, image_url, embedding, topic, subtopic, importance, classify_version FROM items
-         WHERE published_at > ? AND published_at <= ? AND embedding IS NOT NULL`,
-      )
-      .bind(now - WINDOW_MS, now)
-      .all<ItemRow>();
+    const { results, members, groups } = await eventGroups(db, ai, now);
     report = { ...report, items: results.length };
     if (results.length < MIN_ITEMS) throw new Error(`only ${results.length} headlines in the last 24 hours`);
 
-    const members: Member[] = results.flatMap((r) => {
-      const vec = decodeVector(r.embedding);
-      // Ratings made under older rules are forgotten, so the group is classified again.
-      const current = r.classify_version >= CLASSIFY_VERSION;
-      return vec ? [{ id: r.id, outletId: r.outlet_id, publishedAt: r.published_at, title: r.title, snippet: r.snippet, imageUrl: r.image_url, topic: current ? r.topic : null, subtopic: current ? r.subtopic : null, importance: current ? r.importance : null, vec }] : [];
-    });
-    const ranked = rankGroups(clusterItems(members, SAME_EVENT)).slice(0, CLASSIFY_LIMIT);
+    const ranked = groups.slice(0, CLASSIFY_LIMIT);
     const topics = await sections(db, ai, ranked, deadlineAt - CLASSIFY_STOP_BEFORE_MS);
     const picked: Picked[] = pickBalanced(ranked.map((c, i) => ({ ...c, topic: topics[i]?.topic ?? null, subtopic: topics[i]?.subtopic ?? null, importance: topics[i]?.importance ?? null })));
     report = { ...report, candidates: picked.length };

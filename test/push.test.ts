@@ -4,7 +4,7 @@ import { coverageOf } from "../src/build/select";
 import type { Story } from "../src/editions";
 import { payload, providerToken, pushAll, type ApnsConfig } from "../src/push/apns";
 import { devicesDue, markPushed, registerDevice, type Device } from "../src/push/devices";
-import { breakingStories } from "../src/push/notify";
+import { breakingStories, establishedAt } from "../src/push/notify";
 
 async function p8(): Promise<{ pem: string; publicKey: CryptoKey }> {
   const pair = (await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"])) as CryptoKeyPair;
@@ -75,6 +75,17 @@ describe("devicesDue", () => {
   });
 });
 
+describe("establishedAt", () => {
+  it("is when the third outlet first reported, counting each outlet once", () => {
+    const reports = [
+      { outletId: "vox", publishedAt: 10 }, { outletId: "vox", publishedAt: 20 }, { outletId: "fox", publishedAt: 50 },
+      { outletId: "fox", publishedAt: 30 }, { outletId: "nyt", publishedAt: 90 }, { outletId: "pbs", publishedAt: 70 },
+    ];
+    expect(establishedAt(reports)).toBe(70);
+    expect(establishedAt(reports.slice(0, 4))).toBeNull();
+  });
+});
+
 describe("breakingStories", () => {
   const now = 100 * 3600_000;
   const wide = coverageOf(["vox", "nyt", "axios", "pbs", "fox", "nypost"]);
@@ -83,22 +94,29 @@ describe("breakingStories", () => {
     blindspot: null, itemIds: [], imageItemId: null, firstSeenAt: now - 600_000, importance: 5, dek: null, why: null, writtenAt: null, ...over,
   });
   const ids = (list: Story[]) => list.map((s) => s.id);
+  const recent = (list: Story[], at = now - 600_000) => new Map(list.map((s) => [s.id, at]));
 
   it("picks every new major front-page story not already pushed, most important first", () => {
     const major = story("major", { importance: 4 });
-    const historic = story("historic", { firstSeenAt: now - 3600_000 });
-    expect(ids(breakingStories([major, historic], new Set(), now))).toEqual(["historic", "major"]);
-    expect(ids(breakingStories([major, historic], new Set(["historic"]), now))).toEqual(["major"]);
+    const historic = story("historic", {});
+    expect(ids(breakingStories([major, historic], new Set(), recent([major, historic]), now))).toEqual(["historic", "major"]);
+    expect(ids(breakingStories([major, historic], new Set(["historic"]), recent([major, historic]), now))).toEqual(["major"]);
   });
 
   it("caps a busy hour at three", () => {
-    expect(breakingStories(["a", "b", "c", "d"].map((id) => story(id, {})), new Set(), now)).toHaveLength(3);
+    const four = ["a", "b", "c", "d"].map((id) => story(id, {}));
+    expect(breakingStories(four, new Set(), recent(four), now)).toHaveLength(3);
   });
 
-  it("ignores minor, old, narrow or off-front stories", () => {
-    expect(breakingStories([story("minor", { importance: 3 })], new Set(), now)).toEqual([]);
-    expect(breakingStories([story("old", { firstSeenAt: now - 3 * 3600_000 })], new Set(), now)).toEqual([]);
-    expect(breakingStories([story("narrow", { coverage: coverageOf(["vox", "fox"]) })], new Set(), now)).toEqual([]);
-    expect(breakingStories([story("inside", { front: false })], new Set(), now)).toEqual([]);
+  it("ignores minor, narrow or off-front stories", () => {
+    for (const s of [story("minor", { importance: 3 }), story("narrow", { coverage: coverageOf(["vox", "fox"]) }), story("inside", { front: false })]) {
+      expect(breakingStories([s], new Set(), recent([s]), now)).toEqual([]);
+    }
+  });
+
+  it("ignores a story outlets have carried for hours, even when the edition only just added it", () => {
+    const slow = story("slow", { firstSeenAt: now - 60_000 });
+    expect(breakingStories([slow], new Set(), recent([slow], now - 3 * 3600_000), now)).toEqual([]);
+    expect(breakingStories([slow], new Set(), new Map(), now)).toEqual([]);
   });
 });
