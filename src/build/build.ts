@@ -381,8 +381,12 @@ export async function buildEdition(db: D1Database, rawAi: AiRunner, now = Date.n
       return story && checkBlindspot(story, group, members);
     });
 
-    // How new each story's latest report is decides which important story leads; it's used for ordering, not stored.
-    const timed = lineup.map((s, i) => s && { ...s, firstSeenAt: Math.min(s.firstSeenAt, seenYesterday[i] ?? Infinity), fresh: freshness(s.importance, picked[i]!.latest, now) });
+    // How recently each story broke decides which important story leads; it's used for ordering, not stored.
+    const timed = lineup.map((s, i) => {
+      if (!s) return s;
+      const firstSeenAt = Math.min(s.firstSeenAt, seenYesterday[i] ?? Infinity);
+      return { ...s, firstSeenAt, fresh: freshness(s.importance, firstSeenAt, now) };
+    });
     const stories = [...new Map(timed.filter((s): s is LineupStory & { fresh: number } => s !== null).map((s) => [s.id, s])).values()];
     if (stories.length === 0 && existing.length === 0) throw new Error("no story survived the write-up checks");
     if (stories.length === 0) throw new Error("no story this hour; keeping the previous lineup");

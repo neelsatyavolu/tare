@@ -216,6 +216,16 @@ describe("frontPage", () => {
     expect(freshness(3, now, now)).toBe(0);
   });
 
+  it("lets a story that broke hours ago give up the lead to newer news, however much it's still reported", () => {
+    const now = 100 * 3600_000;
+    const widest = coverageOf([...L.slice(0, 4), ...C.slice(0, 4), ...R.slice(0, 4)]);
+    const narrower = coverageOf([...L.slice(0, 2), ...C.slice(0, 2), ...R.slice(0, 2)]);
+    // Follow-ups on yesterday's election keep arriving; the newer story broke 3 hours ago.
+    const election = { id: "election", importance: 4, blindspot: null, coverage: widest, fresh: freshness(4, now - 15 * 3600_000, now) };
+    const talks = { id: "talks", importance: 4, blindspot: null, coverage: narrower, fresh: freshness(4, now - 3 * 3600_000, now) };
+    expect([...frontPage([election, talks], 2)].map((s) => s.id)).toEqual(["talks", "election"]);
+  });
+
   it("always picks importance-5 stories, however narrow, over wider minor ones", () => {
     const wideMinor = (id: string) => ({ id, topic: "world" as const, importance: 2, blindspot: null, latest: 0, members: [], coverage: coverageOf([...L.slice(0, 3), ...C.slice(0, 3), ...R.slice(0, 3)]) });
     const attack = { id: "attack", topic: "world" as const, importance: 5, blindspot: null, latest: 0, members: [], coverage: coverageOf([L[0]!, R[0]!, R[1]!]) };

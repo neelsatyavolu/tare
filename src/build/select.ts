@@ -230,11 +230,15 @@ export const FRONT_EXTRA = 2;
  */
 export const frontScore = (s: Weighed) => (s.importance ?? 2) + Math.min(1.5, Math.log2(Math.max(1, s.coverage.total)) / 3) + (s.fresh ?? 0);
 
-/** Freshness bonus: up to 1.5 for an important story (4+) whose latest report is new, fading to 0 over FRESH_HOURS. */
+/**
+ * Freshness bonus: up to 1.5 for an important story (4+) that was first seen recently, fading to 0 over FRESH_HOURS.
+ * It counts from when the story broke, not its latest report: follow-ups on a big story arrive all day and would
+ * otherwise keep it on top long after newer news arrived.
+ */
 export const FRESH_HOURS = 18;
-export function freshness(importance: number | null, latest: number, now: number): number {
+export function freshness(importance: number | null, firstSeenAt: number, now: number): number {
   if ((importance ?? 0) < 4) return 0;
-  const hours = Math.max(0, (now - latest) / 3600_000);
+  const hours = Math.max(0, (now - firstSeenAt) / 3600_000);
   return 1.5 * Math.max(0, 1 - hours / FRESH_HOURS);
 }
 export const frontOrder = (a: Weighed, b: Weighed) => frontScore(b) - frontScore(a) || b.coverage.total - a.coverage.total;
