@@ -1,6 +1,6 @@
 # Tare
 
-An independent news edition that shows how outlets across the political spectrum covered each story. Every hour Tare reads the RSS feeds of 117 outlets, groups the last 24 hours of headlines by event, and publishes the stories that matter by fixed, published rules: the front page (most widely covered by both the left and the right), every section (world, U.S., politics, business, tech, science, climate, culture, sports) and blindspots (stories one side covered and the other skipped). Each story gets a neutral, source-cited summary, a coverage scale and "where accounts differ". Readers can get a morning and an evening edition by email (one or both) with the front page plus the topics they follow.
+An independent news edition that shows how outlets across the political spectrum covered each story. Every hour Tare reads the RSS feeds of 150 outlets, groups the last 24 hours of headlines by event, and publishes the stories that matter by fixed, published rules: the front page (most widely covered by both the left and the right), every section (world, U.S., politics, business, tech, AI, science, climate, culture, sports) and blindspots (stories one side covered and the other skipped). Each story gets a neutral, source-cited summary, a coverage scale and "where accounts differ". Readers can get a morning and an evening edition by email (one or both) with the front page plus the topics they follow.
 
 Live at https://tare.news.
 
@@ -20,7 +20,8 @@ Not by Tare. Each outlet's left/center/right label comes from Eady, Bonneau, Tuc
 | Embed new headlines once (`@cf/baai/bge-base-en-v1.5`), group by event, sort groups into sections | hourly | `src/build/embed.ts`, `cluster.ts`, `classify.ts` |
 | Pick stories by rule; keep continuing stories (same id and link), write up new ones (`@cf/zai-org/glm-5.3-flash`; sorting uses `@cf/openai/gpt-oss-120b`), check each claim and then the whole story, drop uncited sentences, double-check blindspots | hourly | `src/build/select.ts`, `build.ts`, `summarize.ts`, `match.ts` |
 | Email confirmed subscribers and push to the app: morning edition at 7 a.m., evening edition at 6 p.m., in each reader's own time zone (detected from their connection; the app sends the phone's) | hourly at :00 (the next hour retries) | `src/mail/`, `src/push/`, `src/slots.ts` |
-| Detailed briefing on request, written with the reader's own Grok or ChatGPT (shared-ai-auth) from the full articles, then shown to everyone | on demand (queue) | `src/briefing.ts`, `src/ai/` |
+| Pull feeds again and push major stories that have just broken, without rebuilding the edition | every 5 minutes outside the build | `src/push/watch.ts`, `notify.ts` |
+| Detailed briefing on request, written with the reader's own Grok or ChatGPT (shared-ai-auth) from the full articles, then shown to everyone. Readers can also opt in to have a few front-page stories briefed automatically after each build | on demand, or after the hourly build (queue) | `src/briefing.ts`, `src/auto-briefings.ts`, `src/ai/` |
 
 ## Stack
 
@@ -55,6 +56,8 @@ npx wrangler secret put RESEND_API_KEY
 npx wrangler secret put LINK_SECRET    # 32+ characters; signs manage/unsubscribe/sign-in links
 npx wrangler secret put ADMIN_TOKEN
 npx wrangler secret put AI_TOKEN_KEY   # 32 random bytes, base64; seals readers' AI tokens
+npx wrangler secret put APNS_KEY       # iOS push: the APNs auth key (.p8 contents); optional
+npx wrangler secret put APNS_KEY_ID
 npm run deploy
 ```
 
