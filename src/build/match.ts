@@ -31,5 +31,5 @@ export function matchStories(candidates: readonly (readonly string[])[], existin
 /** A story is written up again when its coverage has grown a lot since the last write-up. */
 export function needsRewrite(writtenTotal: number | null, total: number): boolean {
   if (writtenTotal == null) return true;
-  return total >= writtenTotal * 1.5 && total - writtenTotal >= 3;
+  return total >= writtenTotal * 2 && total - writtenTotal >= 3;
 }

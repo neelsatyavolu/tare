@@ -28,7 +28,7 @@ const CLASSIFY_LIMIT = 160;
 const FRONT_SIZE = 6;
 /** Write-ups at a time; 10 tripped Workers AI's per-minute request limit for the write-up model. */
 const CONCURRENCY = 6;
-/** New write-ups per run. The first run of the day uses most of it; later runs only write up new events. */
+/** New write-ups per run. Stories continuing from yesterday keep their write-ups, so most runs only write up new events. */
 const WRITE_BUDGET = 48;
 const LOCK_MS = 14 * 60_000;
 /** No new rewrites start after this long, so a build finishes inside the 15-minute cron limit; the rest wait an hour. */
@@ -63,10 +63,17 @@ export type BuiltStory = {
   importance: number | null;
 };
 
+const EXISTING_COLUMNS =
+  "id, topic, subtopic, headline, summary, differences, item_ids, dek, why, image_item_id, written_total, first_seen_at, importance, writeup_version, written_at, correction_note IS NOT NULL AS corrected";
+/**
+ * A continuing story is written up again once its write-up is this old, even without much new coverage, so a
+ * story that runs for days doesn't keep its first day's account.
+ */
+const MAX_WRITEUP_AGE_MS = 36 * 3600_000;
 type ExistingRow = {
   id: string; topic: TopicId; subtopic: string | null; headline: string; summary: string; differences: string; item_ids: string; dek: string | null; why: string | null;
   image_item_id: string | null; written_total: number | null; first_seen_at: number | null; importance: number | null;
-  writeup_version: number; written_at: number | null;
+  writeup_version: number; written_at: number | null; corrected: number;
 };
 
 /** One row to save: a story in this hour's lineup. */
@@ -360,27 +367,30 @@ export async function buildEdition(db: D1Database, rawAi: AiRunner, now = Date.n
     const picked: Picked[] = pickBalanced(ranked.map((c, i) => ({ ...c, topic: topics[i]?.topic ?? null, subtopic: topics[i]?.subtopic ?? null, importance: topics[i]?.importance ?? null })));
     report = { ...report, candidates: picked.length };
 
-    const { results: existing } = await db
-      .prepare("SELECT id, topic, subtopic, headline, summary, differences, item_ids, dek, why, image_item_id, written_total, first_seen_at, importance, writeup_version, written_at FROM stories WHERE edition_date = ?")
-      .bind(date)
-      .all<ExistingRow>();
-    const outletOf = await outletsOf(db, results, existing);
-    const matches = matchStories(picked.map((p) => p.members.map((m) => m.id)), existing.map((e) => JSON.parse(e.item_ids) as string[]));
+    const storiesOf = (day: string) => db.prepare(`SELECT ${EXISTING_COLUMNS} FROM stories WHERE edition_date = ?`).bind(day).all<ExistingRow>();
+    const { results: existing } = await storiesOf(date);
+    const { results: yesterday } = await storiesOf(utcDate(now - 24 * 3600_000));
+    const outletOf = await outletsOf(db, results, [...existing, ...yesterday]);
+    const groupIds = picked.map((p) => p.members.map((m) => m.id));
+    const matches = matchStories(groupIds, existing.map((e) => JSON.parse(e.item_ids) as string[]));
     // A story still running when the UTC date turns keeps when it was first seen in yesterday's edition,
     // so it isn't "new" (or breaking news) again just because a new edition started.
-    const { results: yesterday } = await db
-      .prepare("SELECT item_ids, first_seen_at FROM stories WHERE edition_date = ?")
-      .bind(utcDate(now - 24 * 3600_000))
-      .all<{ item_ids: string; first_seen_at: number | null }>();
-    const seenYesterday = matchStories(picked.map((p) => p.members.map((m) => m.id)), yesterday.map((y) => JSON.parse(y.item_ids) as string[]))
+    const seenYesterday = matchStories(groupIds, yesterday.map((y) => JSON.parse(y.item_ids) as string[]))
       .map((y) => (y >= 0 ? yesterday[y]!.first_seen_at : null));
+    // Yesterday's write-ups carry into today's edition as rows of their own, once each. A corrected one is
+    // written again: its correction note belongs to yesterday's row.
+    const todayIds = new Set(existing.map((e) => e.id));
+    const carriable = (await Promise.all(yesterday.map(async (y) => ({ ...y, id: await sha256Hex(`${date}:${y.id}`) })))).filter((y) => !y.corrected && !todayIds.has(y.id));
+    const fromYesterday = matchStories(groupIds, carriable.map((y) => JSON.parse(y.item_ids) as string[]));
 
     let budget = WRITE_BUDGET;
     const lineup = await mapLimit(picked, CONCURRENCY, async (group, i) => {
-      const ex = matches[i]! >= 0 ? existing[matches[i]!]! : null;
+      const prior = fromYesterday[i]! >= 0 ? carriable[fromYesterday[i]!]! : null;
+      const ex = matches[i]! >= 0 ? existing[matches[i]!]! : prior;
       const carried = ex ? carryOver(ex, group, outletOf, now) : null;
       const outdated = !!ex && ex.writeup_version < WRITEUP_VERSION;
-      const rewrite = !carried || opts.force || outdated || needsRewrite(carried.writtenTotal, carried.coverage.total);
+      const aged = !!ex?.written_at && now - ex.written_at >= MAX_WRITEUP_AGE_MS;
+      const rewrite = !carried || opts.force || outdated || aged || needsRewrite(carried.writtenTotal, carried.coverage.total);
       if (!rewrite || budget <= 0 || Date.now() > deadlineAt - LAST_START_BEFORE_MS) return carried && checkBlindspot(carried, group, members);
       budget -= 1;
       const written = await beforeHardStop(writeUp(ai, group, date, now, carried), deadlineAt - HARD_STOP_BEFORE_MS);
@@ -392,7 +402,9 @@ export async function buildEdition(db: D1Database, rawAi: AiRunner, now = Date.n
       // A failed rewrite (stand-in, version 0) never replaces an existing write-up.
       // Nor does one the final editor flagged: the published version stays until a rewrite passes.
       const usable = fresh && !(carried && (fresh.writeupVersion === 0 || fresh.flagged)) ? fresh : null;
-      const story = usable && carried ? { ...usable, id: carried.id, firstSeenAt: carried.firstSeenAt } : (usable ?? carried);
+      // A published story whose rewrite didn't pass waits for its coverage to grow again instead of retrying every hour.
+      const held = carried && !outdated ? { ...carried, writtenTotal: carried.coverage.total } : carried;
+      const story = usable && carried ? { ...usable, id: carried.id, firstSeenAt: carried.firstSeenAt } : (usable ?? held);
       return story && checkBlindspot(story, group, members);
     });
 

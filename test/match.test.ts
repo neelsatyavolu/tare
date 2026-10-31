@@ -18,10 +18,11 @@ describe("matchStories", () => {
 });
 
 describe("needsRewrite", () => {
-  it("rewrites when there is no write-up or coverage grew by half and at least three outlets", () => {
+  it("rewrites when there is no write-up or coverage doubled with at least three more outlets", () => {
     expect(needsRewrite(null, 3)).toBe(true);
-    expect(needsRewrite(6, 9)).toBe(true);
-    expect(needsRewrite(6, 8)).toBe(false);
+    expect(needsRewrite(6, 12)).toBe(true);
+    expect(needsRewrite(6, 11)).toBe(false);
+    expect(needsRewrite(6, 9)).toBe(false);
     expect(needsRewrite(2, 4)).toBe(false);
   });
 });

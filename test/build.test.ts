@@ -213,6 +213,55 @@ describe("buildEdition", () => {
     ]);
   });
 
+  it("carries yesterday's write-ups into the next edition instead of writing them again", async () => {
+    await buildEdition(env.DB, fakeAi(), NOW);
+    const yesterday = await lineup();
+    summaryCalls = 0;
+    const r = await buildEdition(env.DB, fakeAi(), Date.parse("2026-10-25T00:07:00Z"));
+    expect(r).toMatchObject({ date: "2026-10-25", status: "ready", stories: 3, written: 0 });
+    expect(summaryCalls).toBe(0);
+
+    const { results } = await env.DB.prepare("SELECT id, headline, edition_date, active FROM stories ORDER BY edition_date, headline")
+      .all<{ id: string; headline: string; edition_date: string; active: number }>();
+    const today = results.filter((s) => s.edition_date === "2026-10-25");
+    expect(today.map((s) => s.headline)).toEqual(["merger headline", "quake headline", "senate headline"]);
+    // Today's stories are rows of their own; yesterday's edition keeps its rows as they were.
+    expect(today.some((s) => yesterday.some((y) => y.id === s.id))).toBe(false);
+    expect(results.filter((s) => s.edition_date === "2026-10-24")).toEqual(yesterday.map((y) => ({ id: y.id, headline: y.headline, edition_date: "2026-10-24", active: 1 })));
+
+    // The next hour refreshes today's rows in place: nothing is carried twice.
+    const later = await buildEdition(env.DB, fakeAi(), Date.parse("2026-10-25T01:07:00Z"));
+    expect(later).toMatchObject({ stories: 3, kept: 3, written: 0 });
+    expect(summaryCalls).toBe(0);
+    expect(await env.DB.prepare("SELECT COUNT(*) AS n FROM stories WHERE edition_date = '2026-10-25'").first("n")).toBe(3);
+  });
+
+  it("writes a corrected story again in the next edition rather than carry the corrected text without its note", async () => {
+    await buildEdition(env.DB, fakeAi(), NOW);
+    await env.DB.prepare("UPDATE stories SET correction_note = 'A figure was wrong.', corrected_at = ? WHERE headline = 'quake headline'").bind(NOW).run();
+    summaryCalls = 0;
+    await buildEdition(env.DB, fakeAi(), Date.parse("2026-10-25T00:07:00Z"));
+    expect(summaryCalls).toBe(1);
+  });
+
+  it("writes a continuing story again once its write-up is more than a day and a half old", async () => {
+    await buildEdition(env.DB, fakeAi(), NOW);
+    await env.DB.prepare("UPDATE stories SET written_at = ?").bind(NOW - 36 * HOUR).run();
+    summaryCalls = 0;
+    await buildEdition(env.DB, fakeAi(), NOW + HOUR);
+    expect(summaryCalls).toBe(3);
+  });
+
+  it("after a failed rewrite, keeps the published write-up and waits for coverage to grow again", async () => {
+    await buildEdition(env.DB, fakeAi(), NOW);
+    await addItems("quake", ["vox", "slate", "salon", "nyt", "fox", "nypost", "reason"], NOW + HOUR);
+    await buildEdition(env.DB, fakeAi({ failSummaries: true }), NOW + HOUR);
+    summaryCalls = 0;
+    await buildEdition(env.DB, fakeAi(), NOW + 2 * HOUR);
+    expect(summaryCalls).toBe(0);
+    expect((await lineup()).find((s) => s.headline === "quake headline")).toBeDefined();
+  });
+
   it("widens coverage on a continuing story and rewrites it when coverage jumps, keeping the id", async () => {
     await buildEdition(env.DB, fakeAi(), NOW);
     const quake = (await lineup()).find((s) => s.headline === "quake headline")!;
