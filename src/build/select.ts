@@ -228,7 +228,23 @@ export const FRONT_EXTRA = 2;
  * breaks ties without letting attention outrank a more important story by more than a step; plus, for important
  * stories, a freshness bonus (see freshness) so the newest important news sits on top.
  */
-export const frontScore = (s: Weighed) => (s.importance ?? 2) + Math.min(1.5, Math.log2(Math.max(1, s.coverage.total)) / 3) + (s.fresh ?? 0);
+export const frontScore = (s: Weighed) =>
+  (s.importance ?? 2) + Math.min(1.5, Math.log2(Math.max(1, s.coverage.total)) / 3) + (s.fresh ?? 0) + (pressWide(s) ? PRESS_WIDE_BONUS : 0);
+
+/** More than this share of the left-leaning outlets and of the right-leaning ones: most of the press, across the spectrum. */
+export const MOST_OF_THE_PRESS = 0.5;
+/** Lifts a press-wide story past any score the other terms can reach (5 + 1.5 + 1.5). */
+const PRESS_WIDE_BONUS = 5;
+
+/**
+ * An important story (4+) that most outlets on both sides covered leads, however long ago it broke: the day an
+ * election is decided, a single race called an hour ago shouldn't sit above the result. It takes most of each
+ * side, not just more outlets than anything else, so a long-running story still gives way to newer news.
+ */
+export const pressWide = (s: Weighed) =>
+  (s.importance ?? 0) >= LEAD_ANYWAY_IMPORTANCE &&
+  s.coverage.left / SIDE_SIZE.left > MOST_OF_THE_PRESS &&
+  s.coverage.right / SIDE_SIZE.right > MOST_OF_THE_PRESS;
 
 /**
  * Freshness bonus: up to 1.5 for an important story (4+) that was first seen recently, fading to 0 over FRESH_HOURS.

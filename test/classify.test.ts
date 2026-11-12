@@ -55,4 +55,18 @@ describe("classifyGroups", () => {
       { topic: null, subtopic: null, importance: null },
     ]);
   });
+
+  it("shows the model headlines spread over a group's time, not just its start or its latest analysis", async () => {
+    let listing = "";
+    const ai: AiRunner = {
+      run: async (_model, input) => {
+        listing = (input.messages as { content: string }[])[1]!.content;
+        return { response: "{}" };
+      },
+    };
+    const group = [9, 1, 5, 3, 7, 2, 8, 4, 6].map((t) => ({ title: `h${t}`, publishedAt: t }));
+    await classifyGroups(ai, [group, group.slice(0, 2)]);
+    expect(listing).toBe("g1: h1 | h3 | h5 | h7 | h9\ng2: h1 | h9");
+  });
 });
+

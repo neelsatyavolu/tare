@@ -3,20 +3,21 @@ export const SAME_STORY = 0.5;
 
 /**
  * Pairs this hour's story groups with stories already in the edition, so a story that keeps developing
- * keeps its id (and its link) instead of being written up again. Greedy by overlap, one-to-one.
+ * keeps its id (and its link) instead of being written up again. Greedy by headlines in common, one-to-one: a
+ * small story swallowed whole by a big group overlaps it fully by share, but the big story's own write-up shares more.
  * Returns, for each candidate, the index of its existing story or -1.
  */
 export function matchStories(candidates: readonly (readonly string[])[], existing: readonly (readonly string[])[]): number[] {
-  const pairs: { c: number; e: number; overlap: number }[] = [];
+  const pairs: { c: number; e: number; shared: number; overlap: number }[] = [];
   candidates.forEach((cand, c) => {
     const set = new Set(cand);
     existing.forEach((ex, e) => {
       const shared = ex.filter((id) => set.has(id)).length;
       const overlap = shared / Math.max(1, Math.min(set.size, ex.length));
-      if (shared > 0 && overlap >= SAME_STORY) pairs.push({ c, e, overlap });
+      if (shared > 0 && overlap >= SAME_STORY) pairs.push({ c, e, shared, overlap });
     });
   });
-  pairs.sort((a, b) => b.overlap - a.overlap || a.c - b.c || a.e - b.e);
+  pairs.sort((a, b) => b.shared - a.shared || b.overlap - a.overlap || a.c - b.c || a.e - b.e);
 
   const result = new Array<number>(candidates.length).fill(-1);
   const taken = new Set<number>();

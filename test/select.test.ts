@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { BALANCE, BLINDSPOT, blindspotOf, coverageOf, freshness, frontPage, leanReading, pickBalanced, rankGroups, SECTION_CAPS, whyText } from "../src/build/select";
+import { BALANCE, BLINDSPOT, blindspotOf, coverageOf, freshness, frontOrder, frontPage, leanReading, MOST_OF_THE_PRESS, pickBalanced, rankGroups, SECTION_CAPS, whyText } from "../src/build/select";
 import { TOPIC_IDS, type TopicId } from "../src/topics";
 import { leanOf, OUTLETS, sideOf, SIDE_SIZE } from "../src/outlets";
 
@@ -224,6 +224,20 @@ describe("frontPage", () => {
     const election = { id: "election", importance: 4, blindspot: null, coverage: widest, fresh: freshness(4, now - 15 * 3600_000, now) };
     const talks = { id: "talks", importance: 4, blindspot: null, coverage: narrower, fresh: freshness(4, now - 3 * 3600_000, now) };
     expect([...frontPage([election, talks], 2)].map((s) => s.id)).toEqual(["talks", "election"]);
+  });
+
+  it("leads with a story most outlets on both sides covered, however long ago it broke", () => {
+    const now = 100 * 3600_000;
+    const most = (n: number) => Math.floor(n * MOST_OF_THE_PRESS) + 1;
+    // The day after an election: the result broke 16 hours ago; a single race was just called.
+    const sweep = { id: "sweep", importance: 4, blindspot: null, coverage: coverageOf([...L.slice(0, most(SIDE_SIZE.left)), ...C.slice(0, 10), ...R.slice(0, most(SIDE_SIZE.right))]), fresh: freshness(4, now - 16 * 3600_000, now) };
+    const race = { id: "race", importance: 5, blindspot: null, coverage: coverageOf([L[0]!, R[0]!, C[0]!, C[1]!]), fresh: freshness(5, now - 600_000, now) };
+    expect([...frontPage([race, sweep], 2)].map((s) => s.id)).toEqual(["sweep", "race"]);
+    // Short of half of one side, it's ordered like any other story.
+    const almost = { ...sweep, id: "almost", coverage: coverageOf([...L.slice(0, most(SIDE_SIZE.left)), ...C.slice(0, 10), ...R.slice(0, most(SIDE_SIZE.right) - 1)]) };
+    expect([...frontPage([race, almost], 2)].map((s) => s.id)).toEqual(["race", "almost"]);
+    // A minor story can't lead this way, however wide.
+    expect(frontOrder({ ...sweep, importance: 3 }, race)).toBeGreaterThan(0);
   });
 
   it("always picks importance-5 stories, however narrow, over wider minor ones", () => {

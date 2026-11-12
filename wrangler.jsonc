@@ -27,7 +27,7 @@
       "2,22,27,32,37,42,47,52,57 * * * *"
     ]
   },
-  "limits": { "cpu_ms": 120000 },
+  "limits": { "cpu_ms": 300000 },
   // Public only through the custom domain; no *.workers.dev address.
   "workers_dev": false,
   "preview_urls": false,

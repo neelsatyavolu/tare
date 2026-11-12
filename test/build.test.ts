@@ -1,6 +1,7 @@
 import { env } from "cloudflare:workers";
 import { beforeEach, describe, expect, it } from "vitest";
 import { buildEdition, checkBlindspot, EMBED_MODEL, pickImage, WINDOW_PAGE, windowItems } from "../src/build/build";
+import { CLASSIFY_VERSION } from "../src/build/classify";
 import { displayImage, weakImage } from "../src/build/photos";
 import { WRITEUP_VERSION, type AiRunner } from "../src/build/summarize";
 import { watchBreaking } from "../src/push/watch";
@@ -164,7 +165,7 @@ describe("buildEdition", () => {
     ]);
     // Remembered on the items, under the current rules, so the next hour doesn't ask again.
     const item = await env.DB.prepare("SELECT subtopic, classify_version FROM items WHERE title LIKE 'senate%' LIMIT 1").first();
-    expect(item).toEqual({ subtopic: "congress", classify_version: 4 });
+    expect(item).toEqual({ subtopic: "congress", classify_version: CLASSIFY_VERSION });
   });
 
   const HOUR = 3600_000;

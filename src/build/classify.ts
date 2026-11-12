@@ -9,17 +9,19 @@ const CLASSIFY_MODEL = "@cf/openai/gpt-oss-120b";
 /**
  * Bump when the sections, subtopics or IMPORTANCE_RUBRIC change, so remembered ratings are redone.
  * 2: royals and celebrities at 1, attacks at 5. 3: politicians' social posts at 1. 4: the AI section and subtopics.
+ * 5: rated on each group's newest headlines. 6: rated on five headlines spread over the group's time; control of
+ * Congress or the presidency at 5, single races at 4.
  */
-export const CLASSIFY_VERSION = 4;
-const HEADLINES_PER_GROUP = 3;
+export const CLASSIFY_VERSION = 6;
+const HEADLINES_PER_GROUP = 5;
 
 /**
  * How much a story matters, published on /method. Outlet counts measure attention; this measures consequence,
  * so a widely shared joke can't outrank a fight over an election result.
  */
 export const IMPORTANCE_RUBRIC = [
-  { level: 5, meaning: "Major consequences for many people: wars, terrorist attacks and other attacks that kill people, disasters with many deaths, national elections and their results, major laws, court rulings and government actions, economy-wide moves." },
-  { level: 4, meaning: "Significant national or international news: policy fights, legal actions by governments, threats to public safety, deadly accidents, major market moves." },
+  { level: 5, meaning: "Major consequences for many people: wars, terrorist attacks and other attacks that kill people, disasters with many deaths, national elections and their overall results (which party wins the presidency or control of Congress), major laws, court rulings and government actions, economy-wide moves." },
+  { level: 4, meaning: "Significant national or international news: a single race's result (one governor, Senate or House seat), policy fights, legal actions by governments, threats to public safety, deadly accidents, major market moves." },
   { level: 3, meaning: "Notable but narrower: a single company's announcement, regional events, important trials, major sports finals, significant science or health findings." },
   { level: 2, meaning: "Minor news: routine sports results, small business deals, local incidents, weather without major damage." },
   { level: 1, meaning: "Celebrity and royal news (including their families), gossip, viral moments, a politician's social media post or video and the reactions to it (unless it led to something concrete: a law, a lawsuit, a firing, a resignation), old social media posts, puzzles and listicles." },
@@ -62,12 +64,22 @@ export function parseClassification(value: unknown): Classification {
  * A section and an importance rating per story group, decided before any write-ups so every section can get
  * its share and the front page can lead with what matters. Groups the model can't place come back as nulls.
  */
-export async function classifyGroups(ai: AiRunner, groups: readonly { title: string }[][]): Promise<Classification[]> {
+/**
+ * Headlines spread evenly over a group's time, first to latest: a story is rated on all of it, not on its
+ * election-eve start or on the analysis pieces that arrive the morning after.
+ */
+function spread<T extends { publishedAt?: number }>(g: readonly T[], n = HEADLINES_PER_GROUP): T[] {
+  const byTime = [...g].sort((a, b) => (a.publishedAt ?? 0) - (b.publishedAt ?? 0));
+  if (byTime.length <= n) return byTime;
+  return Array.from({ length: n }, (_, k) => byTime[Math.round((k * (byTime.length - 1)) / (n - 1))]!);
+}
+
+export async function classifyGroups(ai: AiRunner, groups: readonly { title: string; publishedAt?: number }[][]): Promise<Classification[]> {
   const out: Classification[] = groups.map(() => ({ topic: null, subtopic: null, importance: null }));
   for (let start = 0; start < groups.length; start += PER_CALL) {
     const slice = groups.slice(start, start + PER_CALL);
     const listing = slice
-      .map((g, i) => `g${i + 1}: ${g.slice(0, HEADLINES_PER_GROUP).map((m) => m.title).join(" | ")}`)
+      .map((g, i) => `g${i + 1}: ${spread(g).map((m) => m.title).join(" | ")}`)
       .join("\n");
     try {
       const reply = await ai.run(CLASSIFY_MODEL, {
