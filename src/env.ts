@@ -22,6 +22,10 @@ export interface Env {
   /** App Review's demo account: its email and the fixed six-digit code it signs in with. */
   REVIEW_EMAIL?: string;
   REVIEW_CODE?: string;
+  /** Xanom accounts (OIDC): the issuer and Tare's client id are vars; the client secret is a secret. */
+  XANOM_ISSUER?: string;
+  XANOM_CLIENT_ID?: string;
+  XANOM_CLIENT_SECRET?: string;
 }
 
 declare global {
@@ -43,6 +47,9 @@ declare global {
       APNS_TOPIC?: string;
       REVIEW_EMAIL?: string;
       REVIEW_CODE?: string;
+      XANOM_ISSUER?: string;
+      XANOM_CLIENT_ID?: string;
+      XANOM_CLIENT_SECRET?: string;
       TEST_MIGRATIONS: D1Migration[];
     }
   }

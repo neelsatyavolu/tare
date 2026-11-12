@@ -6,6 +6,9 @@ struct SettingsView: View {
     @State private var signingIn = false
     @State private var confirmingDelete = false
     @State private var deleteError: String?
+    @State private var xanomError: String?
+    @State private var xanomWorking = false
+    @Environment(\.webAuthenticationSession) private var webAuthenticationSession
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
 
@@ -25,6 +28,18 @@ struct SettingsView: View {
                         } else {
                             Link("Connect Grok or ChatGPT on tare.news", destination: URL(string: "https://tare.news/account#ai")!)
                         }
+                        if let xanom = account.xanom {
+                            LabeledContent("Signed in with Xanom", value: xanom.email)
+                            Link("Manage at accounts.xanom.co", destination: URL(string: "https://accounts.xanom.co/")!)
+                        } else {
+                            Button("Convert to Xanom account") { Task { await runXanom(.convert) } }
+                                .disabled(xanomWorking)
+                            Button("Link an existing Xanom account") { Task { await runXanom(.link) } }
+                                .disabled(xanomWorking)
+                        }
+                        if let xanomError {
+                            Text(xanomError).font(.footnote).foregroundStyle(.secondary)
+                        }
                         Button("Sign out", role: .destructive) { Task { await account.signOut() } }
                         Button("Delete account", role: .destructive) { confirmingDelete = true }
                         if let deleteError {
@@ -36,7 +51,7 @@ struct SettingsView: View {
                 } header: {
                     Text("Account")
                 } footer: {
-                    Text("Signing in lets you ask for detailed briefings, written with the Grok or ChatGPT account you connect on tare.news. With automatic briefings on, that account also writes them for front-page stories in the background, at most 6 a day, using its fastest model at the lowest effort. Reading needs no account.")
+                    Text("Xanom is one account for Tare and the other Xanom apps. Converting makes one with this email and links it; linking uses one you already have under another email. Signing in lets you ask for detailed briefings, written with the Grok or ChatGPT account you connect on tare.news. With automatic briefings on, that account also writes them for front-page stories in the background, at most 6 a day, using its fastest model at the lowest effort. Reading needs no account.")
                 }
                 Section {
                     if notifications.isOn {
@@ -78,6 +93,13 @@ struct SettingsView: View {
             }
             .task { await account.refresh() }
         }
+    }
+
+    private func runXanom(_ intent: XanomIntent) async {
+        xanomError = nil
+        xanomWorking = true
+        do { try await account.continueWithXanom(intent, using: webAuthenticationSession) } catch { xanomError = error.localizedDescription }
+        xanomWorking = false
     }
 
     private func deleteAccount() async {

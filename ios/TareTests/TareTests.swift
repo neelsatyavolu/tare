@@ -155,4 +155,29 @@ final class TareTests: XCTestCase {
         }
         XCTAssertFalse(ReadAcross.shows(ReadAcross.picks(oneSided)), "hidden when only one side covered it")
     }
+
+    func testXanomCallbackReadsTicketOrError() {
+        let ticket = String(repeating: "ab", count: 32)
+        XCTAssertEqual(XanomCallback(url: URL(string: "tare://xanom?ticket=\(ticket)")!), .ticket(ticket))
+        XCTAssertEqual(XanomCallback(url: URL(string: "tare://xanom?error=cancelled&message=Xanom%20sign-in%20was%20cancelled.")!), .failure("Xanom sign-in was cancelled."))
+        XCTAssertEqual(XanomCallback(url: URL(string: "tare://xanom?ticket=short")!), .failure("Xanom sign-in didn't go through. Try again."))
+        XCTAssertEqual(XanomCallback(url: URL(string: "tare://s/\(ticket)?ticket=\(ticket)")!), .failure("Xanom sign-in didn't go through. Try again."), "only tare://xanom carries a ticket")
+    }
+
+    func testXanomURLsSitBesideTheAPI() {
+        XCTAssertEqual(TareAPI.shared.xanomSignInURL.absoluteString, "https://tare.news/api/xanom/start?platform=ios&intent=signin")
+    }
+
+    func testXanomVerifierMatchesTheServersS256() {
+        // RFC 7636 appendix B's example pair; the Worker computes the same with pkceChallenge().
+        XCTAssertEqual(XanomVerifier(verifier: "dBjftJeZ4CVP-mB92K27uhbUJU1p1r_wW1gFWFOEjXk").challenge, "E9Melhoa2OwvFrEMTJguCHaoeK1t8URWbuGJSstw-cM")
+        XCTAssertEqual(XanomVerifier().verifier.count, 43)
+    }
+
+    func testDecodesMeWithAndWithoutXanom() throws {
+        let linked = try JSONDecoder().decode(Me.self, from: Data(#"{"email":"a@x.test","ai":null,"xanom":{"email":"b@x.test"}}"#.utf8))
+        XCTAssertEqual(linked.xanom?.email, "b@x.test")
+        let older = try JSONDecoder().decode(Me.self, from: Data(#"{"email":"a@x.test","ai":null}"#.utf8))
+        XCTAssertNil(older.xanom)
+    }
 }

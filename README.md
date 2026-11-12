@@ -58,8 +58,11 @@ npx wrangler secret put ADMIN_TOKEN
 npx wrangler secret put AI_TOKEN_KEY   # 32 random bytes, base64; seals readers' AI tokens
 npx wrangler secret put APNS_KEY       # iOS push: the APNs auth key (.p8 contents); optional
 npx wrangler secret put APNS_KEY_ID
+npx wrangler secret put XANOM_CLIENT_SECRET   # "Continue with Xanom"; optional, the buttons stay hidden without it
 npm run deploy
 ```
+
+"Continue with Xanom" signs readers in with their Xanom account (accounts.xanom.co, OIDC; `XANOM_ISSUER` and `XANOM_CLIENT_ID` are in `wrangler.jsonc`). The routes live in `src/xanom/` under `/api/xanom`: `start` and `callback` for the site and the app's browser sheet, `ios-start` and `ios-exchange` for the app, and `summary` for the card on the Xanom dashboard (topic, briefing and email counts, the three newest briefings). Readers keep their emailed sign-in; the account page can convert an account into a Xanom account or link an existing one.
 
 Rotating `LINK_SECRET` breaks links already emailed; rotating `AI_TOKEN_KEY` disconnects every reader's AI account.
 

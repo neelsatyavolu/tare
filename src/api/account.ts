@@ -12,6 +12,7 @@ import { createSession, endSession, sessionSubscriber } from "../sessions";
 import { newCode, redeemCode, saveCode } from "../signin-codes";
 import { deleteAccount, findByEmail, parseEmail, releaseEmailClaim, requestSignin, verifyEmail } from "../subscribers";
 import { timingSafeEqual } from "../util";
+import { xanomLink } from "../xanom/link";
 
 /**
  * The app's account routes: sign in with an emailed code, then use the reader's account (and the Grok or
@@ -28,7 +29,7 @@ async function slowDown(c: Context<{ Bindings: Env }>) {
 }
 
 /** App Review's demo account (REVIEW_EMAIL) signs in with a fixed code (REVIEW_CODE) instead of an emailed one. */
-const isReviewEmail = (env: Env, email: string) => !!env.REVIEW_EMAIL && !!env.REVIEW_CODE && email === env.REVIEW_EMAIL.toLowerCase();
+export const isReviewEmail = (env: Env, email: string) => !!env.REVIEW_EMAIL && !!env.REVIEW_CODE && email === env.REVIEW_EMAIL.toLowerCase();
 
 /** Emails a sign-in code. Answers the same whether or not the address has an account. */
 account.post("/signin", async (c) => {
@@ -67,8 +68,8 @@ account.post("/signin/verify", async (c) => {
 account.get("/me", async (c) => {
   const sub = await viewer(c);
   if (!sub) return c.json({ error: "signed out" }, 401);
-  const [provider, auto] = await Promise.all([connectedProvider(c.env.DB, sub.id), autoBriefingsOn(c.env.DB, sub.id)]);
-  return c.json({ email: sub.email, ai: provider ? { provider, name: PROVIDER_LABEL[provider], autoBriefings: auto } : null });
+  const [provider, auto, xanom] = await Promise.all([connectedProvider(c.env.DB, sub.id), autoBriefingsOn(c.env.DB, sub.id), xanomLink(c.env.DB, sub.id)]);
+  return c.json({ email: sub.email, ai: provider ? { provider, name: PROVIDER_LABEL[provider], autoBriefings: auto } : null, xanom });
 });
 
 /** Turns automatic briefings on or off. Body: {on: boolean}. */

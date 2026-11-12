@@ -36,25 +36,36 @@ import { apnsConfig, pushAll } from "./push/apns";
 import { devicesForBreaking, parseDevice } from "./push/devices";
 import { parseReport, recentReports, REPORT_MAX, REPORT_MIN, saveReport } from "./reports";
 import { displayImage } from "./build/photos";
+import { xanom, xanomConfig } from "./xanom/routes";
+import { isXanomError, XANOM_ERRORS, xanomLink } from "./xanom/link";
 
 type App = { Bindings: Env; Variables: { viewer: Subscriber | null; tz: string } };
 const app = new Hono<App>();
 
-const CSP = [
+const csp = (env: Env) => [
   "default-src 'self'",
   "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
   "font-src https://fonts.gstatic.com",
   // Story photos load from the outlets' own servers.
   "img-src 'self' data: https:",
   "script-src 'none'",
-  "form-action 'self'",
+  // The account page's link/convert forms redirect on to the Xanom account service.
+  `form-action 'self'${xanomOrigin(env)}`,
   "frame-ancestors 'none'",
   "base-uri 'none'",
 ].join("; ");
 
+function xanomOrigin(env: Env): string {
+  try {
+    return env.XANOM_ISSUER ? ` ${new URL(env.XANOM_ISSUER).origin}` : "";
+  } catch {
+    return "";
+  }
+}
+
 app.use(async (c, next) => {
   await next();
-  c.header("content-security-policy", CSP);
+  c.header("content-security-policy", csp(c.env));
   c.header("x-content-type-options", "nosniff");
   c.header("referrer-policy", "strict-origin-when-cross-origin");
   c.header("permissions-policy", "camera=(), microphone=(), geolocation=(), interest-cohort=()");
@@ -84,6 +95,9 @@ app.use(async (c, next) => {
   if (viewer && isTimeZone(detected) && detected !== viewer.timezone && c.req.method === "GET") await setTimezone(c.env.DB, viewer.id, detected);
   await next();
 });
+
+// "Continue with Xanom": after the session lookup, since linking an account needs the signed-in reader.
+app.route("/api/xanom", xanom);
 
 /** Renders a page for this request's reader. Pages vary by sign-in, so browsers must revalidate them. */
 function page(c: Context<App>, node: Child, status: 200 | 400 | 404 | 429 | 500 | 502 = 200) {
@@ -260,11 +274,16 @@ async function startSession(c: Context<App>, id: string) {
   setSessionCookie(c, await createSession(c.env.DB, id));
 }
 
-app.get("/signin", (c) => (c.get("viewer") ? c.redirect("/account", 303) : page(c, <SignInPage />)));
+const xanomError = (c: Context<App>) => {
+  const code = c.req.query("xanom");
+  return isXanomError(code) ? XANOM_ERRORS[code] : undefined;
+};
+
+app.get("/signin", (c) => (c.get("viewer") ? c.redirect("/account", 303) : page(c, <SignInPage xanom={!!xanomConfig(c.env)} xanomError={xanomError(c)} />)));
 
 app.post("/signin", async (c) => {
   const form = await c.req.parseBody();
-  const gate = await emailFormGate(c, form, () => page(c, <SignInPage error="That doesn't look like an email address." />, 400));
+  const gate = await emailFormGate(c, form, () => page(c, <SignInPage xanom={!!xanomConfig(c.env)} error="That doesn't look like an email address." />, 400));
   if (gate.stop) return gate.stop;
 
   const failed = await sendFor(c, await requestSignin(c.env.DB, gate.email));
@@ -311,9 +330,11 @@ app.get("/account", async (c) => {
     topics: "Topics saved.", editions: "Email editions saved.", on: "Email turned on.", off: "Email turned off.",
     ai: "Connected. You can ask for a detailed briefing on any story.", "ai-off": "Disconnected.",
     "auto-on": "Automatic briefings turned on.", "auto-off": "Automatic briefings turned off.",
+    xanom: "Your Xanom account is linked. You can sign in with it from now on.",
   }[c.req.query("saved") ?? ""];
-  const [aiProvider, autoBriefings] = await Promise.all([connectedProvider(c.env.DB, viewer.id), autoBriefingsOn(c.env.DB, viewer.id)]);
-  return page(c, <AccountPage saved={saved} aiProvider={aiProvider} autoBriefings={autoBriefings} />);
+  const [aiProvider, autoBriefings, linked] = await Promise.all([connectedProvider(c.env.DB, viewer.id), autoBriefingsOn(c.env.DB, viewer.id), xanomLink(c.env.DB, viewer.id)]);
+  const xanomState = xanomConfig(c.env) || linked ? { linked, error: xanomError(c) } : null;
+  return page(c, <AccountPage saved={saved} aiProvider={aiProvider} autoBriefings={autoBriefings} xanom={xanomState} />);
 });
 
 // ── Connecting a reader's own Grok or ChatGPT (for detailed briefings) ──

@@ -37,7 +37,10 @@
     "MAIL_FROM": "Tare <edition@tare.news>",
     // The iOS app's bundle ID; APNS_KEY, APNS_KEY_ID and APPLE_TEAM_ID are secrets.
     "APNS_TOPIC": "co.xanom.tare",
-    "APPLE_TEAM_ID": "VTQW687WBQ"
+    "APPLE_TEAM_ID": "VTQW687WBQ",
+    // Xanom accounts sign-in; XANOM_CLIENT_SECRET is a secret. The buttons stay hidden until it's set.
+    "XANOM_ISSUER": "https://accounts.xanom.co",
+    "XANOM_CLIENT_ID": "tare"
   },
   "observability": { "enabled": true }
 }

@@ -4,6 +4,7 @@ import SwiftUI
 struct SignInView: View {
     @Environment(Account.self) private var account
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.webAuthenticationSession) private var webAuthenticationSession
     @State private var email = ""
     @State private var code = ""
     @State private var sentTo: String?
@@ -29,6 +30,18 @@ struct SignInView: View {
                     Section { Button("Use a different email") { self.sentTo = nil; code = "" } }
                 } else {
                     Section {
+                        Button { Task { await continueWithXanom() } } label: {
+                            Text("Continue with Xanom").font(Theme.mono(16, medium: true)).frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(working)
+                        .listRowBackground(Color.clear)
+                        .listRowInsets(EdgeInsets())
+                        .accessibilityIdentifier("continueWithXanom")
+                    } footer: {
+                        Text("One account for Tare and the other Xanom apps. New here? This makes your Tare account.")
+                    }
+                    Section {
                         TextField("you@example.com", text: $email)
                             .keyboardType(.emailAddress)
                             .textContentType(.emailAddress)
@@ -37,7 +50,7 @@ struct SignInView: View {
                         Button("Email me a code") { Task { await requestCode() } }
                             .disabled(!email.contains("@") || working)
                     } header: {
-                        Text("Email")
+                        Text("Or use your email")
                     } footer: {
                         Text("No password. Use the same email as on tare.news to use the Grok or ChatGPT account you connected there for detailed briefings. A new email makes a new account.")
                     }
@@ -67,6 +80,13 @@ struct SignInView: View {
         await run {
             try await account.verify(email: address, code: code.filter(\.isNumber))
             dismiss()
+        }
+    }
+
+    private func continueWithXanom() async {
+        await run {
+            try await account.continueWithXanom(.signin, using: webAuthenticationSession)
+            if account.isSignedIn { dismiss() }
         }
     }
 

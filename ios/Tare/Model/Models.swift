@@ -125,6 +125,8 @@ struct SourceRef: Codable, Sendable, Hashable, Identifiable {
 struct SignedIn: Decodable, Sendable {
     let token: String
     let email: String
+    /// Xanom sign-in only: whether this made a new Tare account.
+    var created: Bool? = nil
 }
 
 struct Me: Decodable, Sendable {
@@ -134,9 +136,14 @@ struct Me: Decodable, Sendable {
         /// Whether this account writes briefings for front-page stories on its own after each update.
         var autoBriefings: Bool? = nil
     }
+    struct Xanom: Decodable, Sendable {
+        let email: String
+    }
     let email: String
     /// The Grok or ChatGPT account connected on tare.news, which writes this reader's briefings.
     let ai: AI?
+    /// The Xanom account this Tare account is linked to.
+    var xanom: Xanom? = nil
 }
 
 /// A story's detailed briefing, as `GET /api/v1/stories/:id/briefing` returns it.

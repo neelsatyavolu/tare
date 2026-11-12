@@ -223,12 +223,13 @@ export const PrivacyPage: FC = () => (
   <Layout title="Privacy · Tare">
     <div class="prose">
       <h1>Privacy</h1>
-      <p class="meta">Updated October 26, 2026. This covers tare.news, the Tare emails and the Tare app for iPhone and iPad.</p>
+      <p class="meta">Updated November 12, 2026. This covers tare.news, the Tare emails and the Tare app for iPhone and iPad.</p>
       <p>You can read Tare without an account, on the site or in the app. Tare has no ads, no analytics, no tracking pixels and no tracking across other apps or sites. It doesn't sell or share your data with anyone for advertising.</p>
 
       <h2>What Tare keeps</h2>
       <ul>
         <li><b>Your email address</b>, if you make an account or subscribe. It's used to sign you in and, if you ask for it, to send the edition. With it Tare keeps the topics and editions you chose, your time zone (so the edition arrives in the morning and evening where you are) and when you confirmed the address.</li>
+        <li><b>Your Xanom account link</b>, if you sign in with Xanom or link your account to one: the account's ID and email address, so you can sign in with it. Deleting your Tare account removes the link; your Xanom account is managed at accounts.xanom.co.</li>
         <li><b>Sign-in sessions and codes.</b> A session is a random token kept in a cookie on the site, or in the Keychain in the app. Sign-in codes are stored only as a hash and expire after 15 minutes.</li>
         <li><b>A connected Grok or ChatGPT account</b>, if you connect one. Tare keeps its access token, encrypted, and uses it only to write the detailed briefings you ask for (and, if you turn them on, automatic briefings, at most 6 a day). Briefings are written from the news articles, not from anything about you, and are then shown to every reader without your name.</li>
         <li><b>Push notification settings</b>, if you turn notifications on in the app: your device's notification token, which editions you want, whether you want breaking news, and your time zone. These aren't tied to an account. Tare deletes a token once Apple reports it's no longer in use, for example after you delete the app.</li>
@@ -236,7 +237,7 @@ export const PrivacyPage: FC = () => (
       </ul>
 
       <h2>Who handles it</h2>
-      <p>Tare runs on Cloudflare, which hosts the site, the app's data and the database. Emails are sent through Resend. Push notifications go through Apple. If you connect Grok or ChatGPT, briefing requests go to xAI or OpenAI on your account. Opening an article takes you to the outlet that published it, which has its own privacy policy.</p>
+      <p>Tare runs on Cloudflare, which hosts the site, the app's data and the database. Emails are sent through Resend. Push notifications go through Apple. If you connect Grok or ChatGPT, briefing requests go to xAI or OpenAI on your account. If you sign in with Xanom, accounts.xanom.co (also run by us) handles that sign-in. Opening an article takes you to the outlet that published it, which has its own privacy policy.</p>
 
       <h2>Deleting your data</h2>
       <p>Delete your account at any time from the account page on tare.news or from Settings in the app. That removes your email address, topics, sessions and any connected AI account straight away. Every email has a one-click unsubscribe. To stop notifications, turn them off in iOS Settings, or email us to have your device's token removed.</p>
@@ -301,23 +302,58 @@ export const UnsubscribeConfirmPage: FC<{ token: string }> = ({ token }) => (
   </MessagePage>
 );
 
-export const SignInPage: FC<{ error?: string }> = ({ error }) => (
+export const SignInPage: FC<{ error?: string; xanom?: boolean; xanomError?: string }> = ({ error, xanom = false, xanomError }) => (
   <Layout title="Sign in · Tare" nav="account">
     <div class="prose">
       <h1>Sign in</h1>
-      <p>Enter your email and we'll send you a link to sign in. No password needed. New here? This creates your account.</p>
+      {xanom ? (
+        <>
+          <p>One account for Tare and the other Xanom apps. New here? This creates your Tare account.</p>
+          {xanomError ? <p class="error" role="alert">{xanomError}</p> : null}
+          <div class="actions"><a class="btn primary" href="/api/xanom/start?intent=signin">Continue with Xanom</a></div>
+          <h2>Or use your email</h2>
+        </>
+      ) : null}
+      <p>Enter your email and we'll send you a link to sign in. No password needed.{xanom ? null : " New here? This creates your account."}</p>
       <form method="post" action="/signin">
         <label class="field" for="email">Email</label>
         <input id="email" type="email" name="email" required autocomplete="email" placeholder="you@example.com" />
         {error ? <p class="error" role="alert">{error}</p> : null}
         <div class="hp" aria-hidden="true"><label>Leave this empty <input type="text" name="website" tabindex={-1} autocomplete="off" /></label></div>
-        <div class="actions"><button class="primary" type="submit">Email me a sign-in link</button></div>
+        <div class="actions"><button class={xanom ? undefined : "primary"} type="submit">Email me a sign-in link</button></div>
       </form>
     </div>
   </Layout>
 );
 
-export const AccountPage: FC<{ saved?: string; aiProvider: AiProvider | null; autoBriefings?: boolean }> = ({ saved, aiProvider, autoBriefings = false }) => {
+/** Linked: who it's linked to. Not linked: convert this account into a Xanom account, or link one that exists. */
+const XanomSection: FC<{ linked: { email: string } | null; error?: string }> = ({ linked, error }) => (
+  <div id="xanom">
+    <h2>Xanom account</h2>
+    {error ? <p class="error" role="alert">{error}</p> : null}
+    {linked ? (
+      <>
+        <p>Signed in with Xanom · <b>{linked.email}</b></p>
+        <div class="actions"><a class="btn" href="https://accounts.xanom.co/">Manage at accounts.xanom.co</a></div>
+      </>
+    ) : (
+      <>
+        <p>One account for Tare and the other Xanom apps. Converting makes a Xanom account with this email and links it, in one click. Your topics and email settings stay as they are.</p>
+        <form method="post" action="/api/xanom/start">
+          <input type="hidden" name="intent" value="convert" />
+          <div class="actions"><button class="primary" type="submit">Convert to Xanom account</button></div>
+        </form>
+        <form method="post" action="/api/xanom/start">
+          <input type="hidden" name="intent" value="link" />
+          <p class="meta">Already have a Xanom account under another email?</p>
+          <div class="actions"><button type="submit">Link an existing Xanom account</button></div>
+        </form>
+      </>
+    )}
+  </div>
+);
+
+export const AccountPage: FC<{ saved?: string; aiProvider: AiProvider | null; autoBriefings?: boolean; xanom?: { linked: { email: string } | null; error?: string } | null }> = ({ saved, aiProvider, autoBriefings = false, xanom = null }) => {
   const viewer = useViewer()!;
   const emailOn = viewer.status === "active";
   return (
@@ -348,6 +384,8 @@ export const AccountPage: FC<{ saved?: string; aiProvider: AiProvider | null; au
         </form>
 
         <div id="ai"><AiConnection provider={aiProvider} auto={autoBriefings} /></div>
+
+        {xanom ? <XanomSection linked={xanom.linked} error={xanom.error} /> : null}
 
         <h2>Sign out</h2>
         <form method="post" action="/signout">

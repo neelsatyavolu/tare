@@ -76,6 +76,27 @@ struct TareAPI: Sendable {
         let _: OK = try await send("me", method: "DELETE", token: token)
     }
 
+    // MARK: Xanom accounts (the routes live at /api/xanom, beside /api/v1)
+
+    /// `…/api/v1/` → `…/api/xanom/`.
+    private var xanomBase: URL { base.deletingLastPathComponent().appending(path: "xanom/") }
+
+    /// Where the browser sheet starts a Xanom sign-in.
+    var xanomSignInURL: URL {
+        xanomBase.appending(path: "start").appending(queryItems: [URLQueryItem(name: "platform", value: "ios"), URLQueryItem(name: "intent", value: "signin")])
+    }
+
+    /// A one-time start URL for linking or converting the signed-in account.
+    func xanomStart(intent: String, token: String) async throws -> URL {
+        struct Start: Decodable { let url: URL }
+        let start: Start = try await send("ios-start", body: ["intent": intent], token: token, base: xanomBase)
+        return start.url
+    }
+
+    func xanomExchange(ticket: String, verifier: String) async throws -> SignedIn {
+        try await send("ios-exchange", body: ["ticket": ticket, "verifier": verifier], base: xanomBase)
+    }
+
     func briefing(storyId: String) async throws -> BriefingState {
         try await send("stories/\(storyId)/briefing", method: "GET")
     }
@@ -85,8 +106,8 @@ struct TareAPI: Sendable {
     }
 
     /// An uncached JSON request; a failure carries the server's message when it sent one.
-    private func send<T: Decodable>(_ path: String, method: String = "POST", body: [String: String]? = nil, token: String? = nil) async throws -> T {
-        var request = URLRequest(url: base.appending(path: path))
+    private func send<T: Decodable>(_ path: String, method: String = "POST", body: [String: String]? = nil, token: String? = nil, base: URL? = nil) async throws -> T {
+        var request = URLRequest(url: (base ?? self.base).appending(path: path))
         request.httpMethod = method
         request.cachePolicy = .reloadIgnoringLocalCacheData
         if let token { request.setValue("Bearer \(token)", forHTTPHeaderField: "authorization") }

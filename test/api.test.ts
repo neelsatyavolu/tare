@@ -125,7 +125,7 @@ describe("/api/v1 sign-in and briefings", () => {
     expect((await req("/api/v1/signin/verify", json({ email: "reader@example.com", code }))).status).toBe(400);
 
     const me = await req("/api/v1/me", { headers: { authorization: `Bearer ${token}` } });
-    expect(await me.json()).toEqual({ email: "reader@example.com", ai: null });
+    expect(await me.json()).toEqual({ email: "reader@example.com", ai: null, xanom: null });
     // Without an AI account connected, asking for a briefing points to the site.
     const ask = await req(`/api/v1/stories/${LEAD}/briefing`, { method: "POST", headers: { authorization: `Bearer ${token}` } });
     expect(ask.status).toBe(409);

@@ -8,6 +8,8 @@ import Security
 final class Account {
     private(set) var email: String?
     private(set) var ai: Me.AI?
+    /// The Xanom account this reader is linked to, if any.
+    private(set) var xanom: Me.Xanom?
     private(set) var token: String? = Keychain.read()
 
     private let api = TareAPI.shared
@@ -33,10 +35,33 @@ final class Account {
             let me = try await api.me(token: token)
             email = me.email
             ai = me.ai
+            xanom = me.xanom
         } catch let error as TareAPI.APIError where error.statusCode == 401 {
             forget()
         } catch {
             // Offline: keep what we know.
+        }
+    }
+
+    /// Where the Xanom browser sheet starts. Linking and converting need a one-time URL for this reader.
+    func xanomStartURL(_ intent: XanomIntent) async throws -> URL {
+        if intent == .signin { return api.xanomSignInURL }
+        guard let token else { throw XanomError(message: "Sign in first.") }
+        return try await api.xanomStart(intent: intent.rawValue, token: token)
+    }
+
+    /// Swaps the ticket the sheet came back with for a session, replacing (and ending) any session we had.
+    func finishXanom(callback url: URL, verifier: String) async throws {
+        switch XanomCallback(url: url) {
+        case .failure(let message):
+            throw XanomError(message: message)
+        case .ticket(let ticket):
+            let signedIn = try await api.xanomExchange(ticket: ticket, verifier: verifier)
+            if let old = token, old != signedIn.token { try? await api.signOut(token: old) }
+            Keychain.save(signedIn.token)
+            token = signedIn.token
+            email = signedIn.email
+            await refresh()
         }
     }
 
@@ -63,6 +88,7 @@ final class Account {
         token = nil
         email = nil
         ai = nil
+        xanom = nil
     }
 }
 

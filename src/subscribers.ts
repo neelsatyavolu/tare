@@ -108,6 +108,7 @@ export async function deleteAccount(db: D1Database, id: string): Promise<void> {
   await db.batch([
     db.prepare("DELETE FROM sessions WHERE subscriber_id = ?").bind(id),
     db.prepare("DELETE FROM signin_codes WHERE subscriber_id = ?").bind(id),
+    db.prepare("DELETE FROM xanom_handoffs WHERE subscriber_id = ?").bind(id),
     db.prepare("DELETE FROM ai_connections WHERE subscriber_id = ?").bind(id),
     db.prepare("DELETE FROM subscribers WHERE id = ?").bind(id),
   ]);
